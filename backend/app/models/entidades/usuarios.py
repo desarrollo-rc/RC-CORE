@@ -3,9 +3,10 @@ from app.extensions import db
 from sqlalchemy import func
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.dialects.postgresql import JSONB
-from app.models.roles import usuarios_roles
-from app.models.roles import Permiso
-from app.models.roles import Rol
+from .roles import usuarios_roles
+from .roles import Permiso
+from .roles import Rol
+from .areas import Area
 from sqlalchemy.ext.hybrid import hybrid_property
 
 class Usuario(db.Model):

@@ -1,7 +1,6 @@
 from app.extensions import db
 from sqlalchemy.orm import validates
-from .entidades_auxiliares import MixinAuditoria
-
+from app.models.entidades.entidades_auxiliares import MixinAuditoria
 
 class CanalVenta(db.Model, MixinAuditoria):
     __tablename__ = 'canales_venta'

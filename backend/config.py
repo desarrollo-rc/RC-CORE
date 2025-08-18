@@ -25,3 +25,6 @@ class Config:
     
     # Desactiva una función de SQLAlchemy que no necesitamos y que consume recursos.
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Clave para firma de JWT
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'una-clave-super-secreta'

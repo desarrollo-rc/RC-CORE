@@ -1,55 +1,9 @@
-from .entidades_auxiliares import (
-    MixinAuditoria,
-    TipoCliente,
-    SegmentoCliente,
-    ListaPrecios,
-    CondicionPago,
-    Empresa,
-)
+# backend/app/models/__init__.py
 
-from .roles import (
-    roles_permisos,
-    usuarios_roles,
-    Rol,
-    Permiso,
-)
+# Importar todos los modelos de cada subpaquete para que SQLAlchemy los reconozca
+from .entidades import *
+from .negocio import *
+from .analitica import *
 
-from .usuario import Usuario
-from .maestro_clientes import MaestroClientes
-from .contacto import Contacto
-from .direccion import Direccion
-from .usuario_b2b import UsuarioB2B
-from .metricas import ClienteMetricas
-from .canales import CanalVenta
-from .tipo_regla import TipoRegla
-from .reglas import MotorReglasComerciales
-from .areas import Area
-
-__all__ = [
-    # entidades_auxiliares
-    "MixinAuditoria",
-    "TipoCliente",
-    "SegmentoCliente",
-    "ListaPrecios",
-    "CondicionPago",
-    "Empresa",
-    # roles y permisos
-    "roles_permisos",
-    "usuarios_roles",
-    "Rol",
-    "Permiso",
-    "Area",
-    # usuarios y clientes
-    "Usuario",
-    "MaestroClientes",
-    "Contacto",
-    "Direccion",
-    "UsuarioB2B",
-    # analitica y negocio
-    "ClienteMetricas",
-    "CanalVenta",
-    "TipoRegla",
-    "MotorReglasComerciales",
-]
-
-
+# El __all__ es una buena práctica para definir la API pública del módulo
+__all__ = entidades.__all__ + negocio.__all__ + analitica.__all__
