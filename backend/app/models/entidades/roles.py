@@ -1,4 +1,4 @@
-# backend/app/models/roles.py
+# backend/app/models/entidades/roles.py
 from app.extensions import db
 
 roles_permisos = db.Table('roles_permisos',

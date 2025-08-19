@@ -49,12 +49,27 @@ class TipoClienteService:
         return tipo_cliente
     
     @staticmethod
-    def delete_tipo_cliente(tipo_cliente_id):
+    def deactivate_tipo_cliente(tipo_cliente_id):
         """
-        Realiza un borrado lógico del tipo de cliente.
+        Desactiva un tipo de cliente.
         """
         tipo_cliente = TipoClienteService.get_tipo_cliente_by_id(tipo_cliente_id)
         tipo_cliente.activo = False
+       
         db.session.commit()
-        # No se retorna contenido en un delete exitoso
-        return None
+        db.session.refresh(tipo_cliente) # Actualiza el objeto con los cambios en la base de datos.
+        
+        return tipo_cliente
+
+    @staticmethod
+    def activate_tipo_cliente(tipo_cliente_id):
+        """
+        Activa un tipo de cliente.
+        """
+        tipo_cliente = TipoClienteService.get_tipo_cliente_by_id(tipo_cliente_id)
+        tipo_cliente.activo = True
+
+        db.session.commit()
+        db.session.refresh(tipo_cliente)
+        
+        return tipo_cliente

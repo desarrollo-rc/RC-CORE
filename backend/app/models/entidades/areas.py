@@ -1,3 +1,4 @@
+# backend/app/models/entidades/areas.py
 from app.extensions import db
 from .entidades_auxiliares import MixinAuditoria
 from sqlalchemy.orm import validates

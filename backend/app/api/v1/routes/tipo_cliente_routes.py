@@ -66,11 +66,22 @@ def update_tipo_cliente(tipo_cliente_id):
     except Exception:
         return jsonify({"error": "Ocurrió un error interno en el servidor."}), 500
 
-@tipos_cliente_bp.route('/<int:tipo_cliente_id>', methods=['DELETE'])
+@tipos_cliente_bp.route('/<int:tipo_cliente_id>/deactivate', methods=['PUT'])
 @jwt_required()
-def delete_tipo_cliente(tipo_cliente_id):
+def deactivate_tipo_cliente(tipo_cliente_id):
     try:
-        TipoClienteService.delete_tipo_cliente(tipo_cliente_id)
-        return '', 204 # No Content
+        tipo_cliente = TipoClienteService.deactivate_tipo_cliente(tipo_cliente_id)
+        return schema_single.dump(tipo_cliente), 200
     except NotFound:
         return jsonify({"error": f"Tipo de cliente con ID {tipo_cliente_id} no encontrado."}), 404
+
+@tipos_cliente_bp.route('/<int:tipo_cliente_id>/activate', methods=['PUT'])
+@jwt_required()
+def activate_tipo_cliente(tipo_cliente_id):
+    try:
+        tipo_cliente = TipoClienteService.activate_tipo_cliente(tipo_cliente_id)
+        return schema_single.dump(tipo_cliente), 200
+    except NotFound:
+        return jsonify({"error": f"Tipo de cliente con ID {tipo_cliente_id} no encontrado."}), 404
+    except Exception:
+        return jsonify({"error": "Ocurrió un error interno en el servidor."}), 500

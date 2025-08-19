@@ -1,4 +1,4 @@
-# backend/app/models/usuario.py
+# backend/app/models/entidades/usuarios.py
 from app.extensions import db
 from sqlalchemy import func
 from werkzeug.security import generate_password_hash, check_password_hash
