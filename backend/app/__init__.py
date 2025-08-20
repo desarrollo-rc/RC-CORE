@@ -52,6 +52,12 @@ def create_app(config_class=Config):
     from .api.v1.routes.usuarios_routes import usuarios_bp
     app.register_blueprint(usuarios_bp, url_prefix='/api/v1/usuarios')
     
+    from .api.v1.routes.vendedor_routes import vendedores_bp
+    app.register_blueprint(vendedores_bp, url_prefix='/api/v1/vendedores')
+    
+    from .api.v1.routes.empresa_routes import empresas_bp
+    app.register_blueprint(empresas_bp, url_prefix='/api/v1/empresas')
+    
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

@@ -37,7 +37,7 @@ class Usuario(db.Model):
 
     # --- Relaciones Inversas (Conexiones al Negocio) ---
     clientes_creados = db.relationship('MaestroClientes', foreign_keys='MaestroClientes.id_usuario_creacion', back_populates='creador')
-    clientes_asignados = db.relationship('MaestroClientes', foreign_keys='MaestroClientes.id_usuario_vendedor', back_populates='vendedor')
+    perfil_vendedor = db.relationship('Vendedor', back_populates='usuario', uselist=False, cascade="all, delete-orphan")
 
     # --- Auditoría ---
     fecha_creacion = db.Column(db.DateTime, server_default=func.now(), nullable=False)

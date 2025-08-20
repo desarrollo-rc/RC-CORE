@@ -31,7 +31,7 @@ class MaestroClientes(db.Model):
     id_lista_precios = db.Column(db.Integer, db.ForeignKey('entidades.listas_precios.id_lista_precios'), nullable=False)
     id_condicion_pago = db.Column(db.Integer, db.ForeignKey('entidades.condiciones_pago.id_condicion_pago'))
     id_usuario_creacion = db.Column(db.Integer, db.ForeignKey('entidades.usuarios.id_usuario'), nullable=False)
-    id_usuario_vendedor = db.Column(db.Integer, db.ForeignKey('entidades.usuarios.id_usuario'))
+    id_vendedor = db.Column(db.Integer, db.ForeignKey('negocio.vendedores.id_vendedor'))
     id_empresa = db.Column(db.Integer, db.ForeignKey('entidades.empresas.id_empresa'), nullable=False, comment='Refiere a nuestra empresa (Repuesto Center S.A., etc)')
 
     # --- Relaciones ---
@@ -56,7 +56,7 @@ class MaestroClientes(db.Model):
 
 
     creador = db.relationship('Usuario', foreign_keys=[id_usuario_creacion], back_populates='clientes_creados')
-    vendedor = db.relationship('Usuario', foreign_keys=[id_usuario_vendedor], back_populates='clientes_asignados')
+    vendedor = db.relationship('Vendedor', back_populates='clientes')
     
     # --- Auditoría ---
     fecha_creacion = db.Column(db.DateTime, server_default=func.now(), nullable=False)

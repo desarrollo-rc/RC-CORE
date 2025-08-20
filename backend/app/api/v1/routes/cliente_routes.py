@@ -1,6 +1,6 @@
 # backend/app/api/v1/routes/cliente_routes.py
 from flask import Blueprint, request, jsonify
-from app.api.v1.schemas.cliente_schemas import ClienteSchema, ClienteResponseSchema, PaginationSchema, UpdateClienteSchema
+from app.api.v1.schemas.cliente_schemas import ClienteSchema, ClienteResponseSchema, PaginationSchema, UpdateClienteSchema, DeactivateClienteSchema
 from app.api.v1.services.cliente_service import ClienteService
 from app.api.v1.utils.errors import BusinessRuleError
 from marshmallow import ValidationError
@@ -15,6 +15,7 @@ clientes_response_schema = ClienteResponseSchema(many=True)
 cliente_response_schema_single = ClienteResponseSchema()
 pagination_schema = PaginationSchema()
 update_cliente_schema = UpdateClienteSchema()
+deactivate_schema = DeactivateClienteSchema()
 
 @clientes_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -137,3 +138,25 @@ def delete_cliente(cliente_id):
     """
     return jsonify({"message": f"Funcionalidad de eliminar cliente {cliente_id} pendiente."}), 501
 
+@clientes_bp.route('/<int:cliente_id>/deactivate', methods=['PUT'])
+@jwt_required()
+def deactivate_cliente(cliente_id):
+    """Endpoint para desactivar un cliente."""
+    try:
+        data = deactivate_schema.load(request.get_json())
+        cliente = ClienteService.deactivate_customer(cliente_id, data)
+        return cliente_response_schema_single.dump(cliente), 200
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except NotFound:
+        return jsonify({"error": f"Cliente con ID {cliente_id} no encontrado."}), 404
+
+@clientes_bp.route('/<int:cliente_id>/activate', methods=['PUT'])
+@jwt_required()
+def activate_cliente(cliente_id):
+    """Endpoint para activar un cliente."""
+    try:
+        cliente = ClienteService.activate_customer(cliente_id)
+        return cliente_response_schema_single.dump(cliente), 200
+    except NotFound:
+        return jsonify({"error": f"Cliente con ID {cliente_id} no encontrado."}), 404

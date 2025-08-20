@@ -36,6 +36,8 @@ class UsuarioResponseSchema(UsuarioBaseSchema):
     jefe_directo = fields.Nested(UsuarioSimpleSchema, dump_only=True)
     subordinados = fields.List(fields.Nested(UsuarioSimpleSchema), dump_only=True)
     
+    perfil_vendedor = fields.Nested("VendedorSchema", dump_only=True, allow_none=True)
+
     class Meta:
         exclude = ('roles_ids', 'id_jefe_directo')
 

@@ -1,8 +1,9 @@
 # backend/app/api/v1/services/cliente_service.py
 from app.models.entidades import (
     MaestroClientes, Contacto, Direccion, TipoCliente, SegmentoCliente,
-    ListaPrecios, CondicionPago, Empresa
+    ListaPrecios, CondicionPago, Empresa, Usuario
 )
+from app.models.negocio import Vendedor
 from app import db
 from sqlalchemy.exc import IntegrityError
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError, BusinessRuleError
@@ -18,6 +19,10 @@ class ClienteService:
         # La lógica principal se delega a métodos privados
         ClienteService._validate_uniqueness(data)
         related_entities = ClienteService._resolve_related_entities(data)
+
+        if data.get('id_vendedor'):
+            if not Vendedor.query.get(data['id_vendedor']):
+                raise RelatedResourceNotFoundError(f"El vendedor con ID {data['id_vendedor']} no existe.")
         
         new_customer = ClienteService._build_customer_instance(data, user_id, related_entities)
 
@@ -70,7 +75,7 @@ class ClienteService:
             id_condicion_pago=entities['condicion_pago'].id_condicion_pago,
             id_empresa=entities['empresa'].id_empresa,
             id_usuario_creacion=user_id,
-            id_usuario_vendedor=user_id
+            id_vendedor=data.get('id_vendedor')
         )
 
         new_customer.contactos = [Contacto(**c_data) for c_data in data['contactos']]
@@ -105,6 +110,12 @@ class ClienteService:
         ClienteService._validate_uniqueness_on_update(data, customer)
         ClienteService._update_simple_fields(data, customer)
         ClienteService._update_foreign_keys(data, customer)
+        if 'id_vendedor' in data:
+            vendedor_id = data['id_vendedor']
+            if vendedor_id and not Vendedor.query.get(vendedor_id):
+                raise RelatedResourceNotFoundError(f"El vendedor con ID {vendedor_id} no existe.")
+            customer.id_vendedor = vendedor_id
+
         ClienteService._sync_contacts(data.get('contactos', []), customer)
         ClienteService._sync_direcciones(data.get('direcciones', []), customer)
 
@@ -189,4 +200,25 @@ class ClienteService:
                 existing_item = db_items_map[item_id]
                 for key, value in item_data.items():
                     setattr(existing_item, key, value)
-        
+    
+    @staticmethod
+    def deactivate_customer(customer_id, data):
+        """
+        Desactiva un cliente y registra el motivo del bloqueo.
+        """
+        customer = ClienteService.get_customer_by_id(customer_id)
+        customer.activo = False
+        customer.motivo_bloqueo = data['motivo_bloqueo']
+        db.session.commit()
+        return customer
+
+    @staticmethod
+    def activate_customer(customer_id):
+        """
+        Reactiva un cliente y limpia el motivo del bloqueo.
+        """
+        customer = ClienteService.get_customer_by_id(customer_id)
+        customer.activo = True
+        customer.motivo_bloqueo = None
+        db.session.commit()
+        return customer

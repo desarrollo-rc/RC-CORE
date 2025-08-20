@@ -1,5 +1,6 @@
 # backend/app/api/v1/schemas/cliente_schemas.py
 from marshmallow import Schema, fields, validate
+from app.api.v1.schemas.vendedor_schemas import VendedorSchema
 
 # --- Schemas para entidades anidadas ---
 
@@ -82,6 +83,10 @@ class ClienteSchema(BaseClienteSchema):
     codigo_condicion_pago = fields.Str(required=True)
     codigo_empresa = fields.Str(required=True)
 
+    id_vendedor = fields.Int(required=False, allow_none=True)
+
+    vendedor = fields.Nested(VendedorSchema, dump_only=True, allow_none=True)
+
 
 # --- Schema para mostrar los datos de salida ---
 
@@ -134,6 +139,15 @@ class UpdateClienteSchema(Schema):
     codigo_condicion_pago = fields.Str()
     codigo_empresa = fields.Str()
 
+    id_vendedor = fields.Int(allow_none=True)
+
     # Relaciones anidadas (no son requeridas en la actualización)
     contactos = fields.List(fields.Nested(ContactoSchema))
     direcciones = fields.List(fields.Nested(DireccionSchema))
+
+class DeactivateClienteSchema(Schema):
+    """
+    Schema para la desactivación de un cliente.
+    El motivo del bloqueo es obligatorio.
+    """
+    motivo_bloqueo = fields.Str(required=True, validate=validate.Length(min=10, max=255))
