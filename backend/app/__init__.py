@@ -57,6 +57,15 @@ def create_app(config_class=Config):
     
     from .api.v1.routes.empresa_routes import empresas_bp
     app.register_blueprint(empresas_bp, url_prefix='/api/v1/empresas')
+
+    from .api.v1.routes.contacto_routes import contactos_bp
+    app.register_blueprint(contactos_bp, url_prefix='/api/v1/contactos')
+
+    from .api.v1.routes.direccion_routes import direcciones_bp
+    app.register_blueprint(direcciones_bp, url_prefix='/api/v1/direcciones')
+    
+    from .api.v1.routes.canal_venta_routes import canales_venta_bp
+    app.register_blueprint(canales_venta_bp, url_prefix='/api/v1/canales-venta')
     
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona

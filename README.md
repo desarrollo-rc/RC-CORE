@@ -20,11 +20,35 @@ Modelos
 - CondicionPago [x][x]
 - Empresa [x][x]
 - TipoRegla [x][]
-- Direccion [x][]
-- Contacto [x][]
+- Direccion [x][x]
+- Contacto [x][x]
 - Canales [x][]
 - Areas [x][x]
 - HistorialCambios[x][]
 - Vendedores[x][x]
 - Metas[x][]
 - Tipo de Metas[x][]
+- Productos
+- Origen
+- Fabrica
+- Proveedor
+- Calidad
+- Códigos Referencia
+- Códigos Tecnicos
+- Aplicaciones
+- Modelos
+- Marcas
+- Medidas
+- Atributos
+- Categoría
+- SubCategoria
+- Preventa
+- Pedidos
+- PI
+- CI
+- OC
+- Competencia
+
+
+
+margen = (PRECIO VENTA - COSTO ) / PRECIO VENTA
