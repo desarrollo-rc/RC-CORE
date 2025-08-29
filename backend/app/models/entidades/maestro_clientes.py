@@ -1,6 +1,7 @@
 from app.extensions import db
 from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
+from app.models.entidades.entidades_auxiliares import cliente_empresa
 
 class MaestroClientes(db.Model):
     __tablename__ = 'maestro_clientes'
@@ -28,18 +29,19 @@ class MaestroClientes(db.Model):
     # --- Llaves Foráneas ---
     id_tipo_cliente = db.Column(db.Integer, db.ForeignKey('entidades.tipos_cliente.id_tipo_cliente'), nullable=False)
     id_segmento_cliente = db.Column(db.Integer, db.ForeignKey('entidades.segmentos_cliente.id_segmento_cliente'), nullable=False)
+    id_tipo_negocio = db.Column(db.Integer, db.ForeignKey('entidades.tipo_negocio.id_tipo_negocio'), nullable=False)
     id_lista_precios = db.Column(db.Integer, db.ForeignKey('entidades.listas_precios.id_lista_precios'), nullable=False)
     id_condicion_pago = db.Column(db.Integer, db.ForeignKey('entidades.condiciones_pago.id_condicion_pago'))
     id_usuario_creacion = db.Column(db.Integer, db.ForeignKey('entidades.usuarios.id_usuario'), nullable=False)
     id_vendedor = db.Column(db.Integer, db.ForeignKey('negocio.vendedores.id_vendedor'))
-    id_empresa = db.Column(db.Integer, db.ForeignKey('entidades.empresas.id_empresa'), nullable=False, comment='Refiere a nuestra empresa (Repuesto Center S.A., etc)')
 
     # --- Relaciones ---
     tipo_cliente = db.relationship('TipoCliente', back_populates='clientes')
     segmento_cliente = db.relationship('SegmentoCliente', back_populates='clientes')
+    tipo_negocio = db.relationship('TipoNegocio', back_populates='clientes')
     lista_precios = db.relationship('ListaPrecios', back_populates='clientes')
     condicion_pago = db.relationship('CondicionPago', back_populates='clientes')
-    empresa = db.relationship('Empresa', back_populates='clientes')
+    empresas = db.relationship('Empresa', secondary=cliente_empresa, back_populates='clientes')
 
     # Relaciona al cliente con sus personas de contacto (administrativos, técnicos, etc.). Pieza clave para la gestión de relaciones.
     contactos = db.relationship('Contacto', back_populates='cliente', cascade="all, delete-orphan")

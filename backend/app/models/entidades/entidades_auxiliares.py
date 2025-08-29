@@ -122,6 +122,12 @@ class CondicionPago(db.Model, MixinAuditoria):
     def __repr__(self):
         return f'<CondicionPago [{self.codigo_condicion_pago}] {self.dias_credito} días>'
 
+cliente_empresa = db.Table('cliente_empresa',
+    db.Column('id_cliente', db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), primary_key=True),
+    db.Column('id_empresa', db.Integer, db.ForeignKey('entidades.empresas.id_empresa'), primary_key=True),
+    schema='entidades'
+)
+
 class Empresa(db.Model, MixinAuditoria):
     __tablename__ = 'empresas'
     __table_args__ = {'schema': 'entidades', 'comment': 'Almacena las empresas (Repuesto Center S.A., etc)'}
@@ -131,7 +137,7 @@ class Empresa(db.Model, MixinAuditoria):
     rut_empresa = db.Column(db.String(15), unique=True, nullable=False, index=True)
     codigo_empresa = db.Column(db.String(20), unique=True, nullable=False, comment='Código de la empresa (RC_CL, RC_PE, GH, etc)')
 
-    clientes = db.relationship('MaestroClientes', back_populates='empresa')
+    clientes = db.relationship('MaestroClientes', secondary=cliente_empresa, back_populates='empresas')
 
     @validates('codigo_empresa', 'nombre_empresa', 'rut_empresa')
     def validate_fields(self, key, value):

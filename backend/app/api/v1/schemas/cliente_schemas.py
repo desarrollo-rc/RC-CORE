@@ -28,6 +28,11 @@ class TipoClienteResponseSchema(Schema):
     codigo_tipo_cliente = fields.Str()
     nombre_tipo_cliente = fields.Str()
 
+class TipoNegocioResponseSchema(Schema):
+    id_tipo_negocio = fields.Int()
+    codigo_tipo_negocio = fields.Str()
+    nombre_tipo_negocio = fields.Str()
+
 class SegmentoClienteResponseSchema(Schema):
     id_segmento_cliente = fields.Int()
     codigo_segmento_cliente = fields.Str()
@@ -79,9 +84,10 @@ class ClienteSchema(BaseClienteSchema):
     # Campos de código para las relaciones, requeridos en la creación
     codigo_tipo_cliente = fields.Str(required=True)
     codigo_segmento_cliente = fields.Str(required=True)
+    codigo_tipo_negocio = fields.Str(required=True)
     codigo_lista_precios = fields.Str(required=True)
     codigo_condicion_pago = fields.Str(required=True)
-    codigo_empresa = fields.Str(required=True)
+    codigos_empresa = fields.List(fields.Str(), required=True, validate=validate.Length(min=1))
 
     id_vendedor = fields.Int(required=False, allow_none=True)
 
@@ -99,9 +105,10 @@ class ClienteResponseSchema(BaseClienteSchema):
     # Mostrar el objeto completo en lugar de solo los códigos
     tipo_cliente = fields.Nested(TipoClienteResponseSchema(), dump_only=True)
     segmento_cliente = fields.Nested(SegmentoClienteResponseSchema(), dump_only=True)
+    tipo_negocio = fields.Nested(TipoNegocioResponseSchema(), dump_only=True) 
     lista_precios = fields.Nested(ListaPreciosResponseSchema(), dump_only=True)
     condicion_pago = fields.Nested(CondicionPagoResponseSchema(), dump_only=True)
-    empresa = fields.Nested(EmpresaResponseSchema(), dump_only=True)
+    empresas = fields.List(fields.Nested(EmpresaResponseSchema), dump_only=True)
 
 class PaginationSchema(Schema):
     """
@@ -135,9 +142,10 @@ class UpdateClienteSchema(Schema):
     # Campos de código para las relaciones
     codigo_tipo_cliente = fields.Str()
     codigo_segmento_cliente = fields.Str()
+    codigo_tipo_negocio = fields.Str()
     codigo_lista_precios = fields.Str()
     codigo_condicion_pago = fields.Str()
-    codigo_empresa = fields.Str()
+    codigos_empresa = fields.List(fields.Str(), validate=validate.Length(min=1))
 
     id_vendedor = fields.Int(allow_none=True)
 

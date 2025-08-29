@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/cliente_service.py
 from app.models.entidades import (
     MaestroClientes, Contacto, Direccion, TipoCliente, SegmentoCliente,
-    ListaPrecios, CondicionPago, Empresa, Usuario
+    ListaPrecios, CondicionPago, Empresa, Usuario, TipoNegocio
 )
 from app.models.negocio import Vendedor
 from app import db
@@ -49,10 +49,18 @@ class ClienteService:
         entities = {
             'tipo_cliente': TipoCliente.get_by_codigo(data['codigo_tipo_cliente']),
             'segmento_cliente': SegmentoCliente.get_by_codigo(data['codigo_segmento_cliente']),
+            'tipo_negocio': TipoNegocio.get_by_codigo(data['codigo_tipo_negocio']),
             'lista_precios': ListaPrecios.get_by_codigo(data['codigo_lista_precios']),
             'condicion_pago': CondicionPago.get_by_codigo(data['codigo_condicion_pago']),
-            'empresa': Empresa.get_by_codigo(data['codigo_empresa']),
         }
+        empresas = []
+        for codigo in data['codigos_empresa']:
+            empresa = Empresa.get_by_codigo(codigo)
+            if not empresa:
+                raise RelatedResourceNotFoundError(f"La empresa con código '{codigo}' no fue encontrada.")
+            empresas.append(empresa)
+        entities['empresas'] = empresas
+
         missing = [name for name, entity in entities.items() if not entity]
         if missing:
             raise RelatedResourceNotFoundError(f"No se encontraron las siguientes entidades relacionadas: {', '.join(missing)}")
@@ -71,12 +79,14 @@ class ClienteService:
             b2b_habilitado=data.get('b2b_habilitado', False),
             id_tipo_cliente=entities['tipo_cliente'].id_tipo_cliente,
             id_segmento_cliente=entities['segmento_cliente'].id_segmento_cliente,
+            id_tipo_negocio=entities['tipo_negocio'].id_tipo_negocio,
             id_lista_precios=entities['lista_precios'].id_lista_precios,
             id_condicion_pago=entities['condicion_pago'].id_condicion_pago,
-            id_empresa=entities['empresa'].id_empresa,
             id_usuario_creacion=user_id,
             id_vendedor=data.get('id_vendedor')
         )
+
+        new_customer.empresas = entities['empresas']
 
         new_customer.contactos = [Contacto(**c_data) for c_data in data['contactos']]
         new_customer.direcciones = [Direccion(**d_data) for d_data in data['direcciones']]
@@ -116,8 +126,20 @@ class ClienteService:
                 raise RelatedResourceNotFoundError(f"El vendedor con ID {vendedor_id} no existe.")
             customer.id_vendedor = vendedor_id
 
-        ClienteService._sync_contacts(data.get('contactos', []), customer)
-        ClienteService._sync_direcciones(data.get('direcciones', []), customer)
+        if 'codigos_empresa' in data:
+            empresas = []
+            for codigo in data['codigos_empresa']:
+                empresa = Empresa.get_by_codigo(codigo)
+                if not empresa:
+                    raise RelatedResourceNotFoundError(f"La empresa con código '{codigo}' no fue encontrada.")
+                empresas.append(empresa)
+            customer.empresas = empresas
+
+        if 'contactos' in data:
+            ClienteService._sync_contacts(data.get('contactos', []), customer)
+        
+        if 'direcciones' in data:
+            ClienteService._sync_direcciones(data.get('direcciones', []), customer)
 
         try:
             db.session.commit()
@@ -153,16 +175,20 @@ class ClienteService:
         key_map = {
             'codigo_tipo_cliente': ('tipo_cliente', TipoCliente, 'id_tipo_cliente'),
             'codigo_segmento_cliente': ('segmento_cliente', SegmentoCliente, 'id_segmento_cliente'),
+            'codigo_tipo_negocio': ('tipo_negocio', TipoNegocio, 'id_tipo_negocio'),
             'codigo_lista_precios': ('lista_precios', ListaPrecios, 'id_lista_precios'),
             'codigo_condicion_pago': ('condicion_pago', CondicionPago, 'id_condicion_pago'),
-            'codigo_empresa': ('empresa', Empresa, 'id_empresa'),
         }
         for code_key, (relation_name, Model, id_key) in key_map.items():
             if code_key in data:
-                new_entity = Model.get_by_codigo(data[code_key])
+                if hasattr(Model, 'get_by_codigo'):
+                    new_entity = Model.get_by_codigo(data[code_key])
+                else: # Fallback para modelos sin get_by_codigo como TipoNegocio
+                    new_entity = Model.query.filter_by(**{'codigo_' + relation_name: data[code_key].upper().strip()}).first()
+
                 if not new_entity:
                     raise RelatedResourceNotFoundError(f"No se encontró la entidad para {code_key} con valor '{data[code_key]}'")
-                setattr(customer, id_key, new_entity.id)
+                setattr(customer, id_key, getattr(new_entity, id_key))
     
     @staticmethod
     def _sync_contacts(contacts_data, customer):
