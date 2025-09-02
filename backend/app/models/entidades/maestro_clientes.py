@@ -25,7 +25,8 @@ class MaestroClientes(db.Model):
     activo = db.Column(db.Boolean, default=True, nullable=False, comment='Cliente activo para operar. Si es False, revisar motivo_bloqueo.')
     motivo_bloqueo = db.Column(db.String(255), nullable=True, comment='Causa del bloqueo. Si activo = True, este campo debe ser NULO.')
     b2b_habilitado = db.Column(db.Boolean, default=False, nullable=False, comment='Si la empresa cliente tiene acceso al portal B2B.')
-
+    es_vip = db.Column(db.Boolean, default=False, nullable=False, comment='Si el cliente es VIP.')
+    
     # --- Llaves Foráneas ---
     id_tipo_cliente = db.Column(db.Integer, db.ForeignKey('entidades.tipos_cliente.id_tipo_cliente'), nullable=False)
     id_segmento_cliente = db.Column(db.Integer, db.ForeignKey('entidades.segmentos_cliente.id_segmento_cliente'), nullable=False)

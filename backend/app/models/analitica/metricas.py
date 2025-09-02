@@ -38,10 +38,10 @@ class ClienteMetricasCanal(db.Model):
         {'schema': 'analitica', 'comment': 'SPOKE. KPIs de un cliente por cada canal de venta.'}
     )
 
-    id_cliente = db.Column(db.Integer, db.ForeignKey('analitica.cliente_metricas.id_cliente'), nullable=False, index=True)
+    id_cliente = db.Column(db.Integer, db.ForeignKey('analitica.cliente_metricas.id_cliente'), nullable=False)
 
-    id_canal = db.Column(db.Integer, db.ForeignKey('negocio.canales.id_canal'), nullable=False, index=True)
-    canal = db.relationship('Canales', back_populates='cliente_metricas_canal')
+    id_canal = db.Column(db.Integer, db.ForeignKey('negocio.canales_venta.id_canal'), nullable=False)
+    canal = db.relationship('CanalVenta', back_populates='cliente_metricas_canal')
 
     # --- KPIs por Canal ---
     monto_total_canal = db.Column(db.Numeric(15, 2), default=0.0)
@@ -49,7 +49,7 @@ class ClienteMetricasCanal(db.Model):
     cantidad_ordenes_canal = db.Column(db.Integer, default=0)
     fecha_ultima_compra_canal = db.Column(db.DateTime)
 
-    metricas = db.relationship('ClienteMetricas', back_populates='metricas_canal') 
+    cliente_metricas = db.relationship('ClienteMetricas', back_populates='metricas_canal') 
 
     def __repr__(self):
         return f'<ClienteMetricasCanal id_cliente={self.id_cliente} canal={self.canal}>'
@@ -61,17 +61,17 @@ class ClienteMetricasMarca(db.Model):
         {'schema': 'analitica', 'comment': 'SPOKE. KPIs de un cliente por cada marca.'}
     )
 
-    id_cliente = db.Column(db.Integer, db.ForeignKey('analitica.cliente_metricas.id_cliente'), nullable=False, index=True)
+    id_cliente = db.Column(db.Integer, db.ForeignKey('analitica.cliente_metricas.id_cliente'), nullable=False)
 
-    id_marca = db.Column(db.Integer, db.ForeignKey('negocio.marcas.id_marca'), nullable=False, index=True)
-    marca = db.relationship('Marcas', back_populates='cliente_metricas_marca')
+    id_marca = db.Column(db.Integer, db.ForeignKey('productos.marcas.id_marca'), nullable=False)
+    marca = db.relationship('Marca', back_populates='cliente_metricas_marca')
 
     monto_total_marca = db.Column(db.Numeric(15, 2), default=0.0)
     cantidad_productos_marca = db.Column(db.Integer, default=0)
     ticket_promedio_marca = db.Column(db.Numeric(12, 2), default=0.0)
     fecha_ultima_compra_marca = db.Column(db.DateTime, nullable=True)
     
-    metricas = db.relationship('ClienteMetricas', back_populates='metricas_marca')
+    cliente_metricas = db.relationship('ClienteMetricas', back_populates='metricas_marca')
     
     def __repr__(self):
         return f'<ClienteMetricasMarca id_cliente={self.id_cliente} marca={self.marca}>'
@@ -89,7 +89,7 @@ class ClienteActividad(db.Model):
     busquedas_sin_resultado_total = db.Column(db.Integer, default=0)
     #COIDOGS QUE VIO VS LOS QUE COMPRÓ
 
-    metricas = db.relationship('ClienteMetricas', back_populates='actividad')
+    cliente_metricas = db.relationship('ClienteMetricas', back_populates='actividad')
 
     def __repr__(self):
         return f'<ClienteActividad id_cliente={self.id_cliente}>'
@@ -97,13 +97,13 @@ class ClienteActividad(db.Model):
 class ClienteMetricasMensuales(db.Model):
     __tablename__ = 'cliente_metricas_mensuales'
     __table_args__ = (
-        PrimaryKeyConstraint('id_cliente', 'year', 'month', name='pk_cliente_mes'),
+        PrimaryKeyConstraint('id_cliente', 'anio', 'mes', name='pk_cliente_mes'),
         {'schema': 'analitica', 'comment': 'SPOKE. KPIs mensuales de un cliente para análisis de tendencias.'}
     )
 
     id_cliente = db.Column(db.Integer, db.ForeignKey('analitica.cliente_metricas.id_cliente'), nullable=False)
-    year = db.Column(db.SmallInteger, nullable=False, comment='Ej: 2025')
-    month = db.Column(db.SmallInteger, nullable=False, comment='Ej: 8 para Agosto')
+    anio = db.Column(db.SmallInteger, nullable=False, comment='Ej: 2025')
+    mes = db.Column(db.SmallInteger, nullable=False, comment='Ej: 8 para Agosto')
 
     # --- KPIs Mensuales ---
     monto_total_mes = db.Column(db.Numeric(15, 2), default=0.0) #monto_total_historico

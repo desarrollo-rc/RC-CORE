@@ -16,9 +16,7 @@ class DireccionSchema(Schema):
     id_direccion = fields.Int()
     calle = fields.Str(required=True)
     numero = fields.Str()
-    comuna = fields.Str(required=True)
-    ciudad = fields.Str(required=True)
-    region = fields.Str(required=True)
+    id_comuna = fields.Int()
     codigo_postal = fields.Str()
     es_facturacion = fields.Bool(load_default=False)
     es_despacho = fields.Bool(load_default=True)
@@ -66,6 +64,7 @@ class BaseClienteSchema(Schema):
 
     # Banderas de Estado
     b2b_habilitado = fields.Bool()
+    es_vip = fields.Bool()
     
     # Relaciones
     contactos = fields.List(fields.Nested(ContactoSchema))
@@ -138,6 +137,7 @@ class UpdateClienteSchema(Schema):
 
     # Banderas de Estado
     b2b_habilitado = fields.Bool()
+    es_vip = fields.Bool()
 
     # Campos de código para las relaciones
     codigo_tipo_cliente = fields.Str()

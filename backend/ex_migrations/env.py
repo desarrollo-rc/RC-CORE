@@ -100,10 +100,6 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
-            # 1. Le decimos a Alembic que debe inspeccionar todos los esquemas
-            include_schemas=True,
-            # 2. Le decimos que la tabla de versiones está en el esquema por defecto (public)
-            version_table_schema=target_db.metadata.schema,
             **conf_args
         )
 

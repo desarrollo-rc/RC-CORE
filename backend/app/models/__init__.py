@@ -5,6 +5,7 @@ from .entidades import *
 from .negocio import *
 from .analitica import *
 from .soporte import *
+from .productos import *
 
 # El __all__ es una buena práctica para definir la API pública del módulo
-__all__ = entidades.__all__ + negocio.__all__ + analitica.__all__ + soporte.__all__
+__all__ = entidades.__all__ + negocio.__all__ + analitica.__all__ + soporte.__all__ + productos.__all__

@@ -9,7 +9,7 @@ from .entidades_auxiliares import (
 
 from .maestro_clientes import MaestroClientes
 from .contacto import Contacto
-from .direccion import Direccion
+from .direccion import Direccion, Comuna, Ciudad, Region, Pais
 from .usuarios import Usuario
 from .usuarios_b2b import UsuarioB2B
 from .areas import Area
@@ -28,6 +28,10 @@ __all__ = [
     "MaestroClientes",
     "Contacto",
     "Direccion",
+    "Comuna",
+    "Ciudad",
+    "Region",
+    "Pais",
     "UsuarioB2B",
     "Area",
     "Usuario",
