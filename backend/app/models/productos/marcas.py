@@ -5,23 +5,22 @@ from sqlalchemy.orm import validates
 
 class Marca(db.Model, MixinAuditoria):
     __tablename__ = 'marcas'
-    __table_args__ = {'schema': 'productos', 'comment': 'Marcas de los productos (RC, GH, Bosch, etc.)'}
+    __table_args__ = {'schema': 'productos', 'comment': 'Marcas de vehículos y productos (Toyota, Bosch, etc.)'}
 
     id_marca = db.Column(db.Integer, primary_key=True)
     codigo_marca = db.Column(db.String(30), unique=True, nullable=False)
     nombre_marca = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.String(255), nullable=True, comment="Breve descripción o eslogan de la marca.")
-
-    # Campo estratégico para segmentar nuestras marcas.
-    tier_marca = db.Column(db.String(50), nullable=True, comment="Tier de la marca (TIER 1, TIER 2, TIER 3, TIER 4, etc.)")
+    tier_marca = db.Column(db.String(50), nullable=True, comment="Tier de la marca (TIER 1, TIER 2, etc.)")
     
-    # Asumo que tendrás una tabla 'paises' en el esquema 'general' como en el modelo de Direcciones
     id_pais_origen = db.Column(db.Integer, db.ForeignKey('general.paises.id_pais'), nullable=True)
     pais_origen = db.relationship('Pais')
     
     url_imagen = db.Column(db.String(255), nullable=True, comment="URL del logo de la marca")
 
-    # Relación inversa hacia las métricas de cliente
+    # Relaciones
+    modelos = db.relationship('Modelo', back_populates='marca', cascade="all, delete-orphan")
+    productos = db.relationship('MaestroProductos', back_populates='marca')
     cliente_metricas_marca = db.relationship('ClienteMetricasMarca', back_populates='marca')
 
     @validates('codigo_marca', 'nombre_marca')
