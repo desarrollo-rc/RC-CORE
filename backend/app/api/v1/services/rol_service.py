@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/rol_service.py
 from app.models.entidades.roles import Rol, Permiso
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
-from app import db
+from app.extensions import db
 
 class RolService:
 

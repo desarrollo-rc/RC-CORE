@@ -54,8 +54,10 @@ def update_usuario(usuario_id):
         usuario_actualizado = UsuarioService.update_usuario(usuario_id, data)
         return schema_response.dump(usuario_actualizado), 200
     except (ValidationError, BusinessRuleError, NotFound) as e:
-        # (manejo de errores combinado)
-        pass
+        if isinstance(e, ValidationError):
+            return jsonify(e.messages), 422
+        status_code = 409 if isinstance(e, BusinessRuleError) else 404
+        return jsonify({"error": str(e)}), status_code
 
 @usuarios_bp.route('/<int:usuario_id>/deactivate', methods=['PUT'])
 @jwt_required()
@@ -65,5 +67,5 @@ def deactivate_usuario(usuario_id):
         usuario = UsuarioService.deactivate_usuario(usuario_id)
         return schema_response.dump(usuario), 200
     except (NotFound, BusinessRuleError) as e:
-        # (manejo de errores combinado)
-        pass
+        status_code = 409 if isinstance(e, BusinessRuleError) else 404
+        return jsonify({"error": str(e)}), status_code

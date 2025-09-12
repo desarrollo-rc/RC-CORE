@@ -3,7 +3,7 @@ from app.models.entidades.usuarios import Usuario
 from app.models.entidades.roles import Rol
 from app.models.entidades.areas import Area
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
-from app import db
+from app.extensions import db
 
 class UsuarioService:
 

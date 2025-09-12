@@ -1,6 +1,6 @@
 from app.models.entidades.roles import Permiso
 from app.api.v1.utils.errors import ResourceConflictError
-from app import db
+from app.extensions import db
 
 class PermisoService:
     @staticmethod

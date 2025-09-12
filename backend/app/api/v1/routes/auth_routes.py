@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app.api.v1.schemas.auth_schemas import LoginSchema
 from app.api.v1.services.auth_service import AuthService
 from marshmallow import ValidationError
+from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 
 # Creamos un Blueprint para agrupar las rutas de autenticación
 auth_bp = Blueprint('auth_bp', __name__)
@@ -29,3 +30,13 @@ def login():
     
     # 3. Devolver la respuesta
     return jsonify(result), status_code
+
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    """
+    Endpoint para refrescar el token de acceso.
+    """
+    current_user_id = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user_id)
+    return jsonify(access_token=new_access_token), 200

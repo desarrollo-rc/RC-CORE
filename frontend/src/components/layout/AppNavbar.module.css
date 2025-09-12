@@ -1,0 +1,5 @@
+/* src/components/layout/AppNavbar.module.css */
+.headerContent {
+    height: 100%;
+    background-color: var(--mantine-color-dark-7);
+}

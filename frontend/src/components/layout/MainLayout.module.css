@@ -1,0 +1,11 @@
+/* src/components/layout/MainLayout.module.css */
+
+.header {
+    background-color: var(--mantine-color-dark-7);
+}
+
+.sidebar {
+    background-color: var(--mantine-color-dark-7);
+    border-right: 10px solid red;
+    height: 100%;
+}

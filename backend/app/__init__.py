@@ -4,10 +4,13 @@ from sqlalchemy import text
 from config import Config
 from app.extensions import db, migrate
 from flask_jwt_extended import JWTManager
+from flask_cors import CORS
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    CORS(app)
 
     # Inicialización Extensiones
     db.init_app(app)
@@ -67,6 +70,12 @@ def create_app(config_class=Config):
     from .api.v1.routes.canal_venta_routes import canales_venta_bp
     app.register_blueprint(canales_venta_bp, url_prefix='/api/v1/canales-venta')
     
+    from .api.v1.routes.consultas_routes import consultas_bp
+    app.register_blueprint(consultas_bp, url_prefix='/api/v1/consultas')
+
+    from .api.v1.routes.pedidos_routes import pedidos_bp
+    app.register_blueprint(pedidos_bp, url_prefix='/api/v1/pedidos')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

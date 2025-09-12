@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/contacto_service.py
 from app.models.entidades import Contacto, MaestroClientes
 from app.api.v1.utils.errors import RelatedResourceNotFoundError
-from app import db
+from app.extensions import db
 
 class ContactoService:
 
@@ -35,8 +35,15 @@ class ContactoService:
         return contacto
 
     @staticmethod
-    def delete_contacto(contacto_id):
+    def deactivate_contacto(contacto_id):
         contacto = ContactoService.get_contacto_by_id(contacto_id)
-        db.session.delete(contacto)
+        contacto.activo = False
         db.session.commit()
-        return None
+        return contacto
+    
+    @staticmethod
+    def activate_contacto(contacto_id):
+        contacto = ContactoService.get_contacto_by_id(contacto_id)
+        contacto.activo = True
+        db.session.commit()
+        return contacto

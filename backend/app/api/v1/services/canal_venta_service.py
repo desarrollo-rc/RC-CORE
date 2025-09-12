@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/canal_venta_service.py
 from app.models.negocio.canales import CanalVenta
 from app.api.v1.utils.errors import ResourceConflictError
-from app import db
+from app.extensions import db
 
 class CanalVentaService:
 

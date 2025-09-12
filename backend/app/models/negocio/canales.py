@@ -10,6 +10,9 @@ class CanalVenta(db.Model, MixinAuditoria):
     codigo_canal = db.Column(db.String(20), unique=True, nullable=True)
     nombre = db.Column(db.String(100), unique=True, nullable=False)
 
+    # Relaciones analíticas (para métricas por canal)
+    cliente_metricas_canal = db.relationship('ClienteMetricasCanal', back_populates='canal')
+    
     @validates('codigo_canal', 'nombre')
     def validate_fields(self, key, value):
         if value is None:

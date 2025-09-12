@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/empresa_service.py
 from app.models.entidades import Empresa
 from app.api.v1.utils.errors import ResourceConflictError
-from app import db
+from app.extensions import db
 
 class EmpresaService:
 

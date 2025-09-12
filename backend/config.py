@@ -1,6 +1,7 @@
 # config.py
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Carga las variables del archivo .env que has creado
 load_dotenv()
@@ -28,3 +29,7 @@ class Config:
 
     # Clave para firma de JWT
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'una-clave-super-secreta'
+
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=30)
+
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)

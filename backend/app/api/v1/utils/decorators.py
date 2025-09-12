@@ -11,7 +11,11 @@ def permission_required(permission):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            user_id = get_jwt_identity()
+            identity = get_jwt_identity()
+            try:
+                user_id = int(identity)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Token inválido."}), 401
             user = Usuario.query.get(user_id)
             
             if not user:

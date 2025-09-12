@@ -22,7 +22,7 @@ class Marca(db.Model, MixinAuditoria):
     modelos = db.relationship('Modelo', back_populates='marca', cascade="all, delete-orphan")
     productos = db.relationship('MaestroProductos', back_populates='marca')
     cliente_metricas_marca = db.relationship('ClienteMetricasMarca', back_populates='marca')
-
+    
     @validates('codigo_marca', 'nombre_marca')
     def validate_fields(self, key, value):
         if not value:

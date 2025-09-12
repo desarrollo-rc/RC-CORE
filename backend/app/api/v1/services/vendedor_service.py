@@ -51,12 +51,15 @@ class VendedorService:
         return vendedor
     
     @staticmethod
-    def delete_vendedor(vendedor_id):
+    def deactivate_vendedor(vendedor_id):
         vendedor = VendedorService.get_vendedor_by_id(vendedor_id)
-
-        if vendedor.clientes:
-            raise ResourceConflictError("No se puede eliminar el perfil del vendedor porque tiene clientes asignados. Por favor, reasígnelos primero.")
-        
-        db.session.delete(vendedor)
+        vendedor.activo = False
         db.session.commit()
-        return None
+        return vendedor
+    
+    @staticmethod
+    def activate_vendedor(vendedor_id):
+        vendedor = VendedorService.get_vendedor_by_id(vendedor_id)
+        vendedor.activo = True
+        db.session.commit()
+        return vendedor

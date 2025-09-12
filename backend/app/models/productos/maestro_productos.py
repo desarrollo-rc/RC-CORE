@@ -16,6 +16,8 @@ class MaestroProductos(db.Model, MixinAuditoria):
     id_marca = db.Column(db.Integer, db.ForeignKey('productos.marcas.id_marca'), nullable=False)
     id_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.sub_categorias.id_sub_categoria'), nullable=False)
     id_calidad = db.Column(db.Integer, db.ForeignKey('productos.calidades.id_calidad'), nullable=False)
+    id_origen = db.Column(db.Integer, db.ForeignKey('productos.origenes.id_origen'), nullable=True)
+    id_fabrica = db.Column(db.Integer, db.ForeignKey('productos.fabricas.id_fabrica'), nullable=True)
 
     costo_base = db.Column(db.Numeric(12, 2), nullable=False, default=0.0, comment="Costo de referencia o promedio para cálculos de precio de venta")
     es_kit = db.Column(db.Boolean, default=False, nullable=False)
@@ -25,6 +27,8 @@ class MaestroProductos(db.Model, MixinAuditoria):
     marca = db.relationship('Marca', back_populates='productos')
     sub_categoria = db.relationship('SubCategoria', back_populates='productos')
     calidad = db.relationship('Calidad', back_populates='productos')
+    origen = db.relationship('Origen', back_populates='productos')
+    fabrica = db.relationship('Fabrica', back_populates='productos')
     
     proveedores = db.relationship('ProductoProveedor', back_populates='producto', cascade="all, delete-orphan")
     

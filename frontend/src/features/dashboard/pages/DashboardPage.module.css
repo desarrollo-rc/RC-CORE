@@ -1,0 +1,9 @@
+/* src/features/dashboard/pages/DashboardPage.module.css */
+
+.widget {
+    height: 100%;
+}
+
+.pageTitle {
+    color:red;
+}

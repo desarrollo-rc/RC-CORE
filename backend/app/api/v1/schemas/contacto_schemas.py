@@ -22,3 +22,4 @@ class UpdateContactoSchema(Schema):
     email = fields.Email()
     telefono = fields.Str(allow_none=True)
     es_principal = fields.Bool()
+    

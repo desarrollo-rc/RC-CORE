@@ -47,7 +47,7 @@ def create_cliente():
     
     except BusinessRuleError as err:
         # Error de negocio: duplicados, entidades relacionadas faltantes, etc.
-        return jsonify({"error": str(e)}), e.status_code
+        return jsonify({"error": str(err)}), err.status_code
 
     except Exception as e:
         # Error inesperado: registrar en el log y devolver un error 500
@@ -129,7 +129,7 @@ def update_cliente(cliente_id):
         print(f"ERROR INESPERADO: {e}") 
         return jsonify({"error": "Ocurrió un error interno en el servidor."}), 500
 
-@clientes_bp.route('/', methods=['DELETE'])
+@clientes_bp.route('/<int:cliente_id>', methods=['DELETE'])
 @jwt_required()
 def delete_cliente(cliente_id):
     """

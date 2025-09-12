@@ -4,6 +4,7 @@ from .tipo_regla import TipoRegla
 from .reglas import MotorReglasComerciales
 from .vendedores import Vendedor
 from .metas import Meta, TipoMeta
+from .pedidos import Pedido, PedidoDetalle, HistorialEstadoPedido, EstadoPedido, EstadoAprobacionCredito, EstadoLogistico
 
 __all__ = [
     "CanalVenta",
@@ -12,4 +13,10 @@ __all__ = [
     "Vendedor",
     "Meta",
     "TipoMeta",
+    "Pedido",
+    "PedidoDetalle",
+    "HistorialEstadoPedido",
+    "EstadoPedido",
+    "EstadoAprobacionCredito",
+    "EstadoLogistico",
 ]

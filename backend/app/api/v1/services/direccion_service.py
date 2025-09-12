@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/direccion_service.py
 from app.models.entidades import Direccion, MaestroClientes
 from app.api.v1.utils.errors import RelatedResourceNotFoundError
-from app import db
+from app.extensions import db
 
 class DireccionService:
 

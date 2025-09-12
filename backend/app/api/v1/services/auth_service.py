@@ -1,6 +1,6 @@
 # backend/app/api/v1/services/auth_service.py
 from app.models.entidades.usuarios import Usuario
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, create_refresh_token
 from werkzeug.security import check_password_hash
 
 class AuthService:
@@ -24,8 +24,10 @@ class AuthService:
 
         # 3. Generar el token de acceso
         access_token = create_access_token(identity=str(user.id_usuario))
+        refresh_token = create_refresh_token(identity=str(user.id_usuario))
 
         return {
             "message": f"Bienvenido {user.nombre_completo}",
-            "access_token": access_token
+            "access_token": access_token,
+            "refresh_token": refresh_token
         }, 200

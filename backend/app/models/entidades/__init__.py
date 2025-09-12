@@ -8,6 +8,7 @@ from .entidades_auxiliares import (
 )
 
 from .maestro_clientes import MaestroClientes
+from .maestro_proveedores import MaestroProveedores
 from .contacto import Contacto
 from .direccion import Direccion, Comuna, Ciudad, Region, Pais
 from .usuarios import Usuario
@@ -26,6 +27,7 @@ __all__ = [
     "Empresa",
     "TipoNegocio",
     "MaestroClientes",
+    "MaestroProveedores",
     "Contacto",
     "Direccion",
     "Comuna",

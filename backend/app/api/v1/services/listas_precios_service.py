@@ -1,7 +1,7 @@
 # backend/app/api/v1/services/listas_precios_service.py
 from app.models.entidades.entidades_auxiliares import ListaPrecios
 from app.api.v1.utils.errors import ResourceConflictError
-from app import db
+from app.extensions import db
 
 class ListaPreciosService:
 

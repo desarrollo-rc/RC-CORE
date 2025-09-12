@@ -4,7 +4,7 @@ from app.models.entidades import (
     ListaPrecios, CondicionPago, Empresa, Usuario, TipoNegocio
 )
 from app.models.negocio import Vendedor
-from app import db
+from app.extensions import db
 from sqlalchemy.exc import IntegrityError
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError, BusinessRuleError
 

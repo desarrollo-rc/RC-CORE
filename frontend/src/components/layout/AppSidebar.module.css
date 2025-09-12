@@ -1,0 +1,39 @@
+/* src/components/layout/AppSidebar.module.css */
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* ¡La magia está aquí! Empuja el footer hacia abajo */
+    height: 100%; /* Esencial para que el space-between funcione */
+}
+
+.title {
+    text-align: center;
+    color: red;
+    margin-bottom: var(--mantine-spacing-md);
+}
+
+.link {
+    border-radius: var(--mantine-radius-md);
+    color: var(--mantine-color-gray-4);
+}
+
+.link[data-collapsed] {
+    justify-content: center;
+}
+
+.link:hover {
+    background-color: var(--mantine-color-dark-5);
+    color: var(--mantine-color-white);
+}
+
+.link[data-active] {
+    background-color: var(--mantine-color-blue-9);
+    color: var(--mantine-color-white);
+}
+
+.footer {
+    border-top: 1px solid var(--mantine-color-dark-5);
+    padding-top: var(--mantine-spacing-md);
+    padding-bottom: var(--mantine-spacing-md);
+}

@@ -51,11 +51,21 @@ def update_contacto(contacto_id):
         error_message = e.messages if isinstance(e, ValidationError) else str(e)
         return jsonify({"error": error_message}), status_code
 
-@contactos_bp.route('/<int:contacto_id>', methods=['DELETE'])
+@contactos_bp.route('/<int:contacto_id>/deactivate', methods=['PUT'])
 @jwt_required()
-def delete_contacto(contacto_id):
+def deactivate_contacto(contacto_id):
     try:
-        ContactoService.delete_contacto(contacto_id)
+        ContactoService.deactivate_contacto(contacto_id)
         return '', 204
     except NotFound:
         return jsonify({"error": f"Contacto con ID {contacto_id} no encontrado."}), 404
+    
+@contactos_bp.route('/<int:contacto_id>/activate', methods=['PUT'])
+@jwt_required()
+def activate_contacto(contacto_id):
+    try:
+        ContactoService.activate_contacto(contacto_id)
+        return '', 204
+    except NotFound:
+        return jsonify({"error": f"Contacto con ID {contacto_id} no encontrado."}), 404
+    

@@ -17,7 +17,7 @@ class UsuarioB2B(db.Model, MixinAuditoria):
     id_cliente = db.Column(db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), nullable=False)
     cliente = db.relationship('MaestroClientes', back_populates='usuarios_b2b')
 
-    equipos = db.relationship('Equipos', back_populates='usuarios_b2b')
+    equipos = db.relationship('Equipo', back_populates='usuario_b2b')
 
     @validates('usuario', 'email', 'nombre_completo')
     def validate_fields(self, key, value):

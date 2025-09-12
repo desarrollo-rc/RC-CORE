@@ -25,7 +25,7 @@ class Equipo(db.Model, MixinAuditoria):
 
     estado_alta = db.Column(db.Enum(EstadoAltaEquipo), nullable=False, default=EstadoAltaEquipo.PENDIENTE)
 
-    usuario_b2b = db.relationship('UsuarioB2B')
+    usuario_b2b = db.relationship('UsuarioB2B', back_populates='equipos')
     instalaciones = db.relationship('Instalacion', back_populates='equipo')
 
     @validates('mac_address')
