@@ -13,7 +13,16 @@ export const login = async (credentials: UserCredentials): Promise<AuthResponse>
 
 export const refreshToken = async (): Promise<{ access_token: string }> => {
     try {
-        const response = await apiClient.post('/auth/refresh');
+        const refreshTokenValue = localStorage.getItem('refreshToken');
+        if (!refreshTokenValue) {
+            throw new Error('No refresh token available');
+        }
+        
+        const response = await apiClient.post('/auth/refresh', {}, {
+            headers: {
+                'Authorization': `Bearer ${refreshTokenValue}`
+            }
+        });
         return response.data;
     } catch (error) {
         throw error;

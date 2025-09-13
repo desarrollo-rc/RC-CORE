@@ -28,7 +28,8 @@ def create_area():
 @areas_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_areas():
-    areas = AreaService.get_all_areas()
+    include_inactive = request.args.get('incluir_inactivos', 'false').lower() == 'true'
+    areas = AreaService.get_all_areas(include_inactive=include_inactive)
     return schema_many.dump(areas), 200
 
 @areas_bp.route('/<int:area_id>', methods=['GET'])

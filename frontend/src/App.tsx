@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './features/auth/LoginPage';
 import DashboardPage from './features/dashboard/pages/DashboardPage';
+import { AreasPage } from './features/areas/pages/AreasPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
 
@@ -28,6 +29,7 @@ function App() {
         {/* Rutas Protegidas */}
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/areas" element={<AreasPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

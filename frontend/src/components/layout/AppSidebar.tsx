@@ -1,12 +1,13 @@
 // src/components/layout/AppSidebar.tsx
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button } from '@mantine/core';
-import { FaTachometerAlt, FaUsers, FaBoxOpen } from 'react-icons/fa';
+import { FaTachometerAlt, FaUsers, FaBoxOpen, FaSitemap } from 'react-icons/fa';
 import { IconArrowBarToLeft, IconArrowBarToRight } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
     { icon: FaTachometerAlt, label: 'Dashboard', to: '/' },
+    { icon: FaSitemap, label: 'Áreas', to: '/areas' },
     { icon: FaUsers, label: 'Usuarios', to: '/usuarios' },
     { icon: FaBoxOpen, label: 'Productos', to: '/productos' },
 ];

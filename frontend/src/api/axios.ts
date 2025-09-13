@@ -22,18 +22,21 @@ apiClient.interceptors.response.use(
     (response) => response, // Si la respuesta es exitosa, no hagas nada
     async (error) => {
         const originalRequest = error.config;
-        // Si el error es 401 y no es una petición de reintento
-        if (error.response.status === 401 && !originalRequest._retry) {
+        
+        // Si el error es 401 y no es una petición de reintento y no es el endpoint de refresh
+        if (error.response?.status === 401 && 
+            !originalRequest._retry && 
+            !originalRequest.url?.includes('/auth/refresh')) {
+            
             originalRequest._retry = true; // Marca la petición para evitar bucles infinitos
   
             try {
                 const { access_token } = await refreshToken();
                 localStorage.setItem('authToken', access_token);
-                apiClient.defaults.headers.common['Authorization'] = 'Bearer ' + access_token;
                 originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
           
-            // Reintenta la petición original con el nuevo token
-            return apiClient(originalRequest);
+                // Reintenta la petición original con el nuevo token
+                return apiClient(originalRequest);
             } catch (refreshError) {
                 // Si el refresh token falla, desloguea al usuario
                 localStorage.removeItem('authToken');

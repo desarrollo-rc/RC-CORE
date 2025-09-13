@@ -6,8 +6,11 @@ from app.extensions import db
 class AreaService:
 
     @staticmethod
-    def get_all_areas():
-        return Area.query.filter_by(activo=True).all()
+    def get_all_areas(include_inactive: bool = False):
+        query = Area.query
+        if not include_inactive:
+            query = query.filter_by(activo=True)
+        return query.order_by(Area.nombre_area).all()
 
     @staticmethod
     def get_area_by_id(area_id):

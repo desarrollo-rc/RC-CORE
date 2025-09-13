@@ -22,9 +22,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Al cargar la app, revisamos si ya existe un token en el Local Storage
   useEffect(() => {
-    const storedToken = localStorage.getItem('refreshToken');
-    if (storedToken) {
-      setToken(localStorage.getItem('authToken'));
+    const storedToken = localStorage.getItem('authToken');
+    const storedRefreshToken = localStorage.getItem('refreshToken');
+    
+    // Solo establecer el token si tenemos tanto el access token como el refresh token
+    if (storedToken && storedRefreshToken) {
+      setToken(storedToken);
+    } else {
+      // Si no tenemos ambos tokens, limpiar el localStorage
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
     }
     setIsLoading(false);
   }, []);
