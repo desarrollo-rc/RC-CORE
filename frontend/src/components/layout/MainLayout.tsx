@@ -24,7 +24,7 @@ export function MainLayout() {
             header={{ height: 60 }}
             navbar={{
                 // 1. Hacemos el ancho dinámico: 300px abierto, 80px cerrado
-                width: opened ? 200 : 80,
+                width: opened ? 250 : 80,
                 breakpoint: 'sm',
                 collapsed: { mobile: !opened, desktop: false },
             }}
