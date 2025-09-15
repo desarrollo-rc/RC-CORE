@@ -1,7 +1,7 @@
 // src/components/layout/AppSidebar.tsx
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button } from '@mantine/core';
-import { FaTachometerAlt, FaUsers, FaBoxOpen, FaSitemap } from 'react-icons/fa';
+import { FaTachometerAlt, FaUsers, FaBoxOpen, FaSitemap, FaKey, FaUserTag } from 'react-icons/fa';
 import { IconArrowBarToLeft, IconArrowBarToRight } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
@@ -10,6 +10,8 @@ const menuItems = [
     { icon: FaSitemap, label: 'Áreas', to: '/areas' },
     { icon: FaUsers, label: 'Usuarios', to: '/usuarios' },
     { icon: FaBoxOpen, label: 'Productos', to: '/productos' },
+    { icon: FaKey, label: 'Permisos', to: '/permisos' },
+    { icon: FaUserTag, label: 'Roles', to: '/roles' },
 ];
 
 export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolean; toggleSidebar: () => void; }) {

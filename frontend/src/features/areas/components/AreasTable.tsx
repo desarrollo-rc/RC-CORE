@@ -1,7 +1,7 @@
 // src/features/areas/components/AreasTable.tsx
 
 import { Badge, Group, ActionIcon, Tooltip, Table, UnstyledButton, Center, Text } from '@mantine/core';
-import { IconPencil, IconTrash, IconPlayerPlay, IconSelector, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { IconPencil, IconPlayerPlay, IconSelector, IconChevronDown, IconChevronUp, IconPlayerPause } from '@tabler/icons-react';
 import type { Area } from '../types';
 import type { DataTableSortStatus } from 'mantine-datatable';
 import classes from './AreasTable.module.css';
@@ -59,7 +59,7 @@ export function AreasTable({ records, sortStatus, selectedRecord, onSortStatusCh
                     {record.activo ? (
                         <>
                             <Tooltip label="Editar"><ActionIcon variant="light" onClick={() => onEdit(record)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                            <Tooltip label="Desactivar"><ActionIcon variant="light" color="red" onClick={() => onDeactivate(record)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                            <Tooltip label="Desactivar"><ActionIcon variant="light" color="red" onClick={() => onDeactivate(record)}><IconPlayerPause size={16} /></ActionIcon></Tooltip>
                         </>
                     ) : (
                         <Tooltip label="Activar"><ActionIcon variant="light" color="green" onClick={() => onActivate(record)}><IconPlayerPlay size={16} /></ActionIcon></Tooltip>

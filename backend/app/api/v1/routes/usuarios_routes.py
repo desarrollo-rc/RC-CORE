@@ -69,3 +69,15 @@ def deactivate_usuario(usuario_id):
     except (NotFound, BusinessRuleError) as e:
         status_code = 409 if isinstance(e, BusinessRuleError) else 404
         return jsonify({"error": str(e)}), status_code
+
+@usuarios_bp.route('/<int:usuario_id>/activate', methods=['PUT'])
+@jwt_required()
+@permission_required('usuarios:desactivar')
+def activate_usuario(usuario_id):
+    try:
+        usuario = UsuarioService.activate_usuario(usuario_id)
+        return schema_response.dump(usuario), 200
+    except NotFound:
+        return jsonify({"error": f"Usuario con ID {usuario_id} no encontrado."}), 404
+    except Exception:
+        return jsonify({"error": "Ocurrió un error interno en el servidor."}), 500

@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './features/auth/LoginPage';
 import DashboardPage from './features/dashboard/pages/DashboardPage';
 import { AreasPage } from './features/areas/pages/AreasPage';
+import { PermisosPage } from './features/permisos/pages/PermisosPage';
+import { RolesPage } from './features/roles/pages/RolesPage';
+import { UsuariosPage } from './features/usuarios/pages/UsuariosPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
 
@@ -30,6 +33,9 @@ function App() {
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/areas" element={<AreasPage />} />
+          <Route path="/permisos" element={<PermisosPage />} />
+          <Route path="/roles" element={<RolesPage />} />
+          <Route path="/usuarios" element={<UsuariosPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

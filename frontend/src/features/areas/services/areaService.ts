@@ -29,8 +29,12 @@ export const createArea = async (area: AreaPayload): Promise<Area> => {
     try {
         const response = await apiClient.post<Area>('/areas', area);
         return response.data;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error al crear el área:', error);
+        if (error.response?.status === 422) {
+            const errorMessage = error.response.data?.error || 'Error de validación';
+            throw new Error(`Error de validación: ${errorMessage}`);
+        }
         throw error;
     }
 };
@@ -39,8 +43,12 @@ export const updateArea = async (areaId: number, area: AreaPayload): Promise<Are
     try {
         const response = await apiClient.put<Area>(`/areas/${areaId}`, area);
         return response.data;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error al actualizar el área:', error);
+        if (error.response?.status === 422) {
+            const errorMessage = error.response.data?.error || 'Error de validación';
+            throw new Error(`Error de validación: ${errorMessage}`);
+        }
         throw error;
     }
 };

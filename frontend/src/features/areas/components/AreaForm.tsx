@@ -28,7 +28,11 @@ export function AreaForm({ onSubmit, initialValues, isSubmitting }: AreaFormProp
 
     useEffect(() => {
         if (initialValues) {
-            form.setValues(initialValues);
+            form.setValues({
+                codigo_area: initialValues.codigo_area || '',
+                nombre_area: initialValues.nombre_area || '',
+                descripcion_area: initialValues.descripcion_area || '',
+            });
         } else {
             form.reset(); // Limpia el formulario si no hay valores (modo creación)
         }

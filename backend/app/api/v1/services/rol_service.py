@@ -1,6 +1,6 @@
 # backend/app/api/v1/services/rol_service.py
 from app.models.entidades.roles import Rol, Permiso
-from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
+from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError, BusinessRuleError
 from app.extensions import db
 
 class RolService:
@@ -64,8 +64,13 @@ class RolService:
     def delete_rol(rol_id):
         rol = RolService.get_rol_by_id(rol_id)
 
+        # --- NUEVA REGLA DE NEGOCIO ---
+        # Verificamos el nombre del rol antes de cualquier otra cosa.
+        if rol.nombre_rol.lower() == 'administrador':
+            raise BusinessRuleError("El rol 'Administrador' no se puede eliminar.")
+
         if rol.usuarios:
-            raise ResourceConflictError("No se puede borrar un rol que esté en uso.")
+            raise ResourceConflictError("No se puede borrar un rol que esté en uso por usuarios.")
         
         db.session.delete(rol)
         db.session.commit()

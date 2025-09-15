@@ -1,7 +1,7 @@
 // src/features/areas/pages/AreasPage.tsx
 
 import { useEffect, useState, useMemo } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Pagination, Stack, Text, Affix, Menu, ActionIcon, rem, Modal, Switch, Flex } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Pagination, Stack, Text, Affix, Menu, ActionIcon, rem, Modal, Switch } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks'; // Hook para el modal
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -12,6 +12,7 @@ import { AreaForm } from '../components/AreaForm';
 import type { Area, AreaPayload } from '../types';
 import type { DataTableSortStatus } from 'mantine-datatable';
 import { orderBy } from 'lodash';
+import { getApiErrorMessage } from '../../../utils/errorHandler';
 
 const PAGE_SIZE = 10;
 
@@ -85,18 +86,26 @@ export function AreasPage() {
     const handleSubmit = async (values: AreaPayload) => {
         setIsSubmitting(true);
         try {
+            // Filtrar campos vacíos para evitar errores de validación
+            const cleanValues = {
+                codigo_area: values.codigo_area?.trim() || '',
+                nombre_area: values.nombre_area?.trim() || '',
+                descripcion_area: values.descripcion_area?.trim() || undefined,
+            };
+
             if (editingArea) { // MODO EDICIÓN
-                const updatedArea = await updateArea(editingArea.id_area, values);
+                const updatedArea = await updateArea(editingArea.id_area, cleanValues);
                 setAreas((current) => current.map((item) => (item.id_area === updatedArea.id_area ? updatedArea : item)));
-                notifications.show({ title: 'Éxito', message: 'Área actualizada.', color: 'blue' });
+                notifications.show({ title: 'Éxito', message: 'Área actualizada.', color: 'blue', icon: <IconCheck /> });
             } else { // MODO CREACIÓN
-                const newArea = await createArea(values);
+                const newArea = await createArea(cleanValues);
                 setAreas((current) => [...current, newArea]);
-                notifications.show({ title: 'Éxito', message: 'Área creada.', color: 'green' });
+                notifications.show({ title: 'Éxito', message: 'Área creada.', color: 'green', icon: <IconCheck /> });
             }
             closeModal();
-        } catch (error) {
-            notifications.show({ title: 'Error', message: 'No se pudo guardar el área.', color: 'red' });
+        } catch (error: any) {
+            const message = getApiErrorMessage(error, 'No se pudo guardar el área.');
+            notifications.show({ title: 'Error', message, color: 'red' });
         } finally {
             setIsSubmitting(false);
         }
@@ -110,11 +119,12 @@ export function AreasPage() {
             confirmProps: { color: 'red' },
             onConfirm: async () => {
                 try {
-                    await deactivateArea(area.id_area);
-                    setAreas((current) => current.map((item) => (item.id_area === area.id_area ? { ...item, activo: false } : item)));
-                    notifications.show({ title: 'Éxito', message: 'Área desactivada.', color: 'orange' });
+                    const deactivated = await deactivateArea(area.id_area);
+                    setAreas(current => current.map(a => a.id_area === deactivated.id_area ? deactivated : a));
+                    notifications.show({ title: 'Éxito', message: 'Área desactivada.', color: 'orange', icon: <IconCheck /> });
                 } catch (error) {
-                    notifications.show({ title: 'Error', message: 'No se pudo desactivar el área.', color: 'red' });
+                    const message = getApiErrorMessage(error, 'No se pudo desactivar el área.');
+                    notifications.show({ title: 'Error', message, color: 'red' });
                 }
             },
         });
@@ -128,12 +138,12 @@ export function AreasPage() {
             confirmProps: { color: 'green' },
             onConfirm: async () => {
                 try {
-                    const activatedArea = await activateArea(area.id_area);
-                    // Actualizamos el estado local para reflejar el cambio al instante
-                    setAreas((current) => current.map((item) => (item.id_area === area.id_area ? activatedArea : item)));
-                    notifications.show({ title: 'Éxito', message: 'Área activada correctamente.', color: 'green', icon: <IconCheck /> });
+                    const activated = await activateArea(area.id_area);
+                    setAreas(current => current.map(a => a.id_area === activated.id_area ? activated : a));
+                    notifications.show({ title: 'Éxito', message: 'Área activada.', color: 'green', icon: <IconCheck /> });
                 } catch (error) {
-                    notifications.show({ title: 'Error', message: 'No se pudo activar el área.', color: 'red' });
+                    const message = getApiErrorMessage(error, 'No se pudo activar el área.');
+                    notifications.show({ title: 'Error', message, color: 'red' });
                 }
             },
         });
