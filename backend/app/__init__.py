@@ -78,6 +78,15 @@ def create_app(config_class=Config):
     from .api.v1.routes.pedidos_routes import pedidos_bp
     app.register_blueprint(pedidos_bp, url_prefix='/api/v1/pedidos')
 
+    from .api.v1.routes.division_routes import divisiones_bp
+    app.register_blueprint(divisiones_bp, url_prefix='/api/v1/divisiones')
+
+    from .api.v1.routes.atributo_routes import atributos_bp
+    app.register_blueprint(atributos_bp, url_prefix='/api/v1/atributos')
+
+    from .api.v1.routes.medida_routes import medidas_bp
+    app.register_blueprint(medidas_bp, url_prefix='/api/v1/medidas')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

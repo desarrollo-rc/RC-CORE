@@ -1,33 +1,51 @@
 // src/components/layout/AppSidebar.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { FaTachometerAlt, FaUsers, FaBoxOpen, FaSitemap, FaKey, FaUserTag } from 'react-icons/fa';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconUser, IconTag, IconBox, IconDashboard } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
-    { icon: FaTachometerAlt, label: 'Dashboard', to: '/' },
-    { icon: FaBoxOpen, label: 'Productos', to: '/productos' },
+    { icon: IconDashboard, label: 'Dashboard', to: '/' },
     {
-        icon: IconSettings, // Un ícono para la sección principal
-        label: 'Administración',
-        // No tiene 'to' porque no es un enlace, solo abre el submenú
+        icon: IconBox,
+        label: 'Maestros Productos',
+        id: 'productos',
         subItems: [
-            { icon: FaSitemap, label: 'Áreas', to: '/areas' },
-            { icon: FaUsers, label: 'Usuarios', to: '/usuarios' },
-            { icon: FaKey, label: 'Permisos', to: '/permisos' },
-            { icon: FaUserTag, label: 'Roles', to: '/roles' },
+            { icon: IconHierarchy2, label: 'Divisiones', to: '/divisiones' },
+            { icon: IconTags, label: 'Atributos', to: '/atributos' },
+            { icon: IconRuler, label: 'Medidas', to: '/medidas' },
+        ],
+    },
+    {
+        icon: IconSettings,
+        label: 'Administración',
+        id: 'admin',
+        subItems: [
+            { icon: IconBuildingStore, label: 'Áreas', to: '/areas' },
+            { icon: IconUsers, label: 'Usuarios', to: '/usuarios' },
+            { icon: IconKey, label: 'Permisos', to: '/permisos' },  
+            { icon: IconTag, label: 'Roles', to: '/roles' },
         ],
     },
 ];
 
 export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolean; toggleSidebar: () => void; }) {
     const location = useLocation();
-    const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+    const [openedMenu, setOpenedMenu] = useState<string | null>(null);
 
-    const administrationLinks = menuItems.find(item => item.subItems)?.subItems?.map(sub => sub.to) || [];
-    const isAdministrationActive = administrationLinks.includes(location.pathname);
+    useEffect(() => {
+        const currentMenu = menuItems.find(item => 
+            item.subItems?.some(sub => sub.to === location.pathname)
+        );
+        if (currentMenu) {
+            setOpenedMenu(currentMenu.id || null);
+        }
+    }, [location.pathname]);
+
+    const handleMenuClick = (menuId: string) => {
+        setOpenedMenu(prev => (prev === menuId ? null : menuId));
+    };
 
     return (
         <Box className={classes.sidebar}>
@@ -36,53 +54,55 @@ export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolea
 
                 {menuItems.map((item) => {
                     // Si el item tiene sub-items, renderizamos un menú desplegable
-                    if (item.subItems) {
+                    if (item.subItems && item.id) {
+                        const isMenuOpen = openedMenu === item.id;
+                        const isMenuActive = item.subItems.some(sub => sub.to === location.pathname);
                         return sidebarOpen ? (
-                            <div key={item.label}>
+                            <div key={item.id}>
                                 <MantineNavLink
                                     label={item.label}
                                     leftSection={<item.icon size="1.2rem" />}
-                                    rightSection={adminMenuOpen ? <IconChevronDown size="1.0rem" /> : <IconChevronRight size="1.0rem" />}
-                                    onClick={() => setAdminMenuOpen((o) => !o)}
+                                    rightSection={isMenuOpen ? <IconChevronDown size="1.0rem" /> : <IconChevronRight size="1.0rem" />}
+                                    onClick={() => handleMenuClick(item.id!)}
                                     className={classes.link}
-                                    active={isAdministrationActive}
+                                    active={isMenuActive}
                                 />
-                                <Collapse in={adminMenuOpen}>
+                                <Collapse in={isMenuOpen}>
                                     {item.subItems.map((subItem) => (
                                         <MantineNavLink
-                                            key={subItem.label}
+                                            key={subItem.to}
                                             component={NavLink}
                                             to={subItem.to}
                                             label={subItem.label}
                                             leftSection={<subItem.icon size="1.2rem" />}
                                             active={location.pathname === subItem.to}
-                                            classNames={{ root: classes.link, body: classes.subLinkBody }}
+                                            pl={34} // Indentación para sub-ítems
+                                            className={classes.link}
                                         />
                                     ))}
                                 </Collapse>
                             </div>
                         ) : (
-                            // --- VISTA COLAPSADA (usa Popover) ---
-                            <Popover key={item.label} position="right-start" withArrow shadow="md">
+                            // Vista colapsada (usa Popover)
+                            <Popover key={item.id} position="right-start" withArrow shadow="md">
                                 <Popover.Target>
                                     <MantineNavLink
                                         leftSection={<item.icon size="1.2rem" />}
                                         className={classes.link}
-                                        active={isAdministrationActive}
-                                        // Evitamos el comportamiento de link para que solo abra el Popover
+                                        active={isMenuActive}
                                         onClick={(e) => e.preventDefault()}
                                     />
                                 </Popover.Target>
                                 <Popover.Dropdown p={4}>
                                     {item.subItems.map((subItem) => (
                                         <MantineNavLink
-                                            key={subItem.label}
+                                            key={subItem.to}
                                             component={NavLink}
                                             to={subItem.to}
                                             label={subItem.label}
                                             leftSection={<subItem.icon size="1.2rem" />}
                                             active={location.pathname === subItem.to}
-                                            className={classes.link} // Reutilizamos la misma clase
+                                            className={classes.link}
                                         />
                                     ))}
                                 </Popover.Dropdown>
@@ -94,13 +114,13 @@ export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolea
                     const Icon = item.icon;
                     return (
                         <MantineNavLink
-                            key={item.label}
+                            key={item.to}
                             component={NavLink}
-                            to={item.to}
+                            to={item.to!}
                             label={sidebarOpen ? item.label : undefined}
                             leftSection={<Icon size="1.2rem" />}
                             active={location.pathname === item.to}
-                            classNames={{ root: classes.link }}
+                            className={classes.link}
                         />
                     );
                 })}

@@ -9,11 +9,17 @@ class CodigoReferencia(db.Model, MixinAuditoria):
     id_codigo_referencia = db.Column(db.Integer, primary_key=True)
     codigo = db.Column(db.String(100), unique=True, nullable=False, index=True)
     descripcion = db.Column(db.String(255), nullable=True)
+    id_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.sub_categorias.id_sub_categoria'), nullable=False)
 
     # Relaciones
     productos = db.relationship('MaestroProductos', back_populates='codigo_referencia')
     aplicaciones = db.relationship('Aplicacion', back_populates='codigo_referencia', cascade="all, delete-orphan")
     codigos_tecnicos = db.relationship('CodigoTecnico', back_populates='codigo_referencia', cascade="all, delete-orphan")
+    sub_categoria = db.relationship('SubCategoria', back_populates='codigos_referencia')
+
+
+    atributos_asignados = db.relationship('AtributoAsignado', back_populates='codigo_referencia', cascade="all, delete-orphan")
+    medidas_asignadas = db.relationship('MedidaAsignada', back_populates='codigo_referencia', cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<CodigoReferencia {self.codigo}>'

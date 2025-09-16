@@ -35,7 +35,7 @@ const LoginPage: React.FC = () => {
                 {/* 4. Paper actúa como el "cuadro" o "tarjeta" del login */}
                 <Paper withBorder shadow="md" p={30} radius="md">
                     <Stack align="center" mb="lg">
-                        <Box bg="red.9" p="xs" style={{ borderRadius: 'var(--mantine-radius-sm)' }}>
+                        <Box p="xs" style={{ borderRadius: 'var(--mantine-radius-sm)' }}>
                             <MantineImage src={RCLogo} alt="RC CORE Logo" width={100} fit="contain" />
                         </Box>
                         <Title order={2} className={classes.title} ta="center">

@@ -4,10 +4,11 @@ from .marcas import Marca
 from .modelos import Modelo, VersionVehiculo
 from .origenes import Origen
 from .fabricas import Fabrica
-from .codigos import CodigoReferencia
+from .codigos import CodigoReferencia, CodigoTecnico
+from .caracteristicas import Atributo, Medida, AtributoAsignado, MedidaAsignada
 from .calidades import Calidad
 from .maestro_productos import MaestroProductos
-from .categorias import Categoria, SubCategoria
+from .categorias import Division,Categoria, SubCategoria, DetSubCategoria
 
 __all__ = [
     "Aplicacion",
@@ -17,8 +18,15 @@ __all__ = [
     "Origen",
     "Fabrica",
     "CodigoReferencia",
+    "CodigoTecnico",
+    "Atributo",
+    "Medida",
+    "AtributoAsignado",
+    "MedidaAsignada",
     "Calidad",
     "Categoria",
     "SubCategoria",
+    "DetSubCategoria",
+    "Division",
     "MaestroProductos",
 ]
