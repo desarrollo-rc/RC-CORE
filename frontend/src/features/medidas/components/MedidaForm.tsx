@@ -1,7 +1,7 @@
 // src/features/productos/medidas/components/MedidaForm.tsx
 
 import { TextInput, Button, Stack } from '@mantine/core';
-import { useForm, isNotEmpty } from '@mantine/form';
+import { useForm, isNotEmpty, hasLength } from '@mantine/form';
 import type { MedidaFormData } from '../types';
 import { useEffect } from 'react';
 
@@ -14,11 +14,17 @@ interface MedidaFormProps {
 export function MedidaForm({ onSubmit, initialValues, isSubmitting }: MedidaFormProps) {
     const form = useForm<MedidaFormData>({
         initialValues: {
+            codigo: initialValues?.codigo || '',
             nombre: initialValues?.nombre || '',
             unidad: initialValues?.unidad || '',
         },
         validate: {
-            nombre: isNotEmpty('El nombre es requerido'),
+            codigo: (value) => {
+                if (!value) return 'El código es requerido';
+                if (value.length < 2 || value.length > 10) return 'El código debe tener entre 2 y 10 caracteres';
+                return null;
+            },
+            nombre: hasLength({ min: 2, max: 100 }, 'El nombre debe tener entre 2 y 100 caracteres'),
             unidad: isNotEmpty('La unidad es requerida'),
         },
     });
@@ -36,7 +42,13 @@ export function MedidaForm({ onSubmit, initialValues, isSubmitting }: MedidaForm
             <Stack>
                 <TextInput
                     withAsterisk
-                    label="Nombre de la Medida"
+                    label="Código"
+                    placeholder="Ej: Alto"
+                    {...form.getInputProps('codigo')}
+                />
+                <TextInput
+                    withAsterisk
+                    label="Medida"
                     placeholder="Ej: Alto"
                     {...form.getInputProps('nombre')}
                 />

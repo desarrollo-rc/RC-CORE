@@ -49,7 +49,6 @@ class SubCategoria(db.Model, MixinAuditoria):
     nombre_sub_categoria = db.Column(db.String(100), nullable=False)
     
     categoria = db.relationship('Categoria', back_populates='sub_categorias')
-    productos = db.relationship('MaestroProductos', back_populates='sub_categoria')
 
     detalles_sub_categoria = db.relationship('DetSubCategoria', back_populates='sub_categoria')
     codigos_referencia = db.relationship('CodigoReferencia', back_populates='sub_categoria')

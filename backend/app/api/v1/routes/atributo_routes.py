@@ -8,7 +8,10 @@ from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required
 from werkzeug.exceptions import NotFound
 
+from .valor_atributo_routes import valores_atributo_bp
+
 atributos_bp = Blueprint('atributos_bp', __name__)
+atributos_bp.register_blueprint(valores_atributo_bp)
 
 schema_single = AtributoSchema()
 schema_many = AtributoSchema(many=True)

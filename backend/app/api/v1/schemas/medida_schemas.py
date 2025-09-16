@@ -6,6 +6,7 @@ class MedidaSchema(Schema):
     Schema para la validación y serialización de datos de Medida.
     """
     id_medida = fields.Int(dump_only=True)
+    codigo = fields.Str(required=True, validate=validate.Length(min=2, max=10))
     nombre = fields.Str(required=True, validate=validate.Length(min=2, max=100))
     unidad = fields.Str(required=True, validate=validate.Length(min=1, max=20))
     activo = fields.Bool(dump_only=True)
@@ -16,5 +17,6 @@ class UpdateMedidaSchema(Schema):
     """
     Schema para la actualización de Medidas (campos opcionales).
     """
+    codigo = fields.Str(validate=validate.Length(min=2, max=10))
     nombre = fields.Str(validate=validate.Length(min=2, max=100))
     unidad = fields.Str(validate=validate.Length(min=1, max=20))

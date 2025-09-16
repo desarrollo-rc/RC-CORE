@@ -40,6 +40,7 @@ export function MedidasPage() {
     const handleSubmit = async (formValues: MedidaFormData) => {
         setIsSubmitting(true);
         const payload: MedidaPayload = {
+            codigo: formValues.codigo.trim(),
             nombre: formValues.nombre.trim(),
             unidad: formValues.unidad.trim(),
         };
@@ -75,7 +76,7 @@ export function MedidasPage() {
     const handleDeactivate = (medida: Medida) => {
         modals.openConfirmModal({
             title: 'Desactivar Medida',
-            children: <Text size="sm">¿Estás seguro de que quieres desactivar la medida "{medida.nombre}"?</Text>,
+            children: <Text size="sm">¿Estás seguro de que quieres desactivar la medida "{medida.codigo}"?</Text>,
             labels: { confirm: 'Desactivar', cancel: 'Cancelar' },
             confirmProps: { color: 'red' },
             onConfirm: async () => {
@@ -94,7 +95,7 @@ export function MedidasPage() {
     const handleActivate = (medida: Medida) => {
         modals.openConfirmModal({
             title: 'Activar Medida',
-            children: <Text size="sm">¿Estás seguro de que quieres activar la medida "{medida.nombre}"?</Text>,
+            children: <Text size="sm">¿Estás seguro de que quieres activar la medida "{medida.codigo}"?</Text>,
             labels: { confirm: 'Activar', cancel: 'Cancelar' },
             confirmProps: { color: 'green' },
             onConfirm: async () => {

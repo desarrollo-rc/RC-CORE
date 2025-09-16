@@ -19,10 +19,11 @@ class MedidaService:
     @staticmethod
     def create_medida(data):
         nombre = data['nombre']
+        codigo = data['codigo']
         if Medida.query.filter_by(nombre=nombre).first():
             raise ResourceConflictError(f"La medida con nombre '{nombre}' ya existe.")
 
-        nueva_medida = Medida(nombre=nombre, unidad=data['unidad'])
+        nueva_medida = Medida(nombre=nombre, unidad=data['unidad'], codigo=codigo)
         db.session.add(nueva_medida)
         db.session.commit()
         return nueva_medida
@@ -30,11 +31,16 @@ class MedidaService:
     @staticmethod
     def update_medida(medida_id, data):
         medida = MedidaService.get_medida_by_id(medida_id)
+        if 'codigo' in data and data['codigo'] != medida.codigo:
+            if Medida.query.filter(Medida.codigo == data['codigo'], Medida.id_medida != medida_id).first():
+                raise ResourceConflictError(f"El código de medida '{data['codigo']}' ya está en uso.")
+            medida.codigo = data['codigo']
+            
         if 'nombre' in data and data['nombre'] != medida.nombre:
             if Medida.query.filter(Medida.nombre == data['nombre'], Medida.id_medida != medida_id).first():
                 raise ResourceConflictError(f"El nombre de medida '{data['nombre']}' ya está en uso.")
             medida.nombre = data['nombre']
-        
+            
         if 'unidad' in data:
             medida.unidad = data['unidad']
             

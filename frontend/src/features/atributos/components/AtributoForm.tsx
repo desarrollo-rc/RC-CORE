@@ -1,7 +1,7 @@
 // src/features/productos/atributos/components/AtributoForm.tsx
 
 import { TextInput, Button, Stack } from '@mantine/core';
-import { useForm, isNotEmpty } from '@mantine/form';
+import { useForm, isNotEmpty, hasLength } from '@mantine/form';
 import type { AtributoFormData } from '../types';
 import { useEffect } from 'react';
 
@@ -14,16 +14,21 @@ interface AtributoFormProps {
 export function AtributoForm({ onSubmit, initialValues, isSubmitting }: AtributoFormProps) {
     const form = useForm<AtributoFormData>({
         initialValues: {
+            codigo: initialValues?.codigo || '',
             nombre: initialValues?.nombre || '',
         },
         validate: {
-            nombre: isNotEmpty('El nombre es requerido'),
+            codigo: hasLength({ min: 2, max: 10 }, 'El código debe tener entre 2 y 10 caracteres'),
+            nombre: hasLength({ min: 3, max: 100 }, 'El nombre debe tener entre 3 y 100 caracteres'),
         },
     });
 
     useEffect(() => {
         if (initialValues) {
-            form.setValues(initialValues);
+            form.setValues({
+                codigo: initialValues.codigo || '',
+                nombre: initialValues.nombre || '',
+            });
         } else {
             form.reset();
         }
@@ -34,7 +39,13 @@ export function AtributoForm({ onSubmit, initialValues, isSubmitting }: Atributo
             <Stack>
                 <TextInput
                     withAsterisk
-                    label="Nombre del Atributo"
+                    label="Código"
+                    placeholder="Ej: LAD"
+                    {...form.getInputProps('codigo')}
+                />
+                <TextInput
+                    withAsterisk
+                    label="Atributo"
                     placeholder="Ej: Lado"
                     {...form.getInputProps('nombre')}
                 />

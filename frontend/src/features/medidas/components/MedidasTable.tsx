@@ -14,6 +14,7 @@ interface MedidasTableProps {
 export function MedidasTable({ records, onEdit, onDeactivate, onActivate }: MedidasTableProps) {
     const rows = records.map((record) => (
         <Table.Tr key={record.id_medida}>
+            <Table.Td>{record.codigo}</Table.Td>
             <Table.Td>{record.nombre}</Table.Td>
             <Table.Td>{record.unidad}</Table.Td>
             <Table.Td>
@@ -38,7 +39,8 @@ export function MedidasTable({ records, onEdit, onDeactivate, onActivate }: Medi
         <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
                 <Table.Tr>
-                    <Table.Th>Nombre de la Medida</Table.Th>
+                    <Table.Th>Código</Table.Th>
+                    <Table.Th>Medida</Table.Th>
                     <Table.Th>Unidad</Table.Th>
                     <Table.Th>Estado</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Acciones</Table.Th>
