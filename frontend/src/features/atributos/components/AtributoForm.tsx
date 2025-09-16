@@ -1,7 +1,7 @@
 // src/features/productos/atributos/components/AtributoForm.tsx
 
 import { TextInput, Button, Stack } from '@mantine/core';
-import { useForm, isNotEmpty, hasLength } from '@mantine/form';
+import { useForm, hasLength } from '@mantine/form';
 import type { AtributoFormData } from '../types';
 import { useEffect } from 'react';
 

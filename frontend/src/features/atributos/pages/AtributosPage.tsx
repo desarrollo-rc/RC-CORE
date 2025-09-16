@@ -1,7 +1,7 @@
 // src/features/productos/atributos/pages/AtributosPage.tsx
 
 import { useEffect, useState } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Switch, Modal, Grid,Text, Button, Paper } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Switch, Modal, Grid,Text, Button, Paper, Menu, Affix, ActionIcon, rem } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -14,6 +14,7 @@ import { getAtributos, createAtributo, updateAtributo, deactivateAtributo, activ
 import { getValores, createValor, updateValor, deactivateValor, activateValor } from '../services/valorAtributoService';
 import type { Atributo, AtributoFormData, ValorAtributo, ValorAtributoFormData } from '../types';
 import { getApiErrorMessage } from '../../../utils/errorHandler';
+import { IconPlus } from '@tabler/icons-react';
 
 export function AtributosPage() {
     const [atributos, setAtributos] = useState<Atributo[]>([]);
@@ -201,7 +202,6 @@ export function AtributosPage() {
                         checked={includeInactive}
                         onChange={(event) => setIncludeInactive(event.currentTarget.checked)}
                     />
-                    <Button onClick={() => handleOpenAtributoModal()}>Crear Atributo</Button>
                 </Group>
             </Group>
 
@@ -253,6 +253,22 @@ export function AtributosPage() {
                     initialValues={editingValor}
                 />
             </Modal>
+
+            <Affix position={{ bottom: rem(20), right: rem(20) }}>
+                <Menu shadow="md" width={200}>
+                    <Menu.Target>
+                        <ActionIcon color="red" size={60} radius="xl" variant="filled">
+                            <IconPlus style={{ width: '70%', height: '70%' }} stroke={1.5} />
+                        </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                        <Menu.Label>Acciones</Menu.Label>
+                        <Menu.Item leftSection={<IconPlus size={14} />} onClick={() => handleOpenAtributoModal(null)}>
+                            Crear Atributo
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+            </Affix>
         </Box>
     );
 }
