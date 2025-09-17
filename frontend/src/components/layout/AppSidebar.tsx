@@ -83,7 +83,6 @@ export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolea
                                 </Collapse>
                             </div>
                         ) : (
-                            // Vista colapsada (usa Popover)
                             <Popover key={item.id} position="right-start" withArrow shadow="md">
                                 <Popover.Target>
                                     <MantineNavLink
