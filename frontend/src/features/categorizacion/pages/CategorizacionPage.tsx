@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Title, Grid, Loader, Center, Modal, Text } from '@mantine/core';
+import { Box, Title, Grid, Loader, Center, Modal } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -17,8 +17,8 @@ import { getDivisiones, createDivision, updateDivision, deactivateDivision, acti
 import { getCategoriasPorDivision, createCategoria, updateCategoria, deactivateCategoria, activateCategoria, getSubCategoriasPorCategoria, createSubCategoria, updateSubCategoria, deactivateSubCategoria, activateSubCategoria, getDetallesPorSubCategoria, createDetSubCategoria, updateDetSubCategoria, deactivateDetSubCategoria, activateDetSubCategoria } from '../services/categorizacionService';
 
 // Tipos
-import type { Division, DivisionFormData } from '../../divisiones/types';
-import type { Categoria, SubCategoria, DetSubCategoria, CategoriaFormData, SubCategoriaFormData, DetSubCategoriaFormData } from '../types';
+import type { Division } from '../../divisiones/types';
+import type { Categoria, SubCategoria, DetSubCategoria } from '../types';
 import { getApiErrorMessage } from '../../../utils/errorHandler';
 
 export function CategorizacionPage() {

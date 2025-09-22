@@ -2,20 +2,32 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconUser, IconTag, IconBox, IconDashboard } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
     { icon: IconDashboard, label: 'Dashboard', to: '/' },
     {
+        icon: IconBuildingStore,
+        label: 'Maestros General',
+        id: 'maestros',
+        subItems: [
+            { icon: IconMap, label: 'Paises', to: '/paises' },
+        ],
+    },
+    {
         icon: IconBox,
         label: 'Maestros Productos',
         id: 'productos',
         subItems: [
-            { icon: IconHierarchy2, label: 'Divisiones', to: '/divisiones' },
+            { icon: IconBox, label: 'Códigos de Referencia', to: '/codigos-referencia' },
             { icon: IconHierarchy2, label: 'Categorización', to: '/categorizacion' },
             { icon: IconTags, label: 'Atributos', to: '/atributos' },
+            { icon: IconTags, label: 'Calidades', to: '/calidades' },
+            { icon: IconBuildingStore, label: 'Fabricas', to: '/fabricas' },
+            { icon: IconTags, label: 'Marcas', to: '/marcas' },
             { icon: IconRuler, label: 'Medidas', to: '/medidas' },
+            { icon: IconMap, label: 'Origenes', to: '/origenes' },
         ],
     },
     {

@@ -23,5 +23,9 @@ class Calidad(db.Model, MixinAuditoria):
             return cleaned.upper()
         return cleaned
 
+    @classmethod
+    def get_by_codigo(cls, codigo):
+        return cls.query.filter_by(codigo_calidad=codigo.upper().strip(), activo=True).first()
+
     def __repr__(self):
         return f'<Calidad {self.nombre_calidad}>'

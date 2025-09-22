@@ -77,6 +77,13 @@ export const activateSubCategoria = async (id: number): Promise<SubCategoria> =>
     return response.data;
 };
 
+export const getDetSubCategorias = async (includeInactive: boolean = false): Promise<DetSubCategoria[]> => {
+    const response = await apiClient.get<DetSubCategoria[]>('/det-sub-categorias', {
+        params: { incluir_inactivos: includeInactive }
+    });
+    return response.data;
+};
+
 export const getDetallesPorSubCategoria = async (subcategoriaId: number): Promise<DetSubCategoria[]> => {
     const response = await apiClient.get<DetSubCategoria[]>(`/det-sub-categorias/por-subcategoria/${subcategoriaId}`);
     return response.data;

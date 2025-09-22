@@ -26,6 +26,14 @@ def create_sub_categoria():
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
+@sub_categorias_bp.route('/', methods=['GET'])
+@jwt_required()
+@permission_required('productos:listar')
+def get_all_sub_categorias():
+    include_inactive = request.args.get('incluir_inactivos', 'false').lower() == 'true'
+    sub_categorias = SubCategoriaService.get_all_sub_categorias(include_inactive)
+    return jsonify(schema_many.dump(sub_categorias)), 200
+
 @sub_categorias_bp.route('/por-categoria/<int:categoria_id>', methods=['GET'])
 @jwt_required()
 @permission_required('productos:listar')

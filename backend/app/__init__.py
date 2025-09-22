@@ -96,6 +96,24 @@ def create_app(config_class=Config):
     from .api.v1.routes.medida_routes import medidas_bp
     app.register_blueprint(medidas_bp, url_prefix='/api/v1/medidas')
 
+    from .api.v1.routes.marca_routes import marcas_bp
+    app.register_blueprint(marcas_bp, url_prefix='/api/v1/marcas')
+
+    from .api.v1.routes.calidad_routes import calidades_bp
+    app.register_blueprint(calidades_bp, url_prefix='/api/v1/calidades')
+
+    from .api.v1.routes.fabrica_routes import fabricas_bp
+    app.register_blueprint(fabricas_bp, url_prefix='/api/v1/fabricas')
+
+    from .api.v1.routes.pais_routes import paises_bp
+    app.register_blueprint(paises_bp, url_prefix='/api/v1/paises')
+
+    from .api.v1.routes.origen_routes import origenes_bp
+    app.register_blueprint(origenes_bp, url_prefix='/api/v1/origenes')
+
+    from .api.v1.routes.codigo_referencia_routes import codigos_referencia_bp
+    app.register_blueprint(codigos_referencia_bp, url_prefix='/api/v1/codigos-referencia')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

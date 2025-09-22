@@ -78,7 +78,7 @@ class Pais(db.Model):
     __table_args__ = {'schema': 'general'}
 
     id_pais = db.Column(db.Integer, primary_key=True)
-    nombre_pais = db.Column(db.String(100), nullable=False)
+    nombre_pais = db.Column(db.String(100), unique=True, nullable=False)
 
     regiones = db.relationship('Region', back_populates='pais')
 

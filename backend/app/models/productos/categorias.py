@@ -76,3 +76,5 @@ class DetSubCategoria(db.Model, MixinAuditoria):
     
     id_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.sub_categorias.id_sub_categoria'), nullable=False)
     sub_categoria = db.relationship('SubCategoria', back_populates='detalles_sub_categoria')
+
+    codigos_referencia = db.relationship('CodigoReferencia', back_populates='det_sub_categoria')

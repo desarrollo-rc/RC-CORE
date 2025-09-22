@@ -26,6 +26,13 @@ def create_det_sub_categoria():
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
+@det_sub_categorias_bp.route('/', methods=['GET'])
+@jwt_required()
+@permission_required('productos:listar')
+def get_all_det_sub_categorias():
+    detalles = DetSubCategoriaService.get_all() 
+    return jsonify(schema_many.dump(detalles)), 200
+
 @det_sub_categorias_bp.route('/por-subcategoria/<int:sub_categoria_id>', methods=['GET'])
 @jwt_required()
 @permission_required('productos:listar')

@@ -12,6 +12,9 @@ class CodigoReferencia(db.Model, MixinAuditoria):
 
     id_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.sub_categorias.id_sub_categoria'), nullable=False)
     sub_categoria = db.relationship('SubCategoria', back_populates='codigos_referencia')
+
+    id_det_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.detalles_sub_categoria.id_det_sub_categoria'), nullable=True)
+    det_sub_categoria = db.relationship('DetSubCategoria', back_populates='codigos_referencia')
     
     codigos_tecnicos = db.relationship('CodigoTecnico', back_populates='codigo_referencia', cascade="all, delete-orphan")
 

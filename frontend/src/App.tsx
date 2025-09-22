@@ -10,15 +10,22 @@ import { DivisionesPage } from './features/divisiones/pages/DivisionesPage';
 import { CategorizacionPage } from './features/categorizacion/pages/CategorizacionPage';
 import { AtributosPage } from './features/atributos/pages/AtributosPage';
 import { MedidasPage } from './features/medidas/pages/MedidasPage';
+import { MarcasPage } from './features/marcas/pages/MarcasPage';
+import { CalidadesPage } from './features/calidades/pages/CalidadesPage';
+import { PaisesPage } from './features/paises/pages/PaisesPage';
+import { FabricasPage } from './features/fabricas/pages/FabricasPage';
+import { OrigenesPage } from './features/origenes/pages/OrigenesPage';
+import { CodigosReferenciaPage } from './features/codigos-referencia/pages/CodigosReferenciaPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
+
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
-  return <MainLayout />; // El Outlet dentro de MainLayout renderizará las rutas hijas
+  return <MainLayout />;
 };
 
 function App() {
@@ -44,6 +51,12 @@ function App() {
           <Route path="/atributos" element={<AtributosPage />} />
           <Route path="/medidas" element={<MedidasPage />} />
           <Route path="/categorizacion" element={<CategorizacionPage />} />
+          <Route path="/marcas" element={<MarcasPage />} />
+          <Route path="/calidades" element={<CalidadesPage />} />
+          <Route path="/paises" element={<PaisesPage />} />
+          <Route path="/fabricas" element={<FabricasPage />} />
+          <Route path="/origenes" element={<OrigenesPage />} />
+          <Route path="/codigos-referencia" element={<CodigosReferenciaPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

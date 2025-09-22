@@ -4,6 +4,10 @@ from app.api.v1.utils.errors import RelatedResourceNotFoundError, ResourceConfli
 
 class DetSubCategoriaService:
     @staticmethod
+    def get_all():
+        return DetSubCategoria.query.all()
+        
+    @staticmethod
     def get_det_sub_categoria_by_id(detalle_id):
         return DetSubCategoria.query.get_or_404(detalle_id)
         

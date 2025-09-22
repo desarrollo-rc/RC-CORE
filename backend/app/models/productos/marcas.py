@@ -2,6 +2,12 @@
 from app.extensions import db
 from app.models.entidades.entidades_auxiliares import MixinAuditoria
 from sqlalchemy.orm import validates
+import enum
+
+class AmbitoMarca(enum.Enum):
+    VEHICULO = 'Vehículo'
+    REPUESTO = 'Repuesto'
+    MIXTO = 'Mixto'
 
 class Marca(db.Model, MixinAuditoria):
     __tablename__ = 'marcas'
@@ -10,6 +16,9 @@ class Marca(db.Model, MixinAuditoria):
     id_marca = db.Column(db.Integer, primary_key=True)
     codigo_marca = db.Column(db.String(30), unique=True, nullable=False)
     nombre_marca = db.Column(db.String(100), nullable=False)
+    
+    ambito_marca = db.Column(db.Enum(AmbitoMarca), nullable=False, default=AmbitoMarca.MIXTO, comment="Define si la marca es de Vehículos, Repuestos o Mixta")
+
     descripcion = db.Column(db.String(255), nullable=True, comment="Breve descripción o eslogan de la marca.")
     tier_marca = db.Column(db.String(50), nullable=True, comment="Tier de la marca (TIER 1, TIER 2, etc.)")
     

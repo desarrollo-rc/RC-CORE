@@ -28,6 +28,14 @@ def create_categoria():
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
+@categorias_bp.route('/', methods=['GET'])
+@jwt_required()
+@permission_required('productos:listar')
+def get_all_categorias():
+    include_inactive = request.args.get('incluir_inactivos', 'false').lower() == 'true'
+    categorias = CategoriaService.get_all_categorias(include_inactive)
+    return jsonify(schema_many.dump(categorias)), 200
+
 @categorias_bp.route('/por-division/<int:division_id>', methods=['GET'])
 @jwt_required()
 @permission_required('productos:listar')
