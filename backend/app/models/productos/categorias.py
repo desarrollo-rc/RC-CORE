@@ -71,6 +71,7 @@ class DetSubCategoria(db.Model, MixinAuditoria):
     __table_args__ = {'schema': 'productos', 'comment': 'Detalles de las subcategorías'}
 
     id_det_sub_categoria = db.Column(db.Integer, primary_key=True)
+    codigo_det_sub_categoria = db.Column(db.String(20), unique=True, nullable=False)
     nombre_det_sub_categoria = db.Column(db.String(100), nullable=False)
     
     id_sub_categoria = db.Column(db.Integer, db.ForeignKey('productos.sub_categorias.id_sub_categoria'), nullable=False)

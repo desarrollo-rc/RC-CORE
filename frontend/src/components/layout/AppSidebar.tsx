@@ -13,6 +13,7 @@ const menuItems = [
         id: 'productos',
         subItems: [
             { icon: IconHierarchy2, label: 'Divisiones', to: '/divisiones' },
+            { icon: IconHierarchy2, label: 'Categorización', to: '/categorizacion' },
             { icon: IconTags, label: 'Atributos', to: '/atributos' },
             { icon: IconRuler, label: 'Medidas', to: '/medidas' },
         ],

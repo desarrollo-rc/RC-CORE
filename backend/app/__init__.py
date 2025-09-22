@@ -81,6 +81,15 @@ def create_app(config_class=Config):
     from .api.v1.routes.division_routes import divisiones_bp
     app.register_blueprint(divisiones_bp, url_prefix='/api/v1/divisiones')
 
+    from .api.v1.routes.categoria_routes import categorias_bp
+    app.register_blueprint(categorias_bp, url_prefix='/api/v1/categorias')
+
+    from .api.v1.routes.sub_categoria_routes import sub_categorias_bp
+    app.register_blueprint(sub_categorias_bp, url_prefix='/api/v1/sub-categorias')
+
+    from .api.v1.routes.det_sub_categoria_routes import det_sub_categorias_bp
+    app.register_blueprint(det_sub_categorias_bp, url_prefix='/api/v1/det-sub-categorias')
+
     from .api.v1.routes.atributo_routes import atributos_bp
     app.register_blueprint(atributos_bp, url_prefix='/api/v1/atributos')
 

@@ -7,16 +7,13 @@ import { useEffect } from 'react';
 
 interface DivisionFormProps {
     onSubmit: (values: DivisionFormData) => void;
-    initialValues?: Partial<DivisionFormData> | null;
     isSubmitting: boolean;
+    initialValues?: { codigo: string; nombre: string } | null;
 }
 
 export function DivisionForm({ onSubmit, initialValues, isSubmitting }: DivisionFormProps) {
     const form = useForm<DivisionFormData>({
-        initialValues: {
-            codigo_division: initialValues?.codigo_division || '',
-            nombre_division: initialValues?.nombre_division || '',
-        },
+        initialValues: { codigo_division: '', nombre_division: '' },
         validate: {
             codigo_division: isNotEmpty('El código es requerido'),
             nombre_division: isNotEmpty('El nombre es requerido'),
@@ -25,7 +22,10 @@ export function DivisionForm({ onSubmit, initialValues, isSubmitting }: Division
 
     useEffect(() => {
         if (initialValues) {
-            form.setValues(initialValues);
+            form.setValues({
+                codigo_division: initialValues.codigo,
+                nombre_division: initialValues.nombre,
+            });
         } else {
             form.reset();
         }

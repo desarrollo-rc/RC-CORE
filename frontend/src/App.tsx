@@ -7,6 +7,7 @@ import { PermisosPage } from './features/permisos/pages/PermisosPage';
 import { RolesPage } from './features/roles/pages/RolesPage';
 import { UsuariosPage } from './features/usuarios/pages/UsuariosPage';
 import { DivisionesPage } from './features/divisiones/pages/DivisionesPage';
+import { CategorizacionPage } from './features/categorizacion/pages/CategorizacionPage';
 import { AtributosPage } from './features/atributos/pages/AtributosPage';
 import { MedidasPage } from './features/medidas/pages/MedidasPage';
 import { useAuth } from './context/AuthContext';
@@ -42,6 +43,7 @@ function App() {
           <Route path="/divisiones" element={<DivisionesPage />} />
           <Route path="/atributos" element={<AtributosPage />} />
           <Route path="/medidas" element={<MedidasPage />} />
+          <Route path="/categorizacion" element={<CategorizacionPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}
