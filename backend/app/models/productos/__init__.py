@@ -9,6 +9,7 @@ from .caracteristicas import Atributo, Medida, AtributoAsignado, MedidaAsignada
 from .calidades import Calidad
 from .maestro_productos import MaestroProductos
 from .categorias import Division,Categoria, SubCategoria, DetSubCategoria
+from .clasificaciones import ClasificacionServicio, ClasificacionEstadistica
 
 __all__ = [
     "Aplicacion",
@@ -29,4 +30,6 @@ __all__ = [
     "DetSubCategoria",
     "Division",
     "MaestroProductos",
+    "ClasificacionServicio",
+    "ClasificacionEstadistica",
 ]

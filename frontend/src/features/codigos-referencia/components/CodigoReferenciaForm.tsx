@@ -1,33 +1,40 @@
 // frontend/src/features/codigos-referencia/components/CodigoReferenciaForm.tsx
-import { TextInput, Button, Stack, Textarea, Select } from '@mantine/core';
+import { TextInput, Button, Stack, Textarea, Select, Group } from '@mantine/core';
 import { useForm, isNotEmpty } from '@mantine/form';
 import { useEffect, useState, useMemo } from 'react';
 import type { CodigoReferenciaFormData } from '../types';
 import type { Division, Categoria, SubCategoria, DetSubCategoria } from '../../categorizacion/types';
+import type { ClasificacionEstadistica } from '../../clasificaciones-estadistica/types';
+import type { ClasificacionServicio } from '../../clasificaciones-servicio/types';
 
 interface CodigoReferenciaFormProps {
     onSubmit: (values: CodigoReferenciaFormData) => void;
     isSubmitting: boolean;
     initialValues?: Partial<CodigoReferenciaFormData> | null;
-    // Recibimos todas las listas de la página principal
     divisiones: Division[];
     categorias: Categoria[];
     subCategorias: SubCategoria[];
     detSubCategorias: DetSubCategoria[];
+    clasificacionesServicio: ClasificacionServicio[];
+    clasificacionesEstadistica: ClasificacionEstadistica[]; 
 }
 
-export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, divisiones, categorias, subCategorias, detSubCategorias }: CodigoReferenciaFormProps) {
+export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, divisiones, categorias, subCategorias, detSubCategorias, clasificacionesServicio, clasificacionesEstadistica }: CodigoReferenciaFormProps) {
     // Estados locales para manejar la selección en cascada
     const [selectedDivisionId, setSelectedDivisionId] = useState<string | null>(null);
     const [selectedCategoriaId, setSelectedCategoriaId] = useState<string | null>(null);
     const [selectedSubCategoriaId, setSelectedSubCategoriaId] = useState<string | null>(null);
-    const [selectedDetSubCategoriaId, setSelectedDetSubCategoriaId] = useState<string | null>(null);
 
     const form = useForm<CodigoReferenciaFormData>({
         initialValues: {
             codigo: '',
             descripcion: '',
+            id_division: null,
+            id_categoria: null,
             id_sub_categoria: null,
+            id_det_sub_categoria: null,
+            id_clasificacion_servicio: null,
+            id_clasificacion_estadistica: null,
         },
         validate: {
             codigo: isNotEmpty('El código es requerido'),
@@ -37,6 +44,8 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
 
     // Lógica para filtrar las opciones de los selectores
     const divisionesOptions = useMemo(() => divisiones.map(d => ({ value: d.id_division.toString(), label: d.nombre_division })), [divisiones]);
+    const clasServicioOptions = useMemo(() => clasificacionesServicio.map(c => ({ value: c.id.toString(), label: c.nombre })), [clasificacionesServicio]);
+    const clasEstadisticaOptions = useMemo(() => clasificacionesEstadistica.map(c => ({ value: c.id.toString(), label: c.nombre })), [clasificacionesEstadistica]);
     
     const categoriasOptions = useMemo(() => {
         if (!selectedDivisionId) return [];
@@ -60,13 +69,25 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
     }, [selectedSubCategoriaId, detSubCategorias]);
 
     useEffect(() => {
-        if (initialValues) {
-            form.setValues(initialValues);
-            // Lógica para pre-cargar los selectores si estamos editando (requiere un poco más de trabajo)
+        if (initialValues?.id_sub_categoria) {
+            const subCategoria = subCategorias.find(sc => sc.id_sub_categoria.toString() === initialValues.id_sub_categoria);
+            const categoria = subCategoria ? categorias.find(c => c.id_categoria === subCategoria.id_categoria) : undefined;
+            const division = categoria ? divisiones.find(d => d.id_division === categoria.id_division) : undefined;
+            
+            if (division) setSelectedDivisionId(division.id_division.toString());
+            if (categoria) setSelectedCategoriaId(categoria.id_categoria.toString());
+            if (subCategoria) setSelectedSubCategoriaId(subCategoria.id_sub_categoria.toString());
+
+            form.setValues({
+                codigo: initialValues.codigo || '',
+                descripcion: initialValues.descripcion || '',
+                id_sub_categoria: initialValues.id_sub_categoria,
+                id_det_sub_categoria: initialValues.id_det_sub_categoria || null,
+            });
         } else {
             form.reset();
         }
-    }, [initialValues]);
+    }, [initialValues, divisiones, categorias, subCategorias]);
 
     return (
         <form onSubmit={form.onSubmit(onSubmit)}>
@@ -94,8 +115,10 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
                     value={selectedDivisionId}
                     onChange={(value) => {
                         setSelectedDivisionId(value);
-                        setSelectedCategoriaId(null); // Resetear selección hija
-                        form.setFieldValue('id_sub_categoria', null); // Resetear selección final
+                        setSelectedCategoriaId(null);
+                        setSelectedSubCategoriaId(null);
+                        form.setFieldValue('id_sub_categoria', null);
+                        form.setFieldValue('id_det_sub_categoria', null);
                     }}
                 />
                 <Select
@@ -109,7 +132,9 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
                     value={selectedCategoriaId}
                     onChange={(value) => {
                         setSelectedCategoriaId(value);
-                        form.setFieldValue('id_sub_categoria', null); // Resetear selección final
+                        setSelectedSubCategoriaId(null);
+                        form.setFieldValue('id_sub_categoria', null);
+                        form.setFieldValue('id_det_sub_categoria', null);
                     }}
                 />
                 <Select
@@ -122,7 +147,9 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
                     clearable
                     value={selectedSubCategoriaId}
                     onChange={(value) => {
+                        form.setFieldValue('id_sub_categoria', value);
                         setSelectedSubCategoriaId(value);
+                        form.setFieldValue('id_det_sub_categoria', null);
                     }}
                 />
                 {detSubCategoriasOptions.length > 0 && (
@@ -130,15 +157,31 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
                         label="Detalle Subcategoría (Opcional)"
                         placeholder="Paso 4: Seleccione un detalle si aplica"
                         data={detSubCategoriasOptions}
-                        searchable
                         clearable
-                        value={selectedDetSubCategoriaId}
-                        onChange={(value) => {
-                            setSelectedDetSubCategoriaId(value);
-                        }}
+                        {...form.getInputProps('id_det_sub_categoria')}
                     />
                 )}
-                
+                <Group align='flex-start' wrap='nowrap'>
+                    <Select
+                        label="Clasificación de Servicio"
+                        placeholder="Seleccione una clasificación"
+                        data={clasServicioOptions}
+                        clearable
+                        searchable
+                        flex={1}
+                        {...form.getInputProps('id_clasificacion_servicio')}
+                    />
+                    
+                    <Select
+                        label="Clasificación Estadística"
+                        placeholder="Seleccione una clasificación"
+                        data={clasEstadisticaOptions}
+                        clearable
+                        searchable
+                        flex={1}
+                        {...form.getInputProps('id_clasificacion_estadistica')}
+                    />
+                </Group>
                 <Button type="submit" mt="md" loading={isSubmitting}>
                     Guardar Código de Referencia
                 </Button>

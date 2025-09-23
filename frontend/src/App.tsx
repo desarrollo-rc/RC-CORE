@@ -16,6 +16,9 @@ import { PaisesPage } from './features/paises/pages/PaisesPage';
 import { FabricasPage } from './features/fabricas/pages/FabricasPage';
 import { OrigenesPage } from './features/origenes/pages/OrigenesPage';
 import { CodigosReferenciaPage } from './features/codigos-referencia/pages/CodigosReferenciaPage';
+import { CodigoReferenciaDetailPage } from './features/codigos-referencia/pages/CodigoReferenciaDetailPage';
+import { ClasificacionServicioPage } from './features/clasificaciones-servicio/pages/ClasificacionServicioPage';
+import { ClasificacionEstadisticaPage } from './features/clasificaciones-estadistica/pages/ClasificacionEstadisticaPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
 
@@ -57,6 +60,9 @@ function App() {
           <Route path="/fabricas" element={<FabricasPage />} />
           <Route path="/origenes" element={<OrigenesPage />} />
           <Route path="/codigos-referencia" element={<CodigosReferenciaPage />} />
+          <Route path="/codigos-referencia/:refId" element={<CodigoReferenciaDetailPage />} />
+          <Route path="/clasificaciones-servicio" element={<ClasificacionServicioPage />} />
+          <Route path="/clasificaciones-estadistica" element={<ClasificacionEstadisticaPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

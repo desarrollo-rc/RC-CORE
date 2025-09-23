@@ -22,6 +22,8 @@ const menuItems = [
         subItems: [
             { icon: IconBox, label: 'Códigos de Referencia', to: '/codigos-referencia' },
             { icon: IconHierarchy2, label: 'Categorización', to: '/categorizacion' },
+            { icon: IconHierarchy2, label: 'Clasificaciones de Servicio', to: '/clasificaciones-servicio' },
+            { icon: IconHierarchy2, label: 'Clasificaciones Estadísticas', to: '/clasificaciones-estadistica' },
             { icon: IconTags, label: 'Atributos', to: '/atributos' },
             { icon: IconTags, label: 'Calidades', to: '/calidades' },
             { icon: IconBuildingStore, label: 'Fabricas', to: '/fabricas' },

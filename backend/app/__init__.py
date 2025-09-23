@@ -114,6 +114,12 @@ def create_app(config_class=Config):
     from .api.v1.routes.codigo_referencia_routes import codigos_referencia_bp
     app.register_blueprint(codigos_referencia_bp, url_prefix='/api/v1/codigos-referencia')
 
+    from .api.v1.routes.clasificacion_servicio_routes import clasificaciones_servicio_bp
+    app.register_blueprint(clasificaciones_servicio_bp, url_prefix='/api/v1/clasificaciones-servicio')
+
+    from .api.v1.routes.clasificacion_estadistica_routes import clasificaciones_estadistica_bp
+    app.register_blueprint(clasificaciones_estadistica_bp, url_prefix='/api/v1/clasificaciones-estadistica')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

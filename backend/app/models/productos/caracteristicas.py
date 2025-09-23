@@ -40,7 +40,6 @@ class ValorAtributo(db.Model, MixinAuditoria):
         {'schema': 'productos'}
     )
 
-
 class Medida(db.Model, MixinAuditoria):
     __tablename__ = 'medidas'
     __table_args__ = {'schema': 'productos', 'comment': 'Medidas de los productos (Alto, Ancho, Diámetro, etc.)'}

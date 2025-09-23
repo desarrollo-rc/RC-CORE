@@ -3,6 +3,7 @@ from app.extensions import db
 from app.models.productos.codigos import CodigoReferencia, CodigoTecnico
 from app.models.productos.categorias import SubCategoria
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
+from sqlalchemy.orm import joinedload
 
 class CodigoReferenciaService:
     # --- Métodos para CodigoReferencia (Padre) ---
@@ -23,7 +24,9 @@ class CodigoReferenciaService:
 
     @staticmethod
     def get_codigo_referencia_by_id(ref_id):
-        return CodigoReferencia.query.get_or_404(ref_id)
+        return CodigoReferencia.query.options(
+            joinedload(CodigoReferencia.codigos_tecnicos)
+        ).get_or_404(ref_id)
 
     @staticmethod
     def get_all_codigos_referencia(include_inactive: bool = False):

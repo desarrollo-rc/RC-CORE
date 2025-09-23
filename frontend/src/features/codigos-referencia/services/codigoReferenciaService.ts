@@ -17,6 +17,11 @@ export const getCodigosReferencia = async (includeInactive: boolean = false): Pr
     return response.data;
 };
 
+export const getCodigoReferenciaById = async (id: number): Promise<CodigoReferencia> => {
+    const response = await apiClient.get<CodigoReferencia>(`/codigos-referencia/${id}`);
+    return response.data;
+};
+
 export const createCodigoReferencia = async (data: CodigoReferenciaPayload): Promise<CodigoReferencia> => {
     const response = await apiClient.post<CodigoReferencia>('/codigos-referencia', data);
     return response.data;
