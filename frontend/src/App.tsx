@@ -11,6 +11,7 @@ import { CategorizacionPage } from './features/categorizacion/pages/Categorizaci
 import { AtributosPage } from './features/atributos/pages/AtributosPage';
 import { MedidasPage } from './features/medidas/pages/MedidasPage';
 import { MarcasPage } from './features/marcas/pages/MarcasPage';
+import { VehiculosPage } from './features/vehiculos/pages/VehiculoPage';
 import { CalidadesPage } from './features/calidades/pages/CalidadesPage';
 import { PaisesPage } from './features/paises/pages/PaisesPage';
 import { FabricasPage } from './features/fabricas/pages/FabricasPage';
@@ -21,6 +22,7 @@ import { ClasificacionServicioPage } from './features/clasificaciones-servicio/p
 import { ClasificacionEstadisticaPage } from './features/clasificaciones-estadistica/pages/ClasificacionEstadisticaPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
+
 
 
 const ProtectedLayout = () => {
@@ -63,6 +65,7 @@ function App() {
           <Route path="/codigos-referencia/:refId" element={<CodigoReferenciaDetailPage />} />
           <Route path="/clasificaciones-servicio" element={<ClasificacionServicioPage />} />
           <Route path="/clasificaciones-estadistica" element={<ClasificacionEstadisticaPage />} />
+          <Route path="/vehiculos" element={<VehiculosPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

@@ -20,3 +20,12 @@ class UpdateMedidaSchema(Schema):
     codigo = fields.Str(validate=validate.Length(min=2, max=10))
     nombre = fields.Str(validate=validate.Length(min=2, max=100))
     unidad = fields.Str(validate=validate.Length(min=1, max=20))
+
+class MedidaAsignadaSchema(Schema):
+    id_codigo_referencia = fields.Int(dump_only=True)
+    id_medida = fields.Int(required=True)
+    valor = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, error="El valor no puede ser negativo."))
+    medida = fields.Nested('MedidaSchema', dump_only=True)
+
+class UpdateMedidaAsignadaSchema(Schema):
+    valor = fields.Decimal(as_string=True, required=True, validate=validate.Range(min=0, error="El valor no puede ser negativo."))

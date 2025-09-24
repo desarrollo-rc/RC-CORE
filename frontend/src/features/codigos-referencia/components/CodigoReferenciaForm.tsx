@@ -83,6 +83,8 @@ export function CodigoReferenciaForm({ onSubmit, isSubmitting, initialValues, di
                 descripcion: initialValues.descripcion || '',
                 id_sub_categoria: initialValues.id_sub_categoria,
                 id_det_sub_categoria: initialValues.id_det_sub_categoria || null,
+                id_clasificacion_servicio: initialValues.id_clasificacion_servicio || null,
+                id_clasificacion_estadistica: initialValues.id_clasificacion_estadistica || null,
             });
         } else {
             form.reset();

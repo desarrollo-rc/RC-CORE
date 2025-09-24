@@ -5,7 +5,9 @@ import type {
     CodigoReferencia, 
     CodigoReferenciaPayload, 
     CodigoTecnico, 
-    CodigoTecnicoPayload 
+    CodigoTecnicoPayload,
+    Aplicacion,
+    AplicacionPayload,
 } from '../types';
 
 // --- Funciones para CodigoReferencia (Padre) ---
@@ -56,4 +58,15 @@ export const updateCodigoTecnico = async (refId: number, tecId: number, data: Pa
 
 export const deleteCodigoTecnico = async (refId: number, tecId: number): Promise<void> => {
     await apiClient.delete(`/codigos-referencia/${refId}/codigos-tecnicos/${tecId}`);
+};
+
+// --- Aplicaciones ---
+export const addAplicacion = async (refId: number, payload: AplicacionPayload): Promise<Aplicacion> => {
+    const body: any = { id_version_vehiculo: payload.id_version };
+    const response = await apiClient.post<Aplicacion>(`/codigos-referencia/${refId}/aplicaciones`, body);
+    return response.data;
+};
+
+export const deleteAplicacion = async (refId: number, id_version: number): Promise<void> => {
+    await apiClient.delete(`/codigos-referencia/${refId}/aplicaciones/${id_version}`);
 };

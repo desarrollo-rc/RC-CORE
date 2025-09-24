@@ -6,13 +6,19 @@ from app.api.v1.utils.decorators import permission_required
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required
 from app.api.v1.utils.errors import BusinessRuleError
-from .codigo_tecnico_routes import codigos_tecnicos_bp # Importamos el blueprint del hijo
+from .codigo_tecnico_routes import codigos_tecnicos_bp
+from .medida_asignada_routes import medidas_asignadas_bp
+from .atributo_asignado_routes import atributos_asignados_bp
+from .aplicacion_routes import aplicaciones_bp
 
 codigos_referencia_bp = Blueprint('codigos_referencia_bp', __name__)
 
 # --- REGISTRO ANIDADO ---
 # Todas las rutas de codigos_tecnicos_bp ahora estarán bajo /codigos-referencia/
 codigos_referencia_bp.register_blueprint(codigos_tecnicos_bp)
+codigos_referencia_bp.register_blueprint(medidas_asignadas_bp)
+codigos_referencia_bp.register_blueprint(atributos_asignados_bp)
+codigos_referencia_bp.register_blueprint(aplicaciones_bp)
 # ------------------------
 
 schema_single = CodigoReferenciaSchema()

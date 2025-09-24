@@ -1,4 +1,4 @@
-import { Title, Table, ScrollArea, Button, Group, ActionIcon, Tooltip, Paper } from '@mantine/core';
+import { Title, Table, ScrollArea, Button, Group, ActionIcon, Tooltip, Paper, Badge } from '@mantine/core';
 import { IconPlus, IconPencil, IconPlayerPause, IconPlayerPlay } from '@tabler/icons-react';
 
 export interface ListItem {
@@ -6,6 +6,7 @@ export interface ListItem {
     codigo: string;
     nombre: string;
     activo: boolean;
+    detalle?: string;
 }
 
 interface ColumnListProps {
@@ -30,6 +31,15 @@ export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, 
         >
             <Table.Td>{item.codigo}</Table.Td>
             <Table.Td>{item.nombre}</Table.Td>
+            {items.some(i => i.detalle) && (
+                 <Table.Td>
+                     {item.detalle && (
+                        <Badge variant="light" color={item.detalle === 'Mixto' ? 'grape' : 'blue'}>
+                            {item.detalle}
+                        </Badge>
+                     )}
+                 </Table.Td>
+            )}
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
                     <Tooltip label="Editar"><ActionIcon size="sm" variant="light" onClick={(e) => { e.stopPropagation(); onEdit(item); }}><IconPencil size={14} /></ActionIcon></Tooltip>
@@ -42,6 +52,8 @@ export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, 
             </Table.Td>
         </Table.Tr>
     ));
+
+    const showDetalleHeader = items.some(i => i.detalle);
 
     return (
         <Paper withBorder p="md" radius="md" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -57,6 +69,7 @@ export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, 
                         <Table.Tr>
                             <Table.Th>Código</Table.Th>
                             <Table.Th>Nombre</Table.Th>
+                            {showDetalleHeader && <Table.Th>Ámbito</Table.Th>}
                             <Table.Th>Acciones</Table.Th>
                         </Table.Tr>
                     </Table.Thead>

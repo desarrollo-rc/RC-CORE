@@ -1,15 +1,22 @@
 # backend/app/api/v1/services/marca_service.py
 from app.extensions import db
-from app.models.productos.marcas import Marca
+from app.models.productos.marcas import Marca, AmbitoMarca
 from app.api.v1.utils.errors import ResourceConflictError
 
 class MarcaService:
     @staticmethod
-    def get_all_marcas(include_inactive: bool = False):
-        """Obtiene todas las marcas, opcionalmente incluyendo las inactivas."""
+    def get_all_marcas(include_inactive: bool = False, ambito: str = None):
+        """Obtiene todas las marcas, opcionalmente incluyendo las inactivas y filtrando por ámbito."""
         query = Marca.query
         if not include_inactive:
-            query = query.filter_by(activo=True)
+            query = query.filter(Marca.activo==True)
+        
+        if ambito:
+            if ambito.lower() == 'vehiculo':
+                query = query.filter(Marca.ambito_marca.in_([AmbitoMarca.VEHICULO, AmbitoMarca.MIXTO]))
+            elif ambito.lower() == 'repuesto':
+                query = query.filter(Marca.ambito_marca.in_([AmbitoMarca.REPUESTO, AmbitoMarca.MIXTO]))
+
         return query.order_by(Marca.nombre_marca).all()
 
     @staticmethod

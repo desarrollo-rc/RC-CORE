@@ -120,6 +120,9 @@ def create_app(config_class=Config):
     from .api.v1.routes.clasificacion_estadistica_routes import clasificaciones_estadistica_bp
     app.register_blueprint(clasificaciones_estadistica_bp, url_prefix='/api/v1/clasificaciones-estadistica')
 
+    from .api.v1.routes.vehiculo_routes import vehiculos_bp
+    app.register_blueprint(vehiculos_bp, url_prefix='/api/v1/vehiculos')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

@@ -7,8 +7,10 @@ from app.api.v1.utils.decorators import permission_required
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required
 from werkzeug.exceptions import NotFound
+from .modelo_routes import modelos_bp
 
 marcas_bp = Blueprint('marcas_bp', __name__)
+marcas_bp.register_blueprint(modelos_bp)
 
 schema_single = MarcaSchema()
 schema_many = MarcaSchema(many=True)
@@ -32,7 +34,8 @@ def create_marca():
 @permission_required('productos:listar')
 def get_marcas():
     include_inactive = request.args.get('incluir_inactivos', 'false').lower() == 'true'
-    marcas = MarcaService.get_all_marcas(include_inactive)
+    ambito = request.args.get('ambito', None)
+    marcas = MarcaService.get_all_marcas(include_inactive, ambito=ambito)
     return schema_many.dump(marcas), 200
 
 @marcas_bp.route('/<int:marca_id>', methods=['PUT'])

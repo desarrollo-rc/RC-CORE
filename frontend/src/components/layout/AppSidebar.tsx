@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -27,7 +27,7 @@ const menuItems = [
             { icon: IconTags, label: 'Atributos', to: '/atributos' },
             { icon: IconTags, label: 'Calidades', to: '/calidades' },
             { icon: IconBuildingStore, label: 'Fabricas', to: '/fabricas' },
-            { icon: IconTags, label: 'Marcas', to: '/marcas' },
+            { icon: IconCar, label: 'Vehículos', to: '/vehiculos' }, 
             { icon: IconRuler, label: 'Medidas', to: '/medidas' },
             { icon: IconMap, label: 'Origenes', to: '/origenes' },
         ],

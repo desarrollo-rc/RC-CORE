@@ -10,17 +10,34 @@ import { modals } from '@mantine/modals';
 
 // --- Importaciones de Servicios y Tipos ---
 import { getCodigoReferenciaById, updateCodigoReferencia, createCodigoTecnico, updateCodigoTecnico, deleteCodigoTecnico } from '../services/codigoReferenciaService';
+import { addMedidaAsignada, updateMedidaAsignada, deleteMedidaAsignada } from '../services/medidaAsignadaService';
+import { addAtributoAsignado, updateAtributoAsignado, deleteAtributoAsignado } from '../services/atributoAsignadoService';
 import { getDivisiones } from '../../divisiones/services/divisionService';
 import { getCategorias, getSubCategorias, getDetSubCategorias } from '../../categorizacion/services/categorizacionService';
 import { getClasificacionesServicio } from '../../clasificaciones-servicio/services/clasificacionServicioService';
 import { getClasificacionesEstadistica } from '../../clasificaciones-estadistica/services/clasificacionEstadisticaService';
+import { getMedidas } from '../../medidas/services/medidaService';
+import { getAtributos } from '../../atributos/services/atributoService';
 import { getApiErrorMessage } from '../../../utils/errorHandler';
+
 import { CodigosTecnicosTable } from '../components/CodigosTecnicosTable';
 import { CodigoTecnicoForm } from '../components/CodigoTecnicoForm';
-import type { CodigoReferencia, CodigoReferenciaFormData, CodigoTecnico, CodigoTecnicoFormData, CodigoReferenciaPayload, CodigoTecnicoPayload } from '../types';
+import { MedidasAsignadasTable } from '../components/MedidasAsignadasTable';
+import { MedidaAsignadaForm } from '../components/MedidaAsignadaForm';
+import { AtributosAsignadosTable } from '../components/AtributosAsignadosTable';
+import { AtributoAsignadoForm } from '../components/AtributoAsignadoForm';
+import { AplicacionesTable } from '../components/AplicacionesTable';
+import { AplicacionForm } from '../components/AplicacionForm';
+
+import type { CodigoReferencia, CodigoReferenciaFormData, CodigoTecnico, CodigoTecnicoFormData, CodigoReferenciaPayload, CodigoTecnicoPayload, MedidaAsignada, MedidaAsignadaFormData, AtributoAsignado, AtributoAsignadoFormData, Aplicacion } from '../types';
 import type { Division, Categoria, SubCategoria, DetSubCategoria } from '../../categorizacion/types';
 import type { ClasificacionServicio } from '../../clasificaciones-servicio/types';
 import type { ClasificacionEstadistica } from '../../clasificaciones-estadistica/types';
+import type { Medida } from '../../medidas/types';
+import type { Atributo } from '../../atributos/types';
+import type { MarcaVehiculo, Modelo, VersionVehiculo } from '../../vehiculos/types';
+import { getAllVersiones, getMarcasVehiculos, getModelosPorMarca } from '../../vehiculos/services/vehiculoService';
+import { addAplicacion, deleteAplicacion } from '../services/codigoReferenciaService';
 
 export function CodigoReferenciaDetailPage() {
     const { refId } = useParams<{ refId: string }>();
@@ -34,10 +51,25 @@ export function CodigoReferenciaDetailPage() {
         divisiones: Division[]; categorias: Categoria[]; subCategorias: SubCategoria[];
         detSubCategorias: DetSubCategoria[]; clasificacionesServicio: ClasificacionServicio[];
         clasificacionesEstadistica: ClasificacionEstadistica[];
+        availableMedidas: Medida[];
+        availableAtributos: Atributo[];
     } | null>(null);
     
     const [editingCodigoTecnico, setEditingCodigoTecnico] = useState<CodigoTecnico | null>(null);
     const [tecModalOpened, { open: openTecModal, close: closeTecModal }] = useDisclosure(false);
+
+    const [editingMedidaAsignada, setEditingMedidaAsignada] = useState<MedidaAsignada | null>(null);
+    const [medidaModalOpened, { open: openMedidaModal, close: closeMedidaModal }] = useDisclosure(false);
+
+    const [editingAtributoAsignado, setEditingAtributoAsignado] = useState<AtributoAsignado | null>(null);
+    const [atributoModalOpened, { open: openAtributoModal, close: closeAtributoModal }] = useDisclosure(false);
+
+    // Estado soporte para Aplicaciones
+    const [vehMarcas, setVehMarcas] = useState<MarcaVehiculo[]>([]);
+    const [vehModelos, setVehModelos] = useState<Modelo[]>([]);
+    const [vehVersiones, setVehVersiones] = useState<VersionVehiculo[]>([]);
+    const [aplicacionModalOpened, { open: openAplicacionModal, close: closeAplicacionModal }] = useDisclosure(false);
+
 
     const form = useForm<CodigoReferenciaFormData>({
         initialValues: {
@@ -73,19 +105,26 @@ export function CodigoReferenciaDetailPage() {
             if (!refId) return;
             try {
                 setLoading(true);
-                const [refData, divData, catData, subCatData, detSubCatData, servData, estData] = await Promise.all([
+                const [refData, divData, catData, subCatData, detSubCatData, servData, estData, medData, atrData, vMarcas, vVersiones] = await Promise.all([
                     getCodigoReferenciaById(Number(refId)),
                     getDivisiones(), getCategorias(), getSubCategorias(), getDetSubCategorias(),
-                    getClasificacionesServicio(), getClasificacionesEstadistica()
+                    getClasificacionesServicio(), getClasificacionesEstadistica(), getMedidas(), getAtributos(),
+                    getMarcasVehiculos(), getAllVersiones()
                 ]);
+
                 setCodigoRef(refData);
                 const supData = {
                     divisiones: divData, categorias: catData, subCategorias: subCatData,
                     detSubCategorias: detSubCatData, clasificacionesServicio: servData,
-                    clasificacionesEstadistica: estData,
+                    clasificacionesEstadistica: estData, availableMedidas: medData, availableAtributos: atrData
                 };
                 setSupportData(supData);
                 populateForm(refData, supData);
+                setVehMarcas(vMarcas);
+                setVehVersiones(vVersiones);
+                // cargar todos los modelos de todas las marcas
+                const modelosLists = await Promise.all(vMarcas.map(m => getModelosPorMarca(m.id_marca).catch(() => [])));
+                setVehModelos(modelosLists.flat());
             } catch (err) {
                 setError("No se pudieron cargar los datos del código de referencia.");
             } finally {
@@ -116,6 +155,92 @@ export function CodigoReferenciaDetailPage() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleMedidaSubmit = async (formValues: MedidaAsignadaFormData) => {
+        if (!codigoRef || !formValues.id_medida) return;
+        setIsSubmitting(true);
+        const payload = {
+            id_medida: Number(formValues.id_medida),
+            valor: Number(formValues.valor),
+        };
+        try {
+            let updatedRef: CodigoReferencia;
+            if (editingMedidaAsignada) {
+                const updated = await updateMedidaAsignada(codigoRef.id_codigo_referencia, editingMedidaAsignada.id_medida, payload);
+                updatedRef = { ...codigoRef, medidas_asignadas: codigoRef.medidas_asignadas.map(m => m.id_medida === updated.id_medida ? updated : m) };
+                notifications.show({ title: 'Éxito', message: 'Medida actualizada.', color: 'blue' });
+            } else {
+                const newData = await addMedidaAsignada(codigoRef.id_codigo_referencia, payload);
+                updatedRef = { ...codigoRef, medidas_asignadas: [...codigoRef.medidas_asignadas, newData] };
+                notifications.show({ title: 'Éxito', message: 'Medida asignada.', color: 'green' });
+            }
+            setCodigoRef(updatedRef);
+            closeMedidaModal();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo guardar la medida.'), color: 'red' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleAtributoSubmit = async (formValues: AtributoAsignadoFormData) => {
+        if (!codigoRef || !formValues.id_atributo || !formValues.id_valor) return;
+        setIsSubmitting(true);
+        const payload = {
+            id_atributo: Number(formValues.id_atributo),
+            id_valor: Number(formValues.id_valor),
+        };
+        try {
+            let updatedRef: CodigoReferencia;
+            if (editingAtributoAsignado) {
+                const updated = await updateAtributoAsignado(codigoRef.id_codigo_referencia, editingAtributoAsignado.id_atributo, payload);
+                updatedRef = { ...codigoRef, atributos_asignados: codigoRef.atributos_asignados.map(a => a.id_atributo === updated.id_atributo ? updated : a) };
+                notifications.show({ title: 'Éxito', message: 'Atributo actualizado.', color: 'blue' });
+            } else {
+                const newData = await addAtributoAsignado(codigoRef.id_codigo_referencia, payload);
+                updatedRef = { ...codigoRef, atributos_asignados: [...codigoRef.atributos_asignados, newData] };
+                notifications.show({ title: 'Éxito', message: 'Atributo asignado.', color: 'green' });
+            }
+            setCodigoRef(updatedRef);
+            closeAtributoModal();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo guardar el atributo.'), color: 'red' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleMedidaDelete = (medidaAsignada: MedidaAsignada) => {
+        if (!codigoRef) return;
+        modals.openConfirmModal({
+            title: 'Eliminar Medida Asignada',
+            children: <Text size="sm">¿Eliminar la medida "{medidaAsignada.medida.nombre}"?</Text>,
+            labels: { confirm: 'Eliminar', cancel: 'Cancelar' },
+            onConfirm: async () => {
+                await deleteMedidaAsignada(codigoRef.id_codigo_referencia, medidaAsignada.medida.id_medida);
+                const updatedRef = {
+                    ...codigoRef,
+                    medidas_asignadas: codigoRef.medidas_asignadas.filter(m => m.medida.id_medida !== medidaAsignada.medida.id_medida),
+                };
+                setCodigoRef(updatedRef);
+                notifications.show({ title: 'Éxito', message: 'Medida eliminada.', color: 'orange' });
+            },
+        });
+    };
+
+    const handleAtributoDelete = (atributoAsignado: AtributoAsignado) => {
+        if (!codigoRef) return;
+        modals.openConfirmModal({
+            title: 'Eliminar Atributo Asignado',
+            children: <Text size="sm">¿Eliminar el atributo "{atributoAsignado.atributo.nombre}"?</Text>,
+            labels: { confirm: 'Eliminar', cancel: 'Cancelar' },
+            onConfirm: async () => {
+                await deleteAtributoAsignado(codigoRef.id_codigo_referencia, atributoAsignado.id_atributo);
+                setCodigoRef(prev => prev ? { ...prev, atributos_asignados: prev.atributos_asignados.filter(a => a.id_atributo !== atributoAsignado.id_atributo) } : null);
+                notifications.show({ title: 'Éxito', message: 'Atributo eliminado.', color: 'orange' });
+            },
+        });
     };
     
     const divisionesOptions = useMemo(() => supportData?.divisiones.map(d => ({ value: d.id_division.toString(), label: d.nombre_division })) || [], [supportData]);
@@ -178,6 +303,41 @@ export function CodigoReferenciaDetailPage() {
                 await deleteCodigoTecnico(codigoRef.id_codigo_referencia, codigoTec.id_codigo_tecnico);
                 setCodigoRef(prev => prev ? { ...prev, codigos_tecnicos: prev.codigos_tecnicos.filter(ct => ct.id_codigo_tecnico !== codigoTec.id_codigo_tecnico) } : null);
                 notifications.show({ title: 'Éxito', message: 'Código técnico eliminado.', color: 'orange' });
+            },
+        });
+    };
+
+    // --- Aplicaciones ---
+    const handleAplicacionSubmit = async (payload: { id_version: number }) => {
+        if (!codigoRef) return;
+        setIsSubmitting(true);
+        try {
+            const nueva = await addAplicacion(codigoRef.id_codigo_referencia, { id_version: payload.id_version });
+            setCodigoRef(prev => prev ? { ...prev, aplicaciones: [...(prev.aplicaciones || []), nueva] } : prev);
+            notifications.show({ title: 'Éxito', message: 'Aplicación asociada.', color: 'green' });
+            closeAplicacionModal();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo asociar.'), color: 'red' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleAplicacionDelete = (ap: Aplicacion) => {
+        if (!codigoRef) return;
+        const idVersion = ap.id_version ?? ap.version?.id_version ?? ap.version_vehiculo?.id_version;
+        if (!idVersion) {
+            notifications.show({ title: 'Error', message: 'No se pudo identificar la versión a eliminar.', color: 'red' });
+            return;
+        }
+        modals.openConfirmModal({
+            title: 'Eliminar Aplicación',
+            children: <Text size="sm">¿Eliminar la aplicación seleccionada?</Text>,
+            labels: { confirm: 'Eliminar', cancel: 'Cancelar' },
+            onConfirm: async () => {
+                await deleteAplicacion(codigoRef.id_codigo_referencia, idVersion);
+                setCodigoRef(prev => prev ? { ...prev, aplicaciones: (prev.aplicaciones || []).filter(a => (a.id_version ?? a.version?.id_version ?? a.version_vehiculo?.id_version) !== idVersion) } : prev);
+                notifications.show({ title: 'Éxito', message: 'Aplicación eliminada.', color: 'orange' });
             },
         });
     };
@@ -276,16 +436,44 @@ export function CodigoReferenciaDetailPage() {
                 </form>
             </Paper>
 
-            <Tabs defaultValue="tecnicos">
+            <Tabs defaultValue="aplicaciones">
                 <Tabs.List>
                     <Tabs.Tab value="aplicaciones">Aplicaciones</Tabs.Tab>
                     <Tabs.Tab value="medidas">Medidas</Tabs.Tab>
                     <Tabs.Tab value="atributos">Atributos</Tabs.Tab>
                     <Tabs.Tab value="tecnicos">Códigos Técnicos</Tabs.Tab>
                 </Tabs.List>
-                <Tabs.Panel value="aplicaciones" pt="xs"><Text c="dimmed">Gestión de Aplicaciones (próximamente).</Text></Tabs.Panel>
-                <Tabs.Panel value="medidas" pt="xs"><Text c="dimmed">Gestión de Medidas (próximamente).</Text></Tabs.Panel>
-                <Tabs.Panel value="atributos" pt="xs"><Text c="dimmed">Gestión de Atributos (próximamente).</Text></Tabs.Panel>
+                <Tabs.Panel value="aplicaciones" pt="xs">
+                    <AplicacionesTable 
+                        records={codigoRef.aplicaciones || []}
+                        onAdd={openAplicacionModal}
+                        onDelete={handleAplicacionDelete}
+                    />
+                </Tabs.Panel>
+                <Tabs.Panel value="medidas" pt="xs">
+                    <Group justify="flex-end" mb="md">
+                        <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingMedidaAsignada(null); openMedidaModal(); }}>
+                            Asignar Medida
+                        </Button>
+                    </Group>
+                    <MedidasAsignadasTable 
+                        records={codigoRef.medidas_asignadas || []}
+                        onEdit={(record) => { setEditingMedidaAsignada(record); openMedidaModal(); }}
+                        onDelete={handleMedidaDelete}
+                    />
+                </Tabs.Panel>
+                <Tabs.Panel value="atributos" pt="xs">
+                    <Group justify="flex-end" mb="md">
+                        <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingAtributoAsignado(null); openAtributoModal(); }}>
+                            Asignar Atributo
+                        </Button>
+                    </Group>
+                    <AtributosAsignadosTable 
+                        records={codigoRef.atributos_asignados || []}
+                        onEdit={(record) => { setEditingAtributoAsignado(record); openAtributoModal(); }}
+                        onDelete={handleAtributoDelete}
+                    />
+                </Tabs.Panel>
                 <Tabs.Panel value="tecnicos" pt="xs">
                     <Group justify="flex-end" mb="md">
                         <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingCodigoTecnico(null); openTecModal(); }}>
@@ -293,7 +481,7 @@ export function CodigoReferenciaDetailPage() {
                         </Button>
                     </Group>
                     <CodigosTecnicosTable 
-                        records={codigoRef.codigos_tecnicos}
+                        records={codigoRef.codigos_tecnicos || []}
                         onEdit={(record) => { setEditingCodigoTecnico(record); openTecModal(); }}
                         onDelete={handleTecDelete}
                     />
@@ -305,6 +493,40 @@ export function CodigoReferenciaDetailPage() {
                     onSubmit={handleTecSubmit}
                     isSubmitting={isSubmitting}
                     initialValues={editingCodigoTecnico}
+                />
+            </Modal>
+
+            <Modal opened={aplicacionModalOpened} onClose={closeAplicacionModal} title={'Asociar Vehículo'} centered>
+                <AplicacionForm
+                    marcas={vehMarcas}
+                    modelos={vehModelos}
+                    versiones={vehVersiones}
+                    onSubmit={handleAplicacionSubmit}
+                    isSubmitting={isSubmitting}
+                />
+            </Modal>
+
+            <Modal opened={medidaModalOpened} onClose={closeMedidaModal} title={editingMedidaAsignada ? 'Editar Valor de Medida' : 'Asignar Nueva Medida'} centered>
+                <MedidaAsignadaForm
+                    onSubmit={handleMedidaSubmit}
+                    isSubmitting={isSubmitting}
+                    initialValues={editingMedidaAsignada ? { id_medida: editingMedidaAsignada.id_medida.toString(), valor: editingMedidaAsignada.valor } : null}
+                    availableMedidas={editingMedidaAsignada 
+                        ? supportData.availableMedidas 
+                        : supportData.availableMedidas.filter(m => !(codigoRef.medidas_asignadas || []).some(ma => ma.id_medida === m.id_medida))
+                    }
+                />
+            </Modal>
+
+            <Modal opened={atributoModalOpened} onClose={closeAtributoModal} title={editingAtributoAsignado ? 'Editar Valor de Atributo' : 'Asignar Nuevo Atributo'} centered>
+                <AtributoAsignadoForm
+                    onSubmit={handleAtributoSubmit}
+                    isSubmitting={isSubmitting}
+                    initialValues={editingAtributoAsignado ? { id_atributo: editingAtributoAsignado.id_atributo.toString(), id_valor: editingAtributoAsignado.id_valor.toString() } : null}
+                    availableAtributos={editingAtributoAsignado 
+                        ? supportData.availableAtributos 
+                        : supportData.availableAtributos.filter(a => !(codigoRef.atributos_asignados || []).some(aa => aa.id_atributo === a.id_atributo))
+                    }
                 />
             </Modal>
         </Box>

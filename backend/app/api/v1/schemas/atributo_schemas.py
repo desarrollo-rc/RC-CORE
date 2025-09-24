@@ -26,3 +26,13 @@ class UpdateAtributoSchema(Schema):
     """
     codigo = fields.Str(validate=validate.Length(min=2, max=10))
     nombre = fields.Str(validate=validate.Length(min=3, max=100))
+
+class AtributoAsignadoSchema(Schema):
+    id_codigo_referencia = fields.Int(dump_only=True)
+    id_atributo = fields.Int(required=True)
+    id_valor = fields.Int(required=True)
+    atributo = fields.Nested(AtributoSchema, dump_only=True)
+    valor_asignado = fields.Nested(ValorAtributoSchema, dump_only=True)
+
+class UpdateAtributoAsignadoSchema(Schema):
+    id_valor = fields.Int(required=True)
