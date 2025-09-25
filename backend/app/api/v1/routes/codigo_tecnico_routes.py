@@ -58,3 +58,18 @@ def delete_codigo_tecnico(ref_id, tec_id):
         return '', 204
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
+
+@codigos_tecnicos_bp.route('/<int:tec_id>/asociar-producto', methods=['POST'])
+@jwt_required()
+@permission_required('productos:editar')
+def asociar_producto(ref_id, tec_id):
+    try:
+        data = request.get_json()
+        if not data or 'id_producto' not in data:
+            return jsonify({"error": "Falta el campo 'id_producto'."}), 400
+            
+        producto_id = data['id_producto']
+        actualizado = CodigoReferenciaService.asociar_producto_a_codigo_tecnico(tec_id, producto_id)
+        return schema_single.dump(actualizado), 200
+    except BusinessRuleError as e:
+        return jsonify({"error": str(e)}), e.status_code

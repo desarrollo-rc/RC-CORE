@@ -2,7 +2,8 @@
 from app.extensions import db
 from app.models.productos.codigos import CodigoReferencia, CodigoTecnico
 from app.models.productos.categorias import SubCategoria
-from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
+from app.models.productos.maestro_productos import MaestroProductos
+from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError, BusinessRuleError
 from sqlalchemy.orm import joinedload
 
 class CodigoReferenciaService:
@@ -106,3 +107,23 @@ class CodigoReferenciaService:
         db.session.delete(codigo_tec)
         db.session.commit()
         return None
+
+    @staticmethod
+    def asociar_producto_a_codigo_tecnico(tec_id, producto_id):
+        """Asocia un MaestroProducto a un CodigoTecnico de tipo SKU."""
+        codigo_tec = CodigoReferenciaService.get_codigo_tecnico_by_id(tec_id)
+        
+        if codigo_tec.tipo != 'SKU':
+            raise BusinessRuleError("Solo se pueden asociar productos a códigos técnicos de tipo 'SKU'.")
+
+        producto = MaestroProductos.query.get(producto_id)
+        if not producto:
+            raise RelatedResourceNotFoundError(f"El producto con ID {producto_id} no existe.")
+
+        # Validar que el producto y el código técnico compartan el mismo padre (CodigoReferencia)
+        if producto.id_codigo_referencia != codigo_tec.id_codigo_referencia:
+            raise BusinessRuleError("El producto y el código técnico no pertenecen al mismo Código de Referencia.")
+            
+        codigo_tec.id_producto = producto_id
+        db.session.commit()
+        return codigo_tec

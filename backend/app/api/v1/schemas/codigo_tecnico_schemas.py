@@ -8,6 +8,7 @@ class CodigoTecnicoSchema(Schema):
     tipo = fields.Str(required=True, validate=validate.OneOf(["OEM", "SKU", "PLAZA", "OTRO"]))
     id_codigo_referencia = fields.Int(load_only=True) 
     activo = fields.Bool(dump_only=True)
+    id_producto = fields.Int(dump_only=True, allow_none=True)
 
 class UpdateCodigoTecnicoSchema(Schema):
     """Schema para actualizaciones parciales de un Código Técnico."""

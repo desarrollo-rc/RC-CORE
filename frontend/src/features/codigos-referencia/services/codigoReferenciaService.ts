@@ -70,3 +70,11 @@ export const addAplicacion = async (refId: number, payload: AplicacionPayload): 
 export const deleteAplicacion = async (refId: number, id_version: number): Promise<void> => {
     await apiClient.delete(`/codigos-referencia/${refId}/aplicaciones/${id_version}`);
 };
+
+export const asociarProductoACodigoTecnico = async (refId: number, tecId: number, productoId: number): Promise<CodigoTecnico> => {
+    const response = await apiClient.post<CodigoTecnico>(
+        `/codigos-referencia/${refId}/codigos-tecnicos/${tecId}/asociar-producto`, 
+        { id_producto: productoId }
+    );
+    return response.data;
+};

@@ -45,5 +45,7 @@ class CodigoTecnico(db.Model, MixinAuditoria):
     id_codigo_referencia = db.Column(db.Integer, db.ForeignKey('productos.codigos_referencia.id_codigo_referencia'), nullable=False)
     codigo_referencia = db.relationship('CodigoReferencia', back_populates='codigos_tecnicos')
 
+    id_producto = db.Column(db.Integer, db.ForeignKey('productos.maestro_productos.id_producto'), nullable=True, unique=True)
+    producto_sku = db.relationship('MaestroProductos', backref=db.backref('codigo_tecnico_sku', uselist=False))
     def __repr__(self):
         return f'<CodigoTecnico {self.codigo}>'

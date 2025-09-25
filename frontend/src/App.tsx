@@ -20,6 +20,8 @@ import { CodigosReferenciaPage } from './features/codigos-referencia/pages/Codig
 import { CodigoReferenciaDetailPage } from './features/codigos-referencia/pages/CodigoReferenciaDetailPage';
 import { ClasificacionServicioPage } from './features/clasificaciones-servicio/pages/ClasificacionServicioPage';
 import { ClasificacionEstadisticaPage } from './features/clasificaciones-estadistica/pages/ClasificacionEstadisticaPage';
+import { ProveedoresPage } from './features/proveedores/pages/ProveedoresPage';
+import { ProductosPage } from './features/productos/pages/ProductosPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
 
@@ -66,6 +68,8 @@ function App() {
           <Route path="/clasificaciones-servicio" element={<ClasificacionServicioPage />} />
           <Route path="/clasificaciones-estadistica" element={<ClasificacionEstadisticaPage />} />
           <Route path="/vehiculos" element={<VehiculosPage />} />
+          <Route path="/proveedores" element={<ProveedoresPage />} />
+          <Route path="/productos" element={<ProductosPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

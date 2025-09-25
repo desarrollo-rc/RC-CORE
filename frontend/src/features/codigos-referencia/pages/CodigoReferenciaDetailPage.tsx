@@ -38,6 +38,9 @@ import type { Atributo } from '../../atributos/types';
 import type { MarcaVehiculo, Modelo, VersionVehiculo } from '../../vehiculos/types';
 import { getAllVersiones, getMarcasVehiculos, getModelosPorMarca } from '../../vehiculos/services/vehiculoService';
 import { addAplicacion, deleteAplicacion } from '../services/codigoReferenciaService';
+import { getProductos } from '../../productos/services/productoService';
+import type { Producto } from '../../productos/types';
+import { asociarProductoACodigoTecnico } from '../services/codigoReferenciaService';
 
 export function CodigoReferenciaDetailPage() {
     const { refId } = useParams<{ refId: string }>();
@@ -70,7 +73,11 @@ export function CodigoReferenciaDetailPage() {
     const [vehVersiones, setVehVersiones] = useState<VersionVehiculo[]>([]);
     const [aplicacionModalOpened, { open: openAplicacionModal, close: closeAplicacionModal }] = useDisclosure(false);
 
-
+    const [productosDisponibles, setProductosDisponibles] = useState<Producto[]>([]);
+    const [asociarModalOpened, { open: openAsociarModal, close: closeAsociarModal }] = useDisclosure(false);
+    const [selectedCodigoTecnico, setSelectedCodigoTecnico] = useState<CodigoTecnico | null>(null);
+    const [selectedProductoId, setSelectedProductoId] = useState<string | null>(null);
+    
     const form = useForm<CodigoReferenciaFormData>({
         initialValues: {
             codigo: '', descripcion: '', id_division: null, id_categoria: null,
@@ -105,11 +112,16 @@ export function CodigoReferenciaDetailPage() {
             if (!refId) return;
             try {
                 setLoading(true);
-                const [refData, divData, catData, subCatData, detSubCatData, servData, estData, medData, atrData, vMarcas, vVersiones] = await Promise.all([
+                const [
+                    refData, divData, catData, subCatData, detSubCatData, 
+                    servData, estData, medData, atrData, 
+                    vMarcas, vVersiones, prodsData // <--- Renombrar aquí
+                ] = await Promise.all([
                     getCodigoReferenciaById(Number(refId)),
                     getDivisiones(), getCategorias(), getSubCategorias(), getDetSubCategorias(),
                     getClasificacionesServicio(), getClasificacionesEstadistica(), getMedidas(), getAtributos(),
-                    getMarcasVehiculos(), getAllVersiones()
+                    getMarcasVehiculos(), getAllVersiones(),
+                    getProductos()
                 ]);
 
                 setCodigoRef(refData);
@@ -125,7 +137,7 @@ export function CodigoReferenciaDetailPage() {
                 // cargar todos los modelos de todas las marcas
                 const modelosLists = await Promise.all(vMarcas.map(m => getModelosPorMarca(m.id_marca).catch(() => [])));
                 setVehModelos(modelosLists.flat());
-            } catch (err) {
+                setProductosDisponibles(prodsData.filter((p: Producto) => p.codigo_referencia.id_codigo_referencia === refData.id_codigo_referencia));            } catch (err) {
                 setError("No se pudieron cargar los datos del código de referencia.");
             } finally {
                 setLoading(false);
@@ -241,6 +253,29 @@ export function CodigoReferenciaDetailPage() {
                 notifications.show({ title: 'Éxito', message: 'Atributo eliminado.', color: 'orange' });
             },
         });
+    };
+
+    const handleAsociarProducto = async () => {
+        if (!selectedCodigoTecnico || !selectedProductoId || !refId) return;
+        setIsSubmitting(true);
+        try {
+            const actualizado = await asociarProductoACodigoTecnico(Number(refId), selectedCodigoTecnico.id_codigo_tecnico, Number(selectedProductoId));
+            
+            // Actualizar el estado local para reflejar el cambio
+            setCodigoRef(prev => prev ? {
+                ...prev,
+                codigos_tecnicos: prev.codigos_tecnicos.map(ct => 
+                    ct.id_codigo_tecnico === actualizado.id_codigo_tecnico ? actualizado : ct
+                )
+            } : null);
+            
+            notifications.show({ title: 'Éxito', message: 'Producto asociado correctamente.' });
+            closeAsociarModal();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo asociar el producto.'), color: 'red' });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
     
     const divisionesOptions = useMemo(() => supportData?.divisiones.map(d => ({ value: d.id_division.toString(), label: d.nombre_division })) || [], [supportData]);
@@ -484,6 +519,7 @@ export function CodigoReferenciaDetailPage() {
                         records={codigoRef.codigos_tecnicos || []}
                         onEdit={(record) => { setEditingCodigoTecnico(record); openTecModal(); }}
                         onDelete={handleTecDelete}
+                        onAsociarProducto={(record) => { setSelectedCodigoTecnico(record); openAsociarModal(); }}
                     />
                 </Tabs.Panel>
             </Tabs>
@@ -528,6 +564,25 @@ export function CodigoReferenciaDetailPage() {
                         : supportData.availableAtributos.filter(a => !(codigoRef.atributos_asignados || []).some(aa => aa.id_atributo === a.id_atributo))
                     }
                 />
+            </Modal>
+            <Modal opened={asociarModalOpened} onClose={closeAsociarModal} title={`Asociar SKU a ${selectedCodigoTecnico?.codigo}`} centered>
+                <Stack>
+                    <Select
+                        label="Seleccionar Producto (SKU)"
+                        placeholder="Busca un SKU disponible para este Cód. de Referencia"
+                        data={productosDisponibles
+                            .filter(p => !p.codigo_tecnico_sku) // Filtrar los que ya están asociados
+                            .map(p => ({ value: p.id_producto.toString(), label: `${p.sku} - ${p.nombre_producto}` }))
+                        }
+                        searchable
+                        clearable
+                        value={selectedProductoId}
+                        onChange={setSelectedProductoId}
+                    />
+                    <Button onClick={handleAsociarProducto} loading={isSubmitting} disabled={!selectedProductoId}>
+                        Asociar Producto
+                    </Button>
+                </Stack>
             </Modal>
         </Box>
     );

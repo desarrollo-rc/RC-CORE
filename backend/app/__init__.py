@@ -123,6 +123,12 @@ def create_app(config_class=Config):
     from .api.v1.routes.vehiculo_routes import vehiculos_bp
     app.register_blueprint(vehiculos_bp, url_prefix='/api/v1/vehiculos')
 
+    from .api.v1.routes.proveedor_routes import proveedores_bp
+    app.register_blueprint(proveedores_bp, url_prefix='/api/v1/proveedores')
+
+    from .api.v1.routes.maestro_productos_routes import maestro_productos_bp
+    app.register_blueprint(maestro_productos_bp, url_prefix='/api/v1/productos')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

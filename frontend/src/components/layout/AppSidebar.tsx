@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -21,6 +21,8 @@ const menuItems = [
         id: 'productos',
         subItems: [
             { icon: IconBox, label: 'Códigos de Referencia', to: '/codigos-referencia' },
+            { icon: IconCube, label: 'Productos (SKU)', to: '/productos'},
+            { icon: IconTruck, label: 'Proveedores', to: '/proveedores' },
             { icon: IconHierarchy2, label: 'Categorización', to: '/categorizacion' },
             { icon: IconHierarchy2, label: 'Clasificaciones de Servicio', to: '/clasificaciones-servicio' },
             { icon: IconHierarchy2, label: 'Clasificaciones Estadísticas', to: '/clasificaciones-estadistica' },

@@ -7,7 +7,7 @@ from .fabricas import Fabrica
 from .codigos import CodigoReferencia, CodigoTecnico
 from .caracteristicas import Atributo, Medida, AtributoAsignado, MedidaAsignada
 from .calidades import Calidad
-from .maestro_productos import MaestroProductos
+from .maestro_productos import MaestroProductos, ProductoProveedor
 from .categorias import Division,Categoria, SubCategoria, DetSubCategoria
 from .clasificaciones import ClasificacionServicio, ClasificacionEstadistica
 
@@ -32,4 +32,5 @@ __all__ = [
     "MaestroProductos",
     "ClasificacionServicio",
     "ClasificacionEstadistica",
+    "ProductoProveedor",
 ]

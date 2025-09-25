@@ -18,6 +18,7 @@ export interface CodigoTecnico {
     codigo: string;
     tipo: TipoCodigoTecnico;
     activo: boolean;
+    id_producto: number | null;
 }
 
 export interface MedidaAsignada {
