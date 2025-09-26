@@ -8,7 +8,7 @@ class TipoClienteSchema(Schema):
     id_tipo_cliente = fields.Int(dump_only=True)
     codigo_tipo_cliente = fields.Str(required=True, validate=validate.Length(min=3))
     nombre_tipo_cliente = fields.Str(required=True)
-    descripcion_tipo_cliente = fields.Str()
+    descripcion_tipo_cliente = fields.Str(allow_none=True)
     activo = fields.Bool(load_default=True)
 
     class Meta:

@@ -153,3 +153,15 @@ class Empresa(db.Model, MixinAuditoria):
 
     def __repr__(self):
         return f'<Empresa {self.nombre_empresa}>'
+
+cliente_marcas_afinidad = db.Table('cliente_marcas_afinidad',
+    db.Column('id_cliente', db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), primary_key=True),
+    db.Column('id_marca', db.Integer, db.ForeignKey('productos.marcas.id_marca'), primary_key=True),
+    schema='entidades'
+)
+
+cliente_categorias_afinidad = db.Table('cliente_categorias_afinidad',
+    db.Column('id_cliente', db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), primary_key=True),
+    db.Column('id_categoria', db.Integer, db.ForeignKey('productos.categorias.id_categoria'), primary_key=True),
+    schema='entidades'
+)

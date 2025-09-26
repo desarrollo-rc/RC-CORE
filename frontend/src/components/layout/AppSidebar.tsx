@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -13,6 +13,19 @@ const menuItems = [
         id: 'maestros',
         subItems: [
             { icon: IconMap, label: 'Paises', to: '/paises' },
+        ],
+    },
+    {
+        icon: IconUser,
+        label: 'Maestros Clientes',
+        id: 'clientes',
+        subItems: [
+            { icon: IconBriefcase, label: 'Tipos de Negocio', to: '/tipos-negocio' },
+            { icon: IconResize, label: 'Segmentos de Cliente', to: '/segmentos-cliente' },
+            { icon: IconBuildingStore, label: 'Tipos de Cliente', to: '/tipos-cliente' },
+            { icon: IconCreditCard, label: 'Condiciones de Pago', to: '/condiciones-pago' },
+            { icon: IconList, label: 'Listas de Precios', to: '/listas-precios' },
+            { icon: IconBuilding, label: 'Empresas', to: '/empresas' },
         ],
     },
     {
@@ -28,7 +41,7 @@ const menuItems = [
             { icon: IconHierarchy2, label: 'Clasificaciones Estadísticas', to: '/clasificaciones-estadistica' },
             { icon: IconTags, label: 'Atributos', to: '/atributos' },
             { icon: IconTags, label: 'Calidades', to: '/calidades' },
-            { icon: IconBuildingStore, label: 'Fabricas', to: '/fabricas' },
+            { icon: IconBuildingFactory, label: 'Fabricas', to: '/fabricas' },
             { icon: IconCar, label: 'Vehículos', to: '/vehiculos' }, 
             { icon: IconRuler, label: 'Medidas', to: '/medidas' },
             { icon: IconMap, label: 'Origenes', to: '/origenes' },
@@ -93,7 +106,7 @@ export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolea
                                             label={subItem.label}
                                             leftSection={<subItem.icon size="1.2rem" />}
                                             active={location.pathname === subItem.to}
-                                            pl={34} // Indentación para sub-ítems
+                                            pl={34}
                                             className={classes.link}
                                         />
                                     ))}

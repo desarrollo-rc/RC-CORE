@@ -3,6 +3,7 @@ from app.models.entidades import (
     MaestroClientes, Contacto, Direccion, TipoCliente, SegmentoCliente,
     ListaPrecios, CondicionPago, Empresa, Usuario, TipoNegocio
 )
+from app.models.productos import Marca, Categoria
 from app.models.negocio import Vendedor
 from app.extensions import db
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +26,8 @@ class ClienteService:
                 raise RelatedResourceNotFoundError(f"El vendedor con ID {data['id_vendedor']} no existe.")
         
         new_customer = ClienteService._build_customer_instance(data, user_id, related_entities)
+        ClienteService._sync_afinidades(data, new_customer)
+
 
         try:
             db.session.add(new_customer)
@@ -134,6 +137,8 @@ class ClienteService:
                     raise RelatedResourceNotFoundError(f"La empresa con código '{codigo}' no fue encontrada.")
                 empresas.append(empresa)
             customer.empresas = empresas
+
+        ClienteService._sync_afinidades(data, customer)
 
         if 'contactos' in data:
             ClienteService._sync_contacts(data.get('contactos', []), customer)
@@ -248,3 +253,25 @@ class ClienteService:
         customer.motivo_bloqueo = None
         db.session.commit()
         return customer
+
+    @staticmethod
+    def _sync_afinidades(data, customer):
+        """Sincroniza las afinidades de marcas y categorías para un cliente."""
+        
+        if 'marcas_afinidad_ids' in data:
+            marcas_ids = data['marcas_afinidad_ids']
+            customer.marcas_afinidad.clear()
+            if marcas_ids:
+                marcas = Marca.query.filter(Marca.id_marca.in_(marcas_ids)).all()
+                if len(marcas) != len(marcas_ids):
+                    raise RelatedResourceNotFoundError("Una o más marcas de afinidad no fueron encontradas.")
+                customer.marcas_afinidad = marcas
+
+        if 'categorias_afinidad_ids' in data:
+            categorias_ids = data['categorias_afinidad_ids']
+            customer.categorias_afinidad.clear()
+            if categorias_ids:
+                categorias = Categoria.query.filter(Categoria.id_categoria.in_(categorias_ids)).all()
+                if len(categorias) != len(categorias_ids):
+                    raise RelatedResourceNotFoundError("Una o más categorías de afinidad no fueron encontradas.")
+                customer.categorias_afinidad = categorias

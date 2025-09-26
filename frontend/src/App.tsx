@@ -24,8 +24,12 @@ import { ProveedoresPage } from './features/proveedores/pages/ProveedoresPage';
 import { ProductosPage } from './features/productos/pages/ProductosPage';
 import { useAuth } from './context/AuthContext';
 import { MainLayout } from './components/layout/MainLayout';
-
-
+import { TiposNegocioPage } from './features/tipos-negocio/pages/TiposNegocioPage';
+import { SegmentosClientePage } from './features/segmentos-cliente/pages/SegmentosClientePage';
+import { TiposClientePage } from './features/tipos-cliente/pages/TiposClientePage';
+import { CondicionesPagoPage } from './features/condiciones-pago/pages/CondicionesPagoPage';
+import { ListasPreciosPage } from './features/listas-precios/pages/ListasPreciosPage';
+import { EmpresasPage } from './features/empresas/pages/EmpresasPage';
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
@@ -70,6 +74,12 @@ function App() {
           <Route path="/vehiculos" element={<VehiculosPage />} />
           <Route path="/proveedores" element={<ProveedoresPage />} />
           <Route path="/productos" element={<ProductosPage />} />
+          <Route path="/tipos-negocio" element={<TiposNegocioPage />} />
+          <Route path="/segmentos-cliente" element={<SegmentosClientePage />} />
+          <Route path="/tipos-cliente" element={<TiposClientePage />} />
+          <Route path="/condiciones-pago" element={<CondicionesPagoPage />} />
+          <Route path="/listas-precios" element={<ListasPreciosPage />} />
+          <Route path="/empresas" element={<EmpresasPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

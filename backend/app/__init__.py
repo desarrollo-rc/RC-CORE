@@ -129,6 +129,9 @@ def create_app(config_class=Config):
     from .api.v1.routes.maestro_productos_routes import maestro_productos_bp
     app.register_blueprint(maestro_productos_bp, url_prefix='/api/v1/productos')
 
+    from .api.v1.routes.tipo_negocio_routes import tipos_negocio_bp
+    app.register_blueprint(tipos_negocio_bp, url_prefix='/api/v1/tipos-negocio')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

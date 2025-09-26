@@ -1,6 +1,8 @@
 # backend/app/api/v1/schemas/cliente_schemas.py
 from marshmallow import Schema, fields, validate
 from app.api.v1.schemas.vendedor_schemas import VendedorSchema
+from .marcas_schemas import MarcaSchema
+from .categoria_schemas import CategoriaSchema
 
 # --- Schemas para entidades anidadas ---
 
@@ -87,6 +89,8 @@ class ClienteSchema(BaseClienteSchema):
     codigo_lista_precios = fields.Str(required=True)
     codigo_condicion_pago = fields.Str(required=True)
     codigos_empresa = fields.List(fields.Str(), required=True, validate=validate.Length(min=1))
+    marcas_afinidad_ids = fields.List(fields.Int(), load_only=True, required=False)
+    categorias_afinidad_ids = fields.List(fields.Int(), load_only=True, required=False)
 
     id_vendedor = fields.Int(required=False, allow_none=True)
 
@@ -108,6 +112,8 @@ class ClienteResponseSchema(BaseClienteSchema):
     lista_precios = fields.Nested(ListaPreciosResponseSchema(), dump_only=True)
     condicion_pago = fields.Nested(CondicionPagoResponseSchema(), dump_only=True)
     empresas = fields.List(fields.Nested(EmpresaResponseSchema), dump_only=True)
+    marcas_afinidad = fields.List(fields.Nested(MarcaSchema), dump_only=True)
+    categorias_afinidad = fields.List(fields.Nested(CategoriaSchema), dump_only=True)
 
 class PaginationSchema(Schema):
     """
@@ -148,6 +154,9 @@ class UpdateClienteSchema(Schema):
     codigos_empresa = fields.List(fields.Str(), validate=validate.Length(min=1))
 
     id_vendedor = fields.Int(allow_none=True)
+
+    marcas_afinidad_ids = fields.List(fields.Int(), required=False)
+    categorias_afinidad_ids = fields.List(fields.Int(), required=False)
 
     # Relaciones anidadas (no son requeridas en la actualización)
     contactos = fields.List(fields.Nested(ContactoSchema))

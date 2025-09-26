@@ -1,7 +1,7 @@
 from app.extensions import db
 from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
-from app.models.entidades.entidades_auxiliares import cliente_empresa
+from app.models.entidades.entidades_auxiliares import cliente_empresa, cliente_marcas_afinidad, cliente_categorias_afinidad
 
 class MaestroClientes(db.Model):
     __tablename__ = 'maestro_clientes'
@@ -43,6 +43,8 @@ class MaestroClientes(db.Model):
     lista_precios = db.relationship('ListaPrecios', back_populates='clientes')
     condicion_pago = db.relationship('CondicionPago', back_populates='clientes')
     empresas = db.relationship('Empresa', secondary=cliente_empresa, back_populates='clientes')
+    marcas_afinidad = db.relationship('Marca', secondary=cliente_marcas_afinidad)
+    categorias_afinidad = db.relationship('Categoria', secondary=cliente_categorias_afinidad)
 
     # Relaciona al cliente con sus personas de contacto (administrativos, técnicos, etc.). Pieza clave para la gestión de relaciones.
     contactos = db.relationship('Contacto', back_populates='cliente', cascade="all, delete-orphan")
