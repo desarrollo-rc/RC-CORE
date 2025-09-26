@@ -9,6 +9,11 @@ export const getProductos = async (includeInactive: boolean = false): Promise<Pr
     return response.data;
 };
 
+export const getProductoBySku = async (sku: string): Promise<Producto> => {
+    const response = await apiClient.get<Producto>(`/productos/sku/${sku}`);
+    return response.data;
+};
+
 export const createProducto = async (data: ProductoPayload): Promise<Producto> => {
     const response = await apiClient.post<Producto>('/productos', data);
     return response.data;

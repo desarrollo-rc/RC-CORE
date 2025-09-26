@@ -9,7 +9,10 @@ import { useDisclosure } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 
 // --- Importaciones de Servicios y Tipos ---
-import { getCodigoReferenciaById, updateCodigoReferencia, createCodigoTecnico, updateCodigoTecnico, deleteCodigoTecnico } from '../services/codigoReferenciaService';
+import { getCodigoReferenciaById, updateCodigoReferencia, createCodigoTecnico, updateCodigoTecnico, deleteCodigoTecnico, asociarProductoACodigoTecnico } from '../services/codigoReferenciaService';
+import { getProductoBySku, createProducto } from '../../productos/services/productoService';
+import { getProveedores } from '../../proveedores/services/proveedorService';
+import { ProductoForm } from '../../productos/components/ProductoForm';
 import { addMedidaAsignada, updateMedidaAsignada, deleteMedidaAsignada } from '../services/medidaAsignadaService';
 import { addAtributoAsignado, updateAtributoAsignado, deleteAtributoAsignado } from '../services/atributoAsignadoService';
 import { getDivisiones } from '../../divisiones/services/divisionService';
@@ -38,9 +41,11 @@ import type { Atributo } from '../../atributos/types';
 import type { MarcaVehiculo, Modelo, VersionVehiculo } from '../../vehiculos/types';
 import { getAllVersiones, getMarcasVehiculos, getModelosPorMarca } from '../../vehiculos/services/vehiculoService';
 import { addAplicacion, deleteAplicacion } from '../services/codigoReferenciaService';
-import { getProductos } from '../../productos/services/productoService';
-import type { Producto } from '../../productos/types';
-import { asociarProductoACodigoTecnico } from '../services/codigoReferenciaService';
+import type { Producto, ProductoPayload, ProductoFormData } from '../../productos/types';
+import { getFabricas } from '../../fabricas/services/fabricaService';
+import { getMarcas } from '../../marcas/services/marcaService';
+import { getCalidades } from '../../calidades/services/calidadService';
+import { getOrigenes } from '../../origenes/services/origenService';
 
 export function CodigoReferenciaDetailPage() {
     const { refId } = useParams<{ refId: string }>();
@@ -57,7 +62,7 @@ export function CodigoReferenciaDetailPage() {
         availableMedidas: Medida[];
         availableAtributos: Atributo[];
     } | null>(null);
-    
+
     const [editingCodigoTecnico, setEditingCodigoTecnico] = useState<CodigoTecnico | null>(null);
     const [tecModalOpened, { open: openTecModal, close: closeTecModal }] = useDisclosure(false);
 
@@ -73,11 +78,14 @@ export function CodigoReferenciaDetailPage() {
     const [vehVersiones, setVehVersiones] = useState<VersionVehiculo[]>([]);
     const [aplicacionModalOpened, { open: openAplicacionModal, close: closeAplicacionModal }] = useDisclosure(false);
 
-    const [productosDisponibles, setProductosDisponibles] = useState<Producto[]>([]);
+    const [productoModalOpened, { open: openProductoModal, close: closeProductoModal }] = useDisclosure(false);
     const [asociarModalOpened, { open: openAsociarModal, close: closeAsociarModal }] = useDisclosure(false);
     const [selectedCodigoTecnico, setSelectedCodigoTecnico] = useState<CodigoTecnico | null>(null);
-    const [selectedProductoId, setSelectedProductoId] = useState<string | null>(null);
-    
+    const [productoEncontrado, setProductoEncontrado] = useState<Producto | null>(null);
+    const [buscandoProducto, setBuscandoProducto] = useState(false);
+
+    const [maestros, setMaestros] = useState<any>(null);
+
     const form = useForm<CodigoReferenciaFormData>({
         initialValues: {
             codigo: '', descripcion: '', id_division: null, id_categoria: null,
@@ -94,7 +102,7 @@ export function CodigoReferenciaDetailPage() {
         const subCat = supData.subCategorias.find(sc => sc.id_sub_categoria === ref.id_sub_categoria);
         const cat = subCat ? supData.categorias.find(c => c.id_categoria === subCat.id_categoria) : undefined;
         const div = cat ? supData.divisiones.find(d => d.id_division === cat.id_division) : undefined;
-        
+
         form.setValues({
             codigo: ref.codigo,
             descripcion: ref.descripcion || '',
@@ -113,31 +121,43 @@ export function CodigoReferenciaDetailPage() {
             try {
                 setLoading(true);
                 const [
-                    refData, divData, catData, subCatData, detSubCatData, 
-                    servData, estData, medData, atrData, 
-                    vMarcas, vVersiones, prodsData // <--- Renombrar aquí
+                    refData, divData, catData, subCatData, detSubCatData,
+                    servData, estData, medData, atrData,
+                    vMarcas, vVersiones, proveedoresData,
+                    marcasData, calidadesData, origenesData, fabricasData // <--- Renombrar aquí
                 ] = await Promise.all([
                     getCodigoReferenciaById(Number(refId)),
                     getDivisiones(), getCategorias(), getSubCategorias(), getDetSubCategorias(),
                     getClasificacionesServicio(), getClasificacionesEstadistica(), getMedidas(), getAtributos(),
                     getMarcasVehiculos(), getAllVersiones(),
-                    getProductos()
+                    getProveedores(),
+                    getMarcas(), getCalidades(), getOrigenes(), getFabricas()
                 ]);
 
                 setCodigoRef(refData);
                 const supData = {
                     divisiones: divData, categorias: catData, subCategorias: subCatData,
                     detSubCategorias: detSubCatData, clasificacionesServicio: servData,
-                    clasificacionesEstadistica: estData, availableMedidas: medData, availableAtributos: atrData
+                    clasificacionesEstadistica: estData, availableMedidas: medData, availableAtributos: atrData,
+                    marcas: marcasData, calidades: calidadesData, origenes: origenesData, fabricas: fabricasData
                 };
                 setSupportData(supData);
+                setMaestros({
+                    codigosRef: [refData],
+                    marcas: marcasData,
+                    calidades: calidadesData,
+                    origenes: origenesData,
+                    fabricas: fabricasData,
+                    proveedores: proveedoresData
+                })
                 populateForm(refData, supData);
                 setVehMarcas(vMarcas);
                 setVehVersiones(vVersiones);
                 // cargar todos los modelos de todas las marcas
                 const modelosLists = await Promise.all(vMarcas.map(m => getModelosPorMarca(m.id_marca).catch(() => [])));
                 setVehModelos(modelosLists.flat());
-                setProductosDisponibles(prodsData.filter((p: Producto) => p.codigo_referencia.id_codigo_referencia === refData.id_codigo_referencia));            } catch (err) {
+
+            } catch (err) {
                 setError("No se pudieron cargar los datos del código de referencia.");
             } finally {
                 setLoading(false);
@@ -145,7 +165,7 @@ export function CodigoReferenciaDetailPage() {
         };
         fetchData();
     }, [refId]);
-    
+
     const handleSubmit = async (formValues: CodigoReferenciaFormData) => {
         if (!codigoRef) return;
         setIsSubmitting(true);
@@ -255,33 +275,80 @@ export function CodigoReferenciaDetailPage() {
         });
     };
 
-    const handleAsociarProducto = async () => {
-        if (!selectedCodigoTecnico || !selectedProductoId || !refId) return;
+    const handleOpenAsociarModal = async (codigoTecnico: CodigoTecnico) => {
+        setSelectedCodigoTecnico(codigoTecnico);
+        setBuscandoProducto(true);
+        openAsociarModal();
+        try {
+            const producto = await getProductoBySku(codigoTecnico.codigo);
+            setProductoEncontrado(producto);
+        } catch (error) {
+            setProductoEncontrado(null);
+        } finally {
+            setBuscandoProducto(false);
+        }
+    };
+
+    const handleConfirmarAsociacion = async () => {
+        if (!selectedCodigoTecnico || !productoEncontrado || !refId) return;
         setIsSubmitting(true);
         try {
-            const actualizado = await asociarProductoACodigoTecnico(Number(refId), selectedCodigoTecnico.id_codigo_tecnico, Number(selectedProductoId));
-            
-            // Actualizar el estado local para reflejar el cambio
-            setCodigoRef(prev => prev ? {
-                ...prev,
-                codigos_tecnicos: prev.codigos_tecnicos.map(ct => 
-                    ct.id_codigo_tecnico === actualizado.id_codigo_tecnico ? actualizado : ct
-                )
-            } : null);
-            
-            notifications.show({ title: 'Éxito', message: 'Producto asociado correctamente.' });
+            await asociarProductoACodigoTecnico(Number(refId), selectedCodigoTecnico.id_codigo_tecnico, productoEncontrado.id_producto);
+            const updatedRef = await getCodigoReferenciaById(Number(refId));
+            setCodigoRef(updatedRef);
+            notifications.show({ title: 'Éxito', message: 'Producto asociado.' });
             closeAsociarModal();
         } catch (error) {
-            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo asociar el producto.'), color: 'red' });
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo asociar.'), color: 'red' });
         } finally {
             setIsSubmitting(false);
         }
     };
-    
+
+    const handleCrearProductoDesdeModal = () => {
+        closeAsociarModal(); // Cierra el modal de asociación
+        openProductoModal();  // Abre el modal de creación de producto
+    };
+
+    const handleProductoSubmit = async (formValues: ProductoFormData) => {
+        if (!selectedCodigoTecnico || !refId) return;
+        setIsSubmitting(true);
+        const payload: ProductoPayload = {
+            sku: formValues.sku,
+            nombre_producto: formValues.nombre_producto,
+            id_codigo_referencia: Number(formValues.id_codigo_referencia),
+            id_marca: Number(formValues.id_marca),
+            id_calidad: Number(formValues.id_calidad),
+            id_origen: Number(formValues.id_origen),
+            id_fabrica: formValues.id_fabrica ? Number(formValues.id_fabrica) : null,
+            costo_base: Number(formValues.costo_base),
+            es_kit: formValues.es_kit,
+            proveedores: formValues.proveedores.map(p => ({
+                id_proveedor: Number(p.id_proveedor),
+                costo_proveedor: Number(p.costo_proveedor),
+                codigo_producto_proveedor: p.codigo_producto_proveedor,
+                es_proveedor_principal: p.es_proveedor_principal
+            })),
+        };
+        try {
+            const nuevoProducto = await createProducto(payload);
+            notifications.show({ title: 'Éxito', message: `Producto ${nuevoProducto.sku} creado.` });
+            await asociarProductoACodigoTecnico(Number(refId), selectedCodigoTecnico.id_codigo_tecnico, nuevoProducto.id_producto);
+            notifications.show({ title: 'Éxito', message: `SKU asociado.` });
+            const updatedRef = await getCodigoReferenciaById(Number(refId));
+            setCodigoRef(updatedRef);
+            closeProductoModal();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo crear o asociar el producto.'), color: 'red' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const divisionesOptions = useMemo(() => supportData?.divisiones.map(d => ({ value: d.id_division.toString(), label: d.nombre_division })) || [], [supportData]);
     const clasServicioOptions = useMemo(() => supportData?.clasificacionesServicio.map(c => ({ value: c.id.toString(), label: c.nombre })) || [], [supportData]);
     const clasEstadisticaOptions = useMemo(() => supportData?.clasificacionesEstadistica.map(c => ({ value: c.id.toString(), label: c.nombre })) || [], [supportData]);
-    
+
     const categoriasOptions = useMemo(() => {
         if (!form.values.id_division || !supportData) return [];
         return supportData.categorias
@@ -302,7 +369,7 @@ export function CodigoReferenciaDetailPage() {
             .filter(dsc => dsc.id_sub_categoria === Number(form.values.id_sub_categoria))
             .map(dsc => ({ value: dsc.id_det_sub_categoria.toString(), label: dsc.nombre_det_sub_categoria }));
     }, [form.values.id_sub_categoria, supportData?.detSubCategorias]);
-    
+
     const handleTecSubmit = async (formValues: CodigoTecnicoFormData) => {
         if (!codigoRef) return;
         setIsSubmitting(true);
@@ -327,7 +394,7 @@ export function CodigoReferenciaDetailPage() {
             setIsSubmitting(false);
         }
     };
-    
+
     const handleTecDelete = (codigoTec: CodigoTecnico) => {
         if (!codigoRef) return;
         modals.openConfirmModal({
@@ -379,16 +446,16 @@ export function CodigoReferenciaDetailPage() {
 
     if (loading) return <Center h={400}><Loader /></Center>;
     if (error) return <Alert color="red" title="Error">{error}</Alert>;
-    if (!codigoRef || !supportData) return <Text>Datos no encontrados.</Text>;
-    
-    const findLabel = (id: string | null, options: {value: string, label: string}[]) => options.find(opt => opt.value === id)?.label || 'Sin Asignar';
+    if (!codigoRef || !supportData || !maestros) return <Text>Datos no encontrados.</Text>;
+
+    const findLabel = (id: string | null, options: { value: string, label: string }[]) => options.find(opt => opt.value === id)?.label || 'Sin Asignar';
 
     return (
         <Box>
             <Button component={Link} to="/codigos-referencia" variant="subtle" mb="md" leftSection={<IconArrowLeft size={14} />}>
                 Volver a la lista
             </Button>
-            
+
             <Paper withBorder p="md" radius="md" mb="xl">
                 <form onSubmit={form.onSubmit(handleSubmit)}>
                     <Group justify="space-between" align="center" mb="md">
@@ -399,7 +466,7 @@ export function CodigoReferenciaDetailPage() {
                             </Button>
                         )}
                     </Group>
-                    
+
                     {isEditing ? (
                         <Stack>
                             <TextInput withAsterisk label="Código de Referencia" {...form.getInputProps('codigo')} />
@@ -453,7 +520,7 @@ export function CodigoReferenciaDetailPage() {
                                     setIsEditing(false);
                                     populateForm(codigoRef, supportData);
                                 }}>Cancelar</Button>
-                                <Button type="submit" loading={isSubmitting} leftSection={<IconDeviceFloppy size={14}/>}>Guardar Cambios</Button>
+                                <Button type="submit" loading={isSubmitting} leftSection={<IconDeviceFloppy size={14} />}>Guardar Cambios</Button>
                             </Group>
                         </Stack>
                     ) : (
@@ -479,7 +546,7 @@ export function CodigoReferenciaDetailPage() {
                     <Tabs.Tab value="tecnicos">Códigos Técnicos</Tabs.Tab>
                 </Tabs.List>
                 <Tabs.Panel value="aplicaciones" pt="xs">
-                    <AplicacionesTable 
+                    <AplicacionesTable
                         records={codigoRef.aplicaciones || []}
                         onAdd={openAplicacionModal}
                         onDelete={handleAplicacionDelete}
@@ -487,11 +554,11 @@ export function CodigoReferenciaDetailPage() {
                 </Tabs.Panel>
                 <Tabs.Panel value="medidas" pt="xs">
                     <Group justify="flex-end" mb="md">
-                        <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingMedidaAsignada(null); openMedidaModal(); }}>
+                        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => { setEditingMedidaAsignada(null); openMedidaModal(); }}>
                             Asignar Medida
                         </Button>
                     </Group>
-                    <MedidasAsignadasTable 
+                    <MedidasAsignadasTable
                         records={codigoRef.medidas_asignadas || []}
                         onEdit={(record) => { setEditingMedidaAsignada(record); openMedidaModal(); }}
                         onDelete={handleMedidaDelete}
@@ -499,11 +566,11 @@ export function CodigoReferenciaDetailPage() {
                 </Tabs.Panel>
                 <Tabs.Panel value="atributos" pt="xs">
                     <Group justify="flex-end" mb="md">
-                        <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingAtributoAsignado(null); openAtributoModal(); }}>
+                        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => { setEditingAtributoAsignado(null); openAtributoModal(); }}>
                             Asignar Atributo
                         </Button>
                     </Group>
-                    <AtributosAsignadosTable 
+                    <AtributosAsignadosTable
                         records={codigoRef.atributos_asignados || []}
                         onEdit={(record) => { setEditingAtributoAsignado(record); openAtributoModal(); }}
                         onDelete={handleAtributoDelete}
@@ -511,19 +578,19 @@ export function CodigoReferenciaDetailPage() {
                 </Tabs.Panel>
                 <Tabs.Panel value="tecnicos" pt="xs">
                     <Group justify="flex-end" mb="md">
-                        <Button size="xs" leftSection={<IconPlus size={14}/>} onClick={() => { setEditingCodigoTecnico(null); openTecModal(); }}>
+                        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => { setEditingCodigoTecnico(null); openTecModal(); }}>
                             Añadir Código Técnico
                         </Button>
                     </Group>
-                    <CodigosTecnicosTable 
+                    <CodigosTecnicosTable
                         records={codigoRef.codigos_tecnicos || []}
                         onEdit={(record) => { setEditingCodigoTecnico(record); openTecModal(); }}
                         onDelete={handleTecDelete}
-                        onAsociarProducto={(record) => { setSelectedCodigoTecnico(record); openAsociarModal(); }}
+                        onAsociarProducto={handleOpenAsociarModal}
                     />
                 </Tabs.Panel>
             </Tabs>
-            
+
             <Modal opened={tecModalOpened} onClose={closeTecModal} title={editingCodigoTecnico ? 'Editar Código Técnico' : 'Añadir Código Técnico'} centered>
                 <CodigoTecnicoForm
                     onSubmit={handleTecSubmit}
@@ -547,8 +614,8 @@ export function CodigoReferenciaDetailPage() {
                     onSubmit={handleMedidaSubmit}
                     isSubmitting={isSubmitting}
                     initialValues={editingMedidaAsignada ? { id_medida: editingMedidaAsignada.id_medida.toString(), valor: editingMedidaAsignada.valor } : null}
-                    availableMedidas={editingMedidaAsignada 
-                        ? supportData.availableMedidas 
+                    availableMedidas={editingMedidaAsignada
+                        ? supportData.availableMedidas
                         : supportData.availableMedidas.filter(m => !(codigoRef.medidas_asignadas || []).some(ma => ma.id_medida === m.id_medida))
                     }
                 />
@@ -559,30 +626,45 @@ export function CodigoReferenciaDetailPage() {
                     onSubmit={handleAtributoSubmit}
                     isSubmitting={isSubmitting}
                     initialValues={editingAtributoAsignado ? { id_atributo: editingAtributoAsignado.id_atributo.toString(), id_valor: editingAtributoAsignado.id_valor.toString() } : null}
-                    availableAtributos={editingAtributoAsignado 
-                        ? supportData.availableAtributos 
+                    availableAtributos={editingAtributoAsignado
+                        ? supportData.availableAtributos
                         : supportData.availableAtributos.filter(a => !(codigoRef.atributos_asignados || []).some(aa => aa.id_atributo === a.id_atributo))
                     }
                 />
             </Modal>
-            <Modal opened={asociarModalOpened} onClose={closeAsociarModal} title={`Asociar SKU a ${selectedCodigoTecnico?.codigo}`} centered>
-                <Stack>
-                    <Select
-                        label="Seleccionar Producto (SKU)"
-                        placeholder="Busca un SKU disponible para este Cód. de Referencia"
-                        data={productosDisponibles
-                            .filter(p => !p.codigo_tecnico_sku) // Filtrar los que ya están asociados
-                            .map(p => ({ value: p.id_producto.toString(), label: `${p.sku} - ${p.nombre_producto}` }))
-                        }
-                        searchable
-                        clearable
-                        value={selectedProductoId}
-                        onChange={setSelectedProductoId}
-                    />
-                    <Button onClick={handleAsociarProducto} loading={isSubmitting} disabled={!selectedProductoId}>
-                        Asociar Producto
-                    </Button>
-                </Stack>
+            <Modal opened={asociarModalOpened} onClose={closeAsociarModal} title={`Asociar SKU: ${selectedCodigoTecnico?.codigo}`} centered>
+                {buscandoProducto ? (
+                    <Center><Loader /></Center>
+                ) : productoEncontrado ? (
+                    <Stack>
+                        <Text>Se encontró un producto con este SKU:</Text>
+                        <Paper withBorder p="xs">
+                            <Text fw={700}>{productoEncontrado.sku}</Text>
+                            <Text size="sm">{productoEncontrado.nombre_producto}</Text>
+                        </Paper>
+                        <Button onClick={handleConfirmarAsociacion} loading={isSubmitting}>
+                            Confirmar Asociación
+                        </Button>
+                    </Stack>
+                ) : (
+                    <Stack>
+                        <Text>No se encontró un producto existente con el SKU "{selectedCodigoTecnico?.codigo}".</Text>
+                        <Button onClick={handleCrearProductoDesdeModal} color="green">
+                            Crear Nuevo Producto
+                        </Button>
+                    </Stack>
+                )}
+            </Modal>
+            <Modal opened={productoModalOpened} onClose={closeProductoModal} title="Crear Nuevo Producto (SKU)" size="xl" centered>
+                <ProductoForm
+                    onSubmit={handleProductoSubmit}
+                    isSubmitting={isSubmitting}
+                    initialValues={{
+                        sku: selectedCodigoTecnico?.codigo || '',
+                        id_codigo_referencia: codigoRef?.id_codigo_referencia.toString() || null,
+                    }}
+                    {...maestros}
+                />
             </Modal>
         </Box>
     );

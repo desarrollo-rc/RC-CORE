@@ -20,6 +20,11 @@ class MaestroProductoService:
         return MaestroProductos.query.get_or_404(producto_id)
 
     @staticmethod
+    def get_producto_by_sku(sku):
+        """Busca un producto por su SKU."""
+        return MaestroProductos.query.filter_by(sku=sku).first()
+
+    @staticmethod
     def create_producto(data, user_id):
         if MaestroProductos.query.filter_by(sku=data['sku']).first():
             raise ResourceConflictError(f"El SKU '{data['sku']}' ya existe.")

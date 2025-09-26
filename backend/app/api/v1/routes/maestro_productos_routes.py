@@ -36,6 +36,15 @@ def get_productos():
     productos = MaestroProductoService.get_all_productos(include_inactive)
     return schema_many.dump(productos), 200
 
+@maestro_productos_bp.route('/sku/<string:sku>', methods=['GET'])
+@jwt_required()
+@permission_required('productos:listar')
+def get_producto_by_sku(sku):
+    producto = MaestroProductoService.get_producto_by_sku(sku)
+    if not producto:
+        return jsonify({"error": f"Producto con SKU {sku} no encontrado."}), 404
+    return schema_single.dump(producto), 200
+
 @maestro_productos_bp.route('/<int:producto_id>', methods=['PUT'])
 @jwt_required()
 @permission_required('productos:editar')
