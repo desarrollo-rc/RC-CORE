@@ -1,16 +1,17 @@
 // frontend/src/features/clientes/components/ClientesTable.tsx
 import { Table, Group, Text, ActionIcon, Tooltip, Badge } from '@mantine/core';
-import { IconPencil, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react';
+import { IconPencil, IconPlayerPlay, IconPlayerPause, IconEye } from '@tabler/icons-react';
 import type { Cliente } from '../types';
 
 interface ClientesTableProps {
     records: Cliente[];
+    onView: (record: Cliente) => void;
     onEdit: (record: Cliente) => void;
     onDeactivate: (record: Cliente) => void;
     onActivate: (record: Cliente) => void;
 }
 
-export function ClientesTable({ records, onEdit, onDeactivate, onActivate }: ClientesTableProps) {
+export function ClientesTable({ records, onView, onEdit, onDeactivate, onActivate }: ClientesTableProps) {
     const rows = records.map((record) => (
         <Table.Tr key={record.id_cliente}>
             <Table.Td>{record.codigo_cliente}</Table.Td>
@@ -25,6 +26,7 @@ export function ClientesTable({ records, onEdit, onDeactivate, onActivate }: Cli
             </Table.Td>
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
+                    <Tooltip label="Ver Cliente"><ActionIcon variant="light" onClick={() => onView(record)}><IconEye size={16} /></ActionIcon></Tooltip>
                     <Tooltip label="Editar Cliente"><ActionIcon variant="light" onClick={() => onEdit(record)}><IconPencil size={16} /></ActionIcon></Tooltip>
                     {record.activo ? (
                         <Tooltip label="Desactivar"><ActionIcon variant="light" color="red" onClick={() => onDeactivate(record)}><IconPlayerPause size={16} /></ActionIcon></Tooltip>

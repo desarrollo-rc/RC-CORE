@@ -18,6 +18,7 @@ import { getMarcas } from '../../marcas/services/marcaService';
 import { getCategorias } from '../../categorizacion/services/categorizacionService';
 
 import { ClientesTable } from '../components/ClientesTable';
+import { DetalleClienteModal } from '../components/DetalleClienteModal';
 import { ClienteForm } from '../components/ClienteForm';
 import type { Cliente, ClientePayload, ClienteFormData } from '../types';
 import type { TipoCliente } from '../../tipos-cliente/types';
@@ -142,9 +143,11 @@ export function ClientesPage() {
         try {
             if (editingRecord) {
                 await updateCliente(editingRecord.id_cliente, payload);
+                console.log('Cliente actualizado:', payload);
                 notifications.show({ title: 'Éxito', message: 'Cliente actualizado.', color: 'blue' });
             } else {
                 await createCliente(payload);
+                console.log('Cliente creado:', payload);
                 notifications.show({ title: 'Éxito', message: 'Cliente creado.', color: 'green' });
             }
             await fetchData();
@@ -164,6 +167,13 @@ export function ClientesPage() {
     const handleEdit = (record: Cliente) => {
         setEditingRecord(record);
         openModal();
+    };
+
+    const [viewModalOpened, { open: openViewModal, close: closeViewModal }] = useDisclosure(false);
+    const [viewRecord, setViewRecord] = useState<Cliente | null>(null);
+    const handleView = (record: Cliente) => {
+        setViewRecord(record);
+        openViewModal();
     };
 
     const handleDeactivate = (record: Cliente) => {
@@ -254,7 +264,8 @@ export function ClientesPage() {
                     Crear Cliente
                 </Button>
             </Group>
-            {loading ? <Center h={400}><Loader /></Center> : error ? <Alert color="red" title="Error">{error}</Alert> : <ClientesTable records={clientes} onEdit={handleEdit} onDeactivate={handleDeactivate} onActivate={handleActivate} />}
+            {loading ? <Center h={400}><Loader /></Center> : error ? <Alert color="red" title="Error">{error}</Alert> : <ClientesTable records={clientes} onView={handleView} onEdit={handleEdit} onDeactivate={handleDeactivate} onActivate={handleActivate} />}
+            <DetalleClienteModal opened={viewModalOpened} onClose={closeViewModal} record={viewRecord} />
             <Modal opened={modalOpened} onClose={closeModal} title={editingRecord ? 'Editar Cliente' : 'Crear Nuevo Cliente'} size="80%">
                 {maestros && (
                     <ClienteForm

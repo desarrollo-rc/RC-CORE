@@ -21,7 +21,12 @@ class ClienteService:
         ClienteService._validate_uniqueness(data)
         related_entities = ClienteService._resolve_related_entities(data)
 
-        if data.get('id_vendedor'):
+        if data.get('id_vendedor') is not None:
+            # Coerce to int if it comes as string
+            try:
+                data['id_vendedor'] = int(data['id_vendedor'])
+            except (TypeError, ValueError):
+                pass
             if not Vendedor.query.get(data['id_vendedor']):
                 raise RelatedResourceNotFoundError(f"El vendedor con ID {data['id_vendedor']} no existe.")
         
@@ -124,10 +129,18 @@ class ClienteService:
         ClienteService._update_simple_fields(data, customer)
         ClienteService._update_foreign_keys(data, customer)
         if 'id_vendedor' in data:
-            vendedor_id = data['id_vendedor']
-            if vendedor_id and not Vendedor.query.get(vendedor_id):
-                raise RelatedResourceNotFoundError(f"El vendedor con ID {vendedor_id} no existe.")
+            vendedor_id = data.get('id_vendedor')
+            # Coerce to int if it comes as string
+            try:
+                vendedor_id = int(vendedor_id) if vendedor_id is not None else None
+            except (TypeError, ValueError):
+                pass
+            print(f"DEBUG: Actualizando vendedor - ID recibido: {vendedor_id}")
+            if vendedor_id is not None:
+                if not Vendedor.query.get(vendedor_id):
+                    raise RelatedResourceNotFoundError(f"El vendedor con ID {vendedor_id} no existe.")
             customer.id_vendedor = vendedor_id
+            print(f"DEBUG: Vendedor asignado al cliente: {customer.id_vendedor}")
 
         if 'codigos_empresa' in data:
             empresas = []
@@ -147,10 +160,13 @@ class ClienteService:
             ClienteService._sync_direcciones(data.get('direcciones', []), customer)
 
         try:
+            print(f"DEBUG: Antes del commit - Vendedor del cliente: {customer.id_vendedor}")
             db.session.commit()
+            print(f"DEBUG: Después del commit - Vendedor del cliente: {customer.id_vendedor}")
             return customer
         except Exception as e:
             db.session.rollback()
+            print(f"DEBUG: Error en commit: {e}")
             raise Exception("Error inesperado en la base de datos.")
 
     @staticmethod

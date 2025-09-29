@@ -114,6 +114,7 @@ class ClienteResponseSchema(BaseClienteSchema):
     empresas = fields.List(fields.Nested(EmpresaResponseSchema), dump_only=True)
     marcas_afinidad = fields.List(fields.Nested(MarcaSchema), dump_only=True)
     categorias_afinidad = fields.List(fields.Nested(CategoriaSchema), dump_only=True)
+    vendedor = fields.Nested(VendedorSchema, dump_only=True, allow_none=True)
 
 class PaginationSchema(Schema):
     """
@@ -153,7 +154,7 @@ class UpdateClienteSchema(Schema):
     codigo_condicion_pago = fields.Str()
     codigos_empresa = fields.List(fields.Str(), validate=validate.Length(min=1))
 
-    id_vendedor = fields.Int(allow_none=True)
+    id_vendedor = fields.Int(required=False, allow_none=True)
 
     marcas_afinidad_ids = fields.List(fields.Int(), required=False)
     categorias_afinidad_ids = fields.List(fields.Int(), required=False)

@@ -18,7 +18,7 @@ interface ClienteFormProps {
 const initialContact: Contacto = { nombre: '', cargo: '', email: '', telefono: '', es_principal: false };
 const initialAddress: Direccion = { calle: '', numero: '', id_comuna: null, id_ciudad: null, id_region: null, codigo_postal: '', es_facturacion: false, es_despacho: true };
 
-function DireccionFormSection({ form, index, initialValues }: { form: any, index: number, initialValues: Direccion }) {
+function DireccionFormSection({ form, index }: { form: any, index: number }) {
     const [paises, setPaises] = useState<Pais[]>([]);
     const [regiones, setRegiones] = useState<Region[]>([]);
     const [ciudades, setCiudades] = useState<Ciudad[]>([]);
@@ -91,14 +91,9 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
             id_lista_precios: isNotEmpty('La lista de precios es requerida'),
             id_condicion_pago: isNotEmpty('La condición de pago es requerida'),
             ids_empresa: (value) => (value.length === 0 ? 'Debe seleccionar al menos una empresa' : null),
-            contactos: {
-                nombre: isNotEmpty('El nombre es requerido'),
-                email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Email inválido'),
-            },
-            direcciones: {
-                calle: isNotEmpty('La calle es requerida'),
-                id_comuna: isNotEmpty('La comuna es requerida'),
-            }
+            // id_vendedor es opcional, no requerido
+            contactos: (value) => (value.length === 0 ? 'Debe agregar al menos un contacto' : null),
+            direcciones: (value) => (value.length === 0 ? 'Debe agregar al menos una dirección' : null),
         },
     });
 
@@ -108,8 +103,10 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
 
     const hasGeneralErrors = !!(form.errors.codigo_cliente || form.errors.rut_cliente || form.errors.nombre_cliente);
     const hasComercialErrors = !!(form.errors.id_tipo_cliente || form.errors.id_segmento_cliente || form.errors.id_tipo_negocio || form.errors.id_lista_precios || form.errors.id_condicion_pago || form.errors.ids_empresa);
-    const hasContactosErrors = form.errors.contactos && Array.isArray(form.errors.contactos) && form.errors.contactos.some(c => c);
-    const hasDireccionesErrors = form.errors.direcciones && Array.isArray(form.errors.direcciones) && form.errors.direcciones.some(d => d);
+    const allContactosBlank = form.values.contactos.length > 0 && form.values.contactos.every(c => !c.nombre && !c.email && !c.telefono && !c.cargo);
+    const hasContactosErrors = form.values.contactos.length === 0 || allContactosBlank || !!form.errors.contactos;
+    const allDireccionesBlank = form.values.direcciones.length > 0 && form.values.direcciones.every(d => !d.calle && (d.id_comuna === null || d.id_comuna === undefined) && !d.numero && !d.codigo_postal);
+    const hasDireccionesErrors = form.values.direcciones.length === 0 || allDireccionesBlank || !!form.errors.direcciones;
 
     // Opciones para los Selects
     const tiposClienteOptions = maestros.tiposCliente.map(tc => ({ value: tc.id_tipo_cliente.toString(), label: tc.nombre_tipo_cliente }));
@@ -135,8 +132,8 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
         </Paper>
     ));
 
-    const direccionFields = form.values.direcciones.map((item, index) => (
-        <DireccionFormSection key={index} form={form} index={index} initialValues={item} />
+    const direccionFields = form.values.direcciones.map((_, index) => (
+        <DireccionFormSection key={index} form={form} index={index} />
     ));
 
     return (
