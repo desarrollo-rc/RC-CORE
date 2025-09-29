@@ -20,6 +20,7 @@ const menuItems = [
         label: 'Maestros Clientes',
         id: 'clientes',
         subItems: [
+            { icon: IconUser, label: 'Clientes', to: '/clientes' },
             { icon: IconBriefcase, label: 'Tipos de Negocio', to: '/tipos-negocio' },
             { icon: IconResize, label: 'Segmentos de Cliente', to: '/segmentos-cliente' },
             { icon: IconBuildingStore, label: 'Tipos de Cliente', to: '/tipos-cliente' },
@@ -56,6 +57,7 @@ const menuItems = [
             { icon: IconUsers, label: 'Usuarios', to: '/usuarios' },
             { icon: IconKey, label: 'Permisos', to: '/permisos' },  
             { icon: IconTag, label: 'Roles', to: '/roles' },
+            { icon: IconUser, label: 'Vendedores', to: '/vendedores' },
         ],
     },
 ];

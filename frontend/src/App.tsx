@@ -30,6 +30,8 @@ import { TiposClientePage } from './features/tipos-cliente/pages/TiposClientePag
 import { CondicionesPagoPage } from './features/condiciones-pago/pages/CondicionesPagoPage';
 import { ListasPreciosPage } from './features/listas-precios/pages/ListasPreciosPage';
 import { EmpresasPage } from './features/empresas/pages/EmpresasPage';
+import { VendedoresPage } from './features/vendedores/pages/VendedoresPage';
+import { ClientesPage } from './features/clientes/pages/ClientesPage';
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
@@ -80,6 +82,8 @@ function App() {
           <Route path="/condiciones-pago" element={<CondicionesPagoPage />} />
           <Route path="/listas-precios" element={<ListasPreciosPage />} />
           <Route path="/empresas" element={<EmpresasPage />} />
+          <Route path="/vendedores" element={<VendedoresPage />} />
+          <Route path="/clientes" element={<ClientesPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

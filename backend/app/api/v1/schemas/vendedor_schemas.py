@@ -4,6 +4,7 @@ from marshmallow import Schema, fields, validate
 class VendedorSchema(Schema):
     id_vendedor = fields.Int(dump_only=True)
     codigo_vendedor_sap = fields.Str()
+    activo = fields.Bool(dump_only=True)
 
     usuario = fields.Nested("UsuarioSimpleSchema", dump_only=True)
 

@@ -7,6 +7,7 @@ from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import NotFound
 from app.models.entidades import Usuario
+from app.api.v1.utils.decorators import permission_required
 
 clientes_bp = Blueprint('clientes_bp', __name__)
 
@@ -19,6 +20,7 @@ deactivate_schema = DeactivateClienteSchema()
 
 @clientes_bp.route('/', methods=['POST'])
 @jwt_required()
+@permission_required('clientes:crear')
 def create_cliente():
     """
     Endpoint para crear un nuevo cliente.
@@ -55,6 +57,7 @@ def create_cliente():
 
 @clientes_bp.route('/', methods=['GET'])
 @jwt_required()
+@permission_required('clientes:listar')
 def get_clientes():
     """
     Endpoint para listar todos los clientes con paginación.
@@ -75,6 +78,7 @@ def get_clientes():
 
 @clientes_bp.route('/<int:cliente_id>', methods=['GET'])
 @jwt_required()
+@permission_required('clientes:ver')
 def get_cliente_by_id(cliente_id):
     """
     Endpoint para obtener un cliente específico por su ID.
@@ -91,6 +95,7 @@ def get_cliente_by_id(cliente_id):
 
 @clientes_bp.route('/<int:cliente_id>', methods=['PUT'])
 @jwt_required()
+@permission_required('clientes:editar')
 def update_cliente(cliente_id):
     """
     Endpoint para actualizar un cliente específico.
@@ -131,6 +136,7 @@ def update_cliente(cliente_id):
 
 @clientes_bp.route('/<int:cliente_id>', methods=['DELETE'])
 @jwt_required()
+@permission_required('clientes:eliminar')
 def delete_cliente(cliente_id):
     """
     Endpoint para eliminar un cliente específico.
@@ -140,6 +146,7 @@ def delete_cliente(cliente_id):
 
 @clientes_bp.route('/<int:cliente_id>/deactivate', methods=['PUT'])
 @jwt_required()
+@permission_required('clientes:cambiar-estado')
 def deactivate_cliente(cliente_id):
     """Endpoint para desactivar un cliente."""
     try:
@@ -153,6 +160,7 @@ def deactivate_cliente(cliente_id):
 
 @clientes_bp.route('/<int:cliente_id>/activate', methods=['PUT'])
 @jwt_required()
+@permission_required('clientes:cambiar-estado')
 def activate_cliente(cliente_id):
     """Endpoint para activar un cliente."""
     try:

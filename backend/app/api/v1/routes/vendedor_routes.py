@@ -6,6 +6,7 @@ from app.api.v1.utils.errors import BusinessRuleError
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required
 from werkzeug.exceptions import NotFound
+from app.api.v1.utils.decorators import permission_required
 
 vendedores_bp = Blueprint('vendedores_bp', __name__)
 
@@ -16,6 +17,7 @@ schema_response_many = VendedorSchema(many=True)
 
 @vendedores_bp.route('/', methods=['POST'])
 @jwt_required()
+@permission_required('usuarios:crear')
 def create_vendedor():
     try:
         data = schema_create.load(request.get_json())
@@ -28,12 +30,14 @@ def create_vendedor():
 
 @vendedores_bp.route('/', methods=['GET'])
 @jwt_required()
+@permission_required('usuarios:listar')
 def get_vendedores():
     vendedores = VendedorService.get_all_vendedores()
     return schema_response_many.dump(vendedores), 200
 
 @vendedores_bp.route('/<int:vendedor_id>', methods=['GET'])
 @jwt_required()
+@permission_required('usuarios:ver')
 def get_vendedor(vendedor_id):
     try:
         vendedor = VendedorService.get_vendedor_by_id(vendedor_id)
@@ -43,6 +47,7 @@ def get_vendedor(vendedor_id):
 
 @vendedores_bp.route('/<int:vendedor_id>', methods=['PUT'])
 @jwt_required()
+@permission_required('usuarios:editar')
 def update_vendedor(vendedor_id):
     try:
         data = schema_update.load(request.get_json())
@@ -54,12 +59,22 @@ def update_vendedor(vendedor_id):
         status_code = 409 if isinstance(e, BusinessRuleError) else 404
         return jsonify({"error": str(e)}), status_code
 
-@vendedores_bp.route('/<int:vendedor_id>', methods=['DELETE'])
+@vendedores_bp.route('/<int:vendedor_id>/deactivate', methods=['PUT'])
 @jwt_required()
-def delete_vendedor(vendedor_id):
+@permission_required('usuarios:cambiar-estado')
+def deactivate_vendedor(vendedor_id):
     try:
-        VendedorService.delete_vendedor(vendedor_id)
-        return '', 204
-    except (BusinessRuleError, NotFound) as e:
-        status_code = 409 if isinstance(e, BusinessRuleError) else 404
-        return jsonify({"error": str(e)}), status_code
+        vendedor = VendedorService.deactivate_vendedor(vendedor_id)
+        return schema_response.dump(vendedor), 200
+    except NotFound:
+        return jsonify({"error": f"Vendedor con ID {vendedor_id} no encontrado."}), 404
+
+@vendedores_bp.route('/<int:vendedor_id>/activate', methods=['PUT'])
+@jwt_required()
+@permission_required('usuarios:cambiar-estado')
+def activate_vendedor(vendedor_id):
+    try:
+        vendedor = VendedorService.activate_vendedor(vendedor_id)
+        return schema_response.dump(vendedor), 200
+    except NotFound:
+        return jsonify({"error": f"Vendedor con ID {vendedor_id} no encontrado."}), 404

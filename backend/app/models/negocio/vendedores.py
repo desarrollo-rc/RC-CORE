@@ -1,8 +1,9 @@
 # backend/app/models/negocio/vendedores.py
 from app.extensions import db
 from sqlalchemy.sql import func
+from app.models.entidades.entidades_auxiliares import MixinAuditoria
 
-class Vendedor(db.Model):
+class Vendedor(db.Model, MixinAuditoria):
     __tablename__ = 'vendedores'
     __table_args__ = {'schema': 'negocio'}
 

@@ -132,6 +132,9 @@ def create_app(config_class=Config):
     from .api.v1.routes.tipo_negocio_routes import tipos_negocio_bp
     app.register_blueprint(tipos_negocio_bp, url_prefix='/api/v1/tipos-negocio')
 
+    from .api.v1.routes.geografia_routes import geografia_bp
+    app.register_blueprint(geografia_bp, url_prefix='/api/v1/geografia')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])
