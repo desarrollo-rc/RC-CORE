@@ -15,10 +15,15 @@ export interface Direccion {
     calle: string;
     numero: string;
     id_comuna: number | null;
+    id_ciudad: number | null;
+    id_region: number | null;
     codigo_postal: string;
     es_facturacion: boolean;
     es_despacho: boolean;
 }
+
+// Tipo de Dirección para el PAYLOAD de la API (solo los campos que el backend espera)
+export type DireccionPayload = Omit<Direccion, 'id_ciudad' | 'id_region'>;
 
 // Interfaz principal del Cliente (lo que recibimos de la API)
 export interface Cliente {
@@ -67,7 +72,7 @@ export type ClientePayload = {
     
     // Listas completas de objetos para las relaciones
     contactos: Contacto[];
-    direcciones: Direccion[];
+    direcciones: DireccionPayload[];
     
     // Listas de IDs para las afinidades
     marcas_afinidad_ids?: number[];

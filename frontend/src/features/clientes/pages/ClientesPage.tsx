@@ -50,7 +50,7 @@ const emptyFormValues: ClienteFormData = {
     id_lista_precios: null, id_condicion_pago: null, id_vendedor: null,
     ids_empresa: [],
     contactos: [{ nombre: '', cargo: '', email: '', telefono: '', es_principal: true }],
-    direcciones: [{ calle: '', numero: '', id_comuna: null, codigo_postal: '', es_facturacion: true, es_despacho: true }],
+    direcciones: [{ calle: '', numero: '', id_comuna: null, id_ciudad: null, id_region: null, codigo_postal: '', es_facturacion: true, es_despacho: true }],
     definir_afinidad: false, marcas_afinidad_ids: [], categorias_afinidad_ids: []
 };
 
@@ -103,11 +103,12 @@ export function ClientesPage() {
         };
 
         const transformedDirecciones = formValues.direcciones.map(dir => {
+            // Creamos un nuevo objeto solo con las propiedades que la API espera
             return {
                 id_direccion: dir.id_direccion,
                 calle: dir.calle,
                 numero: dir.numero,
-                id_comuna: dir.id_comuna,
+                id_comuna: Number(dir.id_comuna), // Aseguramos que sea un número
                 codigo_postal: dir.codigo_postal,
                 es_facturacion: dir.es_facturacion,
                 es_despacho: dir.es_despacho

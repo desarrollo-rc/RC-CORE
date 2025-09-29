@@ -16,7 +16,7 @@ interface ClienteFormProps {
 }
 
 const initialContact: Contacto = { nombre: '', cargo: '', email: '', telefono: '', es_principal: false };
-const initialAddress: Direccion = { calle: '', numero: '', id_comuna: null, codigo_postal: '', es_facturacion: false, es_despacho: true };
+const initialAddress: Direccion = { calle: '', numero: '', id_comuna: null, id_ciudad: null, id_region: null, codigo_postal: '', es_facturacion: false, es_despacho: true };
 
 function DireccionFormSection({ form, index, initialValues }: { form: any, index: number, initialValues: Direccion }) {
     const [paises, setPaises] = useState<Pais[]>([]);
@@ -45,6 +45,8 @@ function DireccionFormSection({ form, index, initialValues }: { form: any, index
         if (selectedRegion) {
             getCiudades(Number(selectedRegion)).then(setCiudades);
             form.setFieldValue(`direcciones.${index}.id_comuna`, null);
+            form.setFieldValue(`direcciones.${index}.id_ciudad`, null);
+            form.setFieldValue(`direcciones.${index}.id_region`, null);
         }
          setComunas([]);
     }, [selectedRegion]);
@@ -53,6 +55,8 @@ function DireccionFormSection({ form, index, initialValues }: { form: any, index
         if (selectedCiudad) {
             getComunas(Number(selectedCiudad)).then(setComunas);
             form.setFieldValue(`direcciones.${index}.id_comuna`, null);
+            form.setFieldValue(`direcciones.${index}.id_ciudad`, null);
+            form.setFieldValue(`direcciones.${index}.id_region`, null);
         }
     }, [selectedCiudad]);
     
