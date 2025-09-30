@@ -68,3 +68,13 @@ export type ProductoFormData = {
     es_kit: boolean;
     proveedores: ProveedorFormSection[];
 };
+
+export interface PaginatedProductosResponse {
+    items: Producto[];
+    pagination: {
+        total: number;
+        pages: number;
+        page: number;
+        per_page: number;
+    };
+}

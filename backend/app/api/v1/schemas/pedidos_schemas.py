@@ -15,6 +15,10 @@ class EstadoLogisticoSchema(Schema):
     codigo_estado = fields.Str()
     nombre_estado = fields.Str()
 
+class ProductoSimpleSchema(Schema):
+    producto_sku = fields.Str(attribute="sku")
+    producto_nombre = fields.Str(attribute="nombre_producto")
+
 class PedidoDetalleResponseSchema(Schema):
     id_producto = fields.Int()
     cantidad = fields.Int()
@@ -22,8 +26,7 @@ class PedidoDetalleResponseSchema(Schema):
     subtotal = fields.Decimal(as_string=True, places=2)
     
     # Añadimos datos del producto para enriquecer la respuesta
-    producto_sku = fields.Str(attribute="producto.sku")
-    producto_nombre = fields.Str(attribute="producto.nombre_producto")
+    producto = fields.Nested(ProductoSimpleSchema, attribute="producto")
 
 class HistorialEstadoPedidoSchema(Schema):
     fecha_evento = fields.DateTime()
@@ -44,6 +47,7 @@ class PedidoCreateSchema(Schema):
     id_usuario_b2b = fields.Int(allow_none=True)
     id_vendedor = fields.Int(allow_none=True)
     detalles = fields.List(fields.Nested(PedidoDetalleCreateSchema), required=True, validate=validate.Length(min=1))
+    aprobacion_automatica = fields.Bool(load_default=False)
 
 class PedidoResponseSchema(Schema):
     id_pedido = fields.Int()
@@ -82,6 +86,7 @@ class PedidoUpdateEstadoSchema(Schema):
     id_estado_credito = fields.Int()
     id_estado_logistico = fields.Int()
     observaciones = fields.Str(required=True, validate=validate.Length(min=5))
+    fecha_evento = fields.DateTime(required=True)
 
     @validates('id_estado_general')
     def validate_estado_general(self, value):

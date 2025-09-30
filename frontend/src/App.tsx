@@ -32,6 +32,9 @@ import { ListasPreciosPage } from './features/listas-precios/pages/ListasPrecios
 import { EmpresasPage } from './features/empresas/pages/EmpresasPage';
 import { VendedoresPage } from './features/vendedores/pages/VendedoresPage';
 import { ClientesPage } from './features/clientes/pages/ClientesPage';
+import { PedidosPage } from './features/pedidos/pages/PedidosPage';
+import { PedidoCreatePage } from './features/pedidos/pages/PedidoCreatePage';
+import { PedidoDetailPage } from './features/pedidos/pages/PedidoDetailPage';
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
@@ -84,6 +87,9 @@ function App() {
           <Route path="/empresas" element={<EmpresasPage />} />
           <Route path="/vendedores" element={<VendedoresPage />} />
           <Route path="/clientes" element={<ClientesPage />} />
+          <Route path="/pedidos" element={<PedidosPage />} />
+          <Route path="/pedidos/crear" element={<PedidoCreatePage />} /> 
+          <Route path="/pedidos/:id" element={<PedidoDetailPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

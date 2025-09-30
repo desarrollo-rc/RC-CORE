@@ -1,12 +1,26 @@
 // frontend/src/features/productos/services/productoService.ts
 import apiClient from '../../../api/axios';
-import type { Producto, ProductoPayload } from '../types';
+import type { Producto, ProductoPayload, PaginatedProductosResponse } from '../types';
 
-export const getProductos = async (includeInactive: boolean = false): Promise<Producto[]> => {
-    const response = await apiClient.get<Producto[]>('/productos', {
-        params: { incluir_inactivos: includeInactive }
-    });
+interface ProductoFilters {
+    page?: number;
+    per_page?: number;
+    // ... otros filtros que puedas necesitar
+}
+
+export const getProductos = async (filters: ProductoFilters): Promise<PaginatedProductosResponse> => {
+    const response = await apiClient.get<PaginatedProductosResponse>('/productos', { params: filters });
     return response.data;
+};
+
+export const getProductosPaginados = async (filters: ProductoFilters): Promise<PaginatedProductosResponse> => {
+    const response = await apiClient.get<PaginatedProductosResponse>('/productos', { params: filters });
+    return response.data;
+};
+
+export const getAllProductos = async (): Promise<Producto[]> => {
+    const response = await apiClient.get<Producto[] | { items: Producto[] }>('/productos', { params: { page: 1, per_page: 2000 } });
+    return Array.isArray(response.data) ? response.data : response.data.items;
 };
 
 export const getProductoBySku = async (sku: string): Promise<Producto> => {

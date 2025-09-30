@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
-from app.api.v1.utils.errors import BusinessRuleError
+from app.api.v1.utils.errors import BusinessRuleError, RelatedResourceNotFoundError
 from app.api.v1.utils.decorators import permission_required
 from datetime import datetime
 from marshmallow import ValidationError
@@ -77,7 +77,7 @@ def get_pedido_by_id(pedido_id):
 
 @pedidos_bp.route('/<int:pedido_id>/estado', methods=['PUT'])
 @jwt_required()
-@permission_required('pedidos:actualizar_estado')
+@permission_required('pedidos:actualizar-estado')
 def update_pedido_estado(pedido_id):
     json_data = request.get_json()
     if not json_data:
@@ -94,6 +94,8 @@ def update_pedido_estado(pedido_id):
     except ValidationError as err:
         return jsonify(err.messages), 422
     except BusinessRuleError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except RelatedResourceNotFoundError as err:
         return jsonify({"error": str(err)}), err.status_code
     except NotFound:
         return jsonify({"error": f"Pedido con ID {pedido_id} no encontrado."}), 404

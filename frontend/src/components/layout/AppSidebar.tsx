@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory, IconShoppingCart } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -46,6 +46,14 @@ const menuItems = [
             { icon: IconCar, label: 'Vehículos', to: '/vehiculos' }, 
             { icon: IconRuler, label: 'Medidas', to: '/medidas' },
             { icon: IconMap, label: 'Origenes', to: '/origenes' },
+        ],
+    },
+    {
+        icon: IconShoppingCart,
+        label: 'Pedidos',
+        id: 'pedidos',
+        subItems: [
+            { icon: IconShoppingCart, label: 'Pedidos', to: '/pedidos' },
         ],
     },
     {
