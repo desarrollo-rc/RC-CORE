@@ -77,7 +77,10 @@ export function PedidoActionPanel({ pedido, onUpdate }: PedidoActionPanelProps) 
         }
 
         try {
+            console.log('[PedidoActionPanel] Enviando payload corregido al backend:', payload); // <-- Log adicional para confirmar
             const updatedPedido = await updatePedidoEstado(pedido.id_pedido, payload);
+            
+            console.log('[PedidoActionPanel] Respuesta exitosa del backend:', updatedPedido);
             onUpdate(updatedPedido); // Actualiza el estado en la página padre
             reset();
             close();

@@ -2,18 +2,24 @@
 from marshmallow import Schema, fields, validate, ValidationError, validates
 from .usuario_schemas import UsuarioSimpleSchema
 from .cliente_schemas import ClienteResponseSchema
+from ....models.negocio.pedidos import EstadoAprobacionCredito, EstadoLogistico, EstadoPedido
+from ....extensions import db
+
 
 class EstadoPedidoSchema(Schema):
-    codigo_estado = fields.Str()
-    nombre_estado = fields.Str()
+    id_estado = fields.Int(dump_only=True)
+    codigo_estado = fields.Str(allow_none=True)
+    nombre_estado = fields.Str(allow_none=True)
 
 class EstadoAprobacionCreditoSchema(Schema):
-    codigo_estado = fields.Str()
-    nombre_estado = fields.Str()
+    id_estado = fields.Int(dump_only=True)
+    codigo_estado = fields.Str(allow_none=True)
+    nombre_estado = fields.Str(allow_none=True)
 
 class EstadoLogisticoSchema(Schema):
-    codigo_estado = fields.Str()
-    nombre_estado = fields.Str()
+    id_estado = fields.Int(dump_only=True)
+    codigo_estado = fields.Str(allow_none=True)
+    nombre_estado = fields.Str(allow_none=True)
 
 class ProductoSimpleSchema(Schema):
     producto_sku = fields.Str(attribute="sku")
@@ -88,17 +94,17 @@ class PedidoUpdateEstadoSchema(Schema):
     observaciones = fields.Str(required=True, validate=validate.Length(min=5))
     fecha_evento = fields.DateTime(required=True)
 
-    @validates('id_estado_general')
-    def validate_estado_general(self, value):
-        if value is not None and not isinstance(value, int):
-            raise ValidationError('id_estado_general debe ser un entero.')
-
     @validates('id_estado_credito')
-    def validate_estado_credito(self, value):
-        if value is not None and not isinstance(value, int):
-            raise ValidationError('id_estado_credito debe ser un entero.')
+    def validate_estado_credito(self, value, **kwargs): # <-- CAMBIO APLICADO
+        if value is not None and not db.session.get(EstadoAprobacionCredito, value):
+            raise ValidationError(f"El estado de crédito con ID {value} no existe.")
 
     @validates('id_estado_logistico')
-    def validate_estado_logistico(self, value):
-        if value is not None and not isinstance(value, int):
-            raise ValidationError('id_estado_logistico debe ser un entero.')
+    def validate_estado_logistico(self, value, **kwargs): # <-- CAMBIO APLICADO
+        if value is not None and not db.session.get(EstadoLogistico, value):
+            raise ValidationError(f"El estado logístico con ID {value} no existe.")
+
+    @validates('id_estado_general')
+    def validate_estado_general(self, value, **kwargs): # <-- CAMBIO APLICADO
+        if value is not None and not db.session.get(EstadoPedido, value):
+            raise ValidationError(f"El estado general con ID {value} no existe.")

@@ -135,6 +135,7 @@ class PedidoService:
 
     @staticmethod
     def update_estado(pedido_id, data, user_id_responsable):
+        # La validación de get_or_404 se encarga de errores de no encontrado
         pedido = Pedido.query.get_or_404(pedido_id)
 
         cambios = []
@@ -151,27 +152,30 @@ class PedidoService:
                 if id_field in data and data[id_field] is not None:
                     nuevo_id = data[id_field]
                     
+                    # Previene cambios si el estado ya es el actual
                     if getattr(pedido, id_field) == nuevo_id:
-                        continue # Salta si el ID es el mismo para no crear historial innecesario
+                        continue
 
+                    # Obtiene el nombre del estado anterior de forma segura
                     estado_anterior_nombre = relacion_actual.nombre_estado if relacion_actual else "N/A"
                     
-                    # Lógica robusta: Consultamos el nuevo estado directamente desde la BD
+                    # Busca el nuevo estado en la BD para asegurar que existe
                     nuevo_estado_obj = ModeloEstado.query.get(nuevo_id)
                     if not nuevo_estado_obj:
                         raise RelatedResourceNotFoundError(f"El estado con ID {nuevo_id} no existe para el tipo {tipo_estado}.")
-                    estado_nuevo_nombre = nuevo_estado_obj.nombre_estado
-
+                    
+                    # Asigna el nuevo ID de estado al pedido
                     setattr(pedido, id_field, nuevo_id)
                     
+                    # Guarda los nombres (strings) para el historial
                     cambios.append({
                         "estado_anterior": estado_anterior_nombre,
-                        "estado_nuevo": estado_nuevo_nombre,
+                        "estado_nuevo": nuevo_estado_obj.nombre_estado,
                         "tipo_estado": tipo_estado,
                     })
 
             if not cambios:
-                raise BusinessRuleError("No se especificó ningún cambio de estado válido.")
+                raise BusinessRuleError("No se especificó ningún cambio de estado válido o el estado ya era el actual.")
 
             for cambio in cambios:
                 historial = HistorialEstadoPedido(
@@ -179,20 +183,22 @@ class PedidoService:
                     id_usuario_responsable=user_id_responsable,
                     observaciones=data.get('observaciones', 'Sin observaciones.'),
                     fecha_evento=data['fecha_evento'],
-                    **cambio
+                    # El operador ** desempaqueta el diccionario 'cambio' en argumentos
+                    **cambio 
                 )
                 db.session.add(historial)
 
+            # Guarda todos los cambios en la base de datos
             db.session.commit()
-            # Devolvemos el pedido completamente recargado para asegurar que el frontend reciba la data actualizada
+            
+            # Devuelve el pedido recargado para asegurar que la respuesta contiene los datos actualizados
             return PedidoService.get_pedido_by_id(pedido_id)
 
-        except RelatedResourceNotFoundError as e:
+        except (RelatedResourceNotFoundError, BusinessRuleError):
             db.session.rollback()
-            raise e
-        except BusinessRuleError as e:
-            db.session.rollback()
-            raise e
+            # Relanza la excepción para que sea manejada por la ruta
+            raise  
         except Exception as e:
             db.session.rollback()
+            # Envuelve cualquier otra excepción en un BusinessRuleError
             raise BusinessRuleError(f"Error interno al actualizar el estado: {str(e)}")

@@ -9,6 +9,7 @@ from datetime import datetime
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import NotFound
+import traceback
 
 pedidos_bp = Blueprint('pedidos_bp', __name__)
 
@@ -85,10 +86,22 @@ def update_pedido_estado(pedido_id):
         
     try:
         data = schema_update_estado.load(json_data)
-        current_user_id = get_jwt_identity()
+        
+
+        current_user_id = int(get_jwt_identity())
+
+        print("\n--- INICIO DE PETICIÓN PUT /pedidos/<id>/estado ---")
+        print(f"[RUTA] Recibido para pedido ID: {pedido_id}")
+        print(f"[RUTA] Datos recibidos (payload): {data}")
+        print(f"[RUTA] ID de usuario responsable: {current_user_id}")
         
         pedido_actualizado = PedidoService.update_estado(pedido_id, data, current_user_id)
+        print(f"[RUTA] El servicio finalizó correctamente.")
+        print(f"[RUTA] Objeto a serializar: {pedido_actualizado.__dict__ if hasattr(pedido_actualizado, '__dict__') else pedido_actualizado}")
         
+        print("[RUTA] Serialización exitosa. Enviando respuesta.")
+        print("--- FIN DE PETICIÓN ---\n")
+
         return schema_response.dump(pedido_actualizado), 200
     
     except ValidationError as err:
@@ -100,4 +113,11 @@ def update_pedido_estado(pedido_id):
     except NotFound:
         return jsonify({"error": f"Pedido con ID {pedido_id} no encontrado."}), 404
     except Exception as e:
+        # --- MODIFICAR ESTE BLOQUE PARA OBTENER MÁS DETALLE ---
+        print(f"[RUTA] !!! ERROR INESPERADO EN LA RUTA !!!")
+        print(f"[RUTA] Tipo de error: {type(e)}")
+        print(f"[RUTA] Mensaje de error: {e}")
+        print(f"[RUTA] Traceback completo:")
+        traceback.print_exc() # Imprime el stack trace completo en la consola
+        print("--- FIN DE PETICIÓN CON ERROR ---\n")
         return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
