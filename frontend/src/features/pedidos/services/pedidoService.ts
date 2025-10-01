@@ -22,3 +22,27 @@ export const updatePedidoEstado = async (id: number, data: PedidoUpdateEstadoPay
     const response = await apiClient.put<Pedido>(`/pedidos/${id}/estado`, data);
     return response.data;
 };
+
+export const marcarFacturado = async (
+    pedidoId: number,
+    data: { factura_manual: boolean; numero_factura_sap?: string; fecha_facturacion?: string; observaciones?: string }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/marcar-facturado`, data);
+    return response.data;
+};
+
+export const marcarEntregado = async (
+    pedidoId: number,
+    data: { fecha_evento: string; observaciones?: string }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/marcar-entregado`, data);
+    return response.data;
+};
+
+export const updateEstadoLogistico = async (
+    pedidoId: number,
+    payload: { id_estado_logistico: number; fecha_evento: string; observaciones?: string }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/estado`, payload);
+    return response.data;
+};

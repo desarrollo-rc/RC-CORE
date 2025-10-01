@@ -59,9 +59,16 @@ class Pedido(db.Model, MixinAuditoria):
     monto_impuestos = db.Column(db.Numeric(15, 2), nullable=False)
     monto_total = db.Column(db.Numeric(15, 2), nullable=False)
 
+    factura_manual = db.Column(db.Boolean, nullable=True, comment="True si la factura fue manual, False si fue automática")
+    fecha_facturacion = db.Column(db.DateTime, nullable=True)
+
     detalles = db.relationship('PedidoDetalle', back_populates='pedido', cascade="all, delete-orphan")
     historial_estados = db.relationship('HistorialEstadoPedido', back_populates='pedido', cascade="all, delete-orphan")
 
+    @property
+    def puede_despachar(self):
+        return self.numero_factura_sap is not None or self.factura_manual is not None
+        
     def __repr__(self):
         return f'<Pedido {self.codigo_pedido_origen} - Cliente {self.id_cliente}>'
 

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Title, Group, Alert, Center, Loader, Paper, Text, Grid, Badge, Table, Timeline, ThemeIcon } from '@mantine/core';
-import { IconCircleCheck, IconCircleDotted } from '@tabler/icons-react';
+import { IconCircleCheck } from '@tabler/icons-react';
 import { getPedidoById } from '../services/pedidoService';
 import type { Pedido, PedidoDetalle as PedidoDetalleType, HistorialEstado } from '../types';
 import { PedidoActionPanel } from '../components/PedidoActionPanel';

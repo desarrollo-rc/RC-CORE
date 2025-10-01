@@ -10,6 +10,7 @@ from app.models.negocio import CanalVenta, Vendedor
 from app.api.v1.utils.errors import BusinessRuleError, RelatedResourceNotFoundError, ResourceConflictError
 from sqlalchemy.orm import joinedload
 from decimal import Decimal
+from datetime import datetime
 
 class PedidoService:
 
@@ -47,21 +48,22 @@ class PedidoService:
 
     @staticmethod
     def create_pedido(data, user_id_creador):
+        # --- 1. Validaciones Previas ---
         if not MaestroClientes.query.get(data['id_cliente']):
             raise RelatedResourceNotFoundError(f"Cliente con ID {data['id_cliente']} no encontrado.")
-        
         if not CanalVenta.query.get(data['id_canal_venta']):
             raise RelatedResourceNotFoundError(f"Canal de venta con ID {data['id_canal_venta']} no encontrado.")
-        
         if data.get('id_vendedor') and not Vendedor.query.get(data['id_vendedor']):
-             raise RelatedResourceNotFoundError(f"Vendedor con ID {data['id_vendedor']} no encontrado.")
-        
+            raise RelatedResourceNotFoundError(f"Vendedor con ID {data['id_vendedor']} no encontrado.")
         if data.get('id_usuario_b2b') and not UsuarioB2B.query.get(data['id_usuario_b2b']):
-             raise RelatedResourceNotFoundError(f"Usuario B2B con ID {data['id_usuario_b2b']} no encontrado.")
-
-        if data['codigo_pedido_origen'] and Pedido.query.filter_by(codigo_pedido_origen=data['codigo_pedido_origen']).first():
+            raise RelatedResourceNotFoundError(f"Usuario B2B con ID {data['id_usuario_b2b']} no encontrado.")
+        if data.get('codigo_pedido_origen') and Pedido.query.filter_by(codigo_pedido_origen=data['codigo_pedido_origen']).first():
             raise ResourceConflictError(f"El código de pedido '{data['codigo_pedido_origen']}' ya está en uso.")
+
+        # --- 2. Determinación del Estado Inicial ---
+        fecha_del_evento = data['fecha_evento']
         aprobacion_automatica = data.get('aprobacion_automatica', False)
+
         if aprobacion_automatica:
             estado_credito_inicial = EstadoAprobacionCredito.query.filter_by(codigo_estado='APROBADO').first()
             observacion_historial = "Pedido creado con aprobación automática."
@@ -71,134 +73,295 @@ class PedidoService:
 
         if not estado_credito_inicial:
             raise BusinessRuleError("Los estados de crédito 'APROBADO' o 'PENDIENTE' no se encuentran en la base de datos.")
+
+        # --- 3. Lógica Transaccional ---
         try:
-            if data.get('codigo_pedido_origen'):
-                nuevo_pedido = Pedido(
-                    codigo_pedido_origen=data['codigo_pedido_origen'],
-                    id_cliente=data['id_cliente'],
-                    id_canal_venta=data['id_canal_venta'],
-                    id_vendedor=data.get('id_vendedor'),
-                    id_usuario_b2b=data.get('id_usuario_b2b'),
-                    id_estado_general=1,
-                    id_estado_credito=estado_credito_inicial.id_estado,
-                )
-            else:
-                nuevo_pedido = Pedido(
-                    id_cliente=data['id_cliente'],
-                    id_canal_venta=data['id_canal_venta'],
-                    id_vendedor=data.get('id_vendedor'),
-                    id_usuario_b2b=data.get('id_usuario_b2b'),
-                    id_estado_general=1,
-                    id_estado_credito=1,
-                )
-
+            # Creación del Pedido
+            nuevo_pedido = Pedido(
+                codigo_pedido_origen=data.get('codigo_pedido_origen'),
+                id_cliente=data['id_cliente'],
+                id_canal_venta=data['id_canal_venta'],
+                id_vendedor=data.get('id_vendedor'),
+                id_usuario_b2b=data.get('id_usuario_b2b'),
+                # Estado general: NUEVO (1) al crear; si hay aprobación automática entonces EN_PROCESO (2)
+                id_estado_general=2 if aprobacion_automatica else 1,
+                id_estado_credito=estado_credito_inicial.id_estado,
+            )
+            
+            # Procesamiento de Detalles y Cálculo de Montos
             monto_neto = Decimal('0.0')
-
             for item_data in data['detalles']:
                 producto = MaestroProductos.query.get(item_data['id_producto'])
                 if not producto:
                     raise RelatedResourceNotFoundError(f"Producto con ID {item_data['id_producto']} no encontrado.")
                 
-                precio_unitario = producto.costo_base
-                subtotal = item_data['cantidad'] * precio_unitario
+                # Aquí deberías tener tu lógica real de precios
+                precio_unitario = producto.costo_base 
+                subtotal = Decimal(item_data['cantidad']) * precio_unitario
 
                 detalle = PedidoDetalle(
-                    id_producto = item_data['id_producto'],
-                    cantidad = item_data['cantidad'],
-                    precio_unitario = precio_unitario,
-                    subtotal = subtotal
+                    id_producto=item_data['id_producto'],
+                    cantidad=item_data['cantidad'],
+                    precio_unitario=precio_unitario,
+                    subtotal=subtotal
                 )
                 nuevo_pedido.detalles.append(detalle)
                 monto_neto += subtotal
             
             nuevo_pedido.monto_neto = monto_neto
             nuevo_pedido.monto_impuestos = monto_neto * Decimal('0.19') 
-            nuevo_pedido.monto_total = monto_neto * Decimal('1.19')    
+            nuevo_pedido.monto_total = monto_neto + nuevo_pedido.monto_impuestos
 
             db.session.add(nuevo_pedido)
-            db.session.flush()
+            db.session.flush() # Para obtener el ID del pedido recién creado
 
+            # --- 4. CORRECCIÓN: Creación del Primer Historial con Fecha ---
             historial = HistorialEstadoPedido(
                 id_pedido=nuevo_pedido.id_pedido,
+                fecha_evento=fecha_del_evento, # <-- AQUÍ ESTÁ LA CORRECCIÓN CLAVE
                 estado_nuevo=estado_credito_inicial.nombre_estado,
                 tipo_estado="CREDITO",
                 id_usuario_responsable=user_id_creador,
-                observaciones=observacion_historial # <-- Usamos la observación dinámica
+                observaciones=observacion_historial
             )
             db.session.add(historial)
 
+            # Si la aprobación fue automática, registramos también el cambio de estado GENERAL a EN_PROCESO
+            if aprobacion_automatica:
+                estado_general_en_proceso = EstadoPedido.query.filter_by(codigo_estado='EN_PROCESO').first()
+                if estado_general_en_proceso:
+                    historial_general = HistorialEstadoPedido(
+                        id_pedido=nuevo_pedido.id_pedido,
+                        fecha_evento=fecha_del_evento,
+                        estado_anterior='NUEVO',
+                        estado_nuevo=estado_general_en_proceso.nombre_estado,
+                        tipo_estado='GENERAL',
+                        id_usuario_responsable=user_id_creador,
+                        observaciones='Inicio de procesamiento por aprobación automática.'
+                    )
+                    db.session.add(historial_general)
+
             db.session.commit()
             return nuevo_pedido
+            
         except Exception as e:
             db.session.rollback()
-            raise BusinessRuleError(f"Error al crear el pedido: {e}")
+            # En lugar de un genérico BusinessRuleError, relanzamos la excepción
+            # para que el traceback completo aparezca en la consola y sea más fácil de depurar.
+            raise e
 
     @staticmethod
     def update_estado(pedido_id, data, user_id_responsable):
-        # La validación de get_or_404 se encarga de errores de no encontrado
         pedido = Pedido.query.get_or_404(pedido_id)
-
         cambios = []
+
+        # Si ya está cancelado, no se permite ningún cambio adicional
+        if pedido.estado_general and pedido.estado_general.codigo_estado == 'CANCELADO':
+            raise BusinessRuleError("El pedido está CANCELADO y no permite cambios.")
         
-        # Mapa de campos de ID a sus relaciones, tipo y Modelo de la tabla de estados
         mapa_estados = {
-            'id_estado_general': (pedido.estado_general, 'GENERAL', EstadoPedido),
-            'id_estado_credito': (pedido.estado_credito, 'CREDITO', EstadoAprobacionCredito),
-            'id_estado_logistico': (pedido.estado_logistico, 'LOGISTICO', EstadoLogistico),
+            'id_estado_general': ('estado_general', 'GENERAL', EstadoPedido),
+            'id_estado_credito': ('estado_credito', 'CREDITO', EstadoAprobacionCredito),
+            'id_estado_logistico': ('estado_logistico', 'LOGISTICO', EstadoLogistico),
         }
 
         try:
-            for id_field, (relacion_actual, tipo_estado, ModeloEstado) in mapa_estados.items():
+            for id_field, (relacion_attr, tipo_estado, ModeloEstado) in mapa_estados.items():
                 if id_field in data and data[id_field] is not None:
                     nuevo_id = data[id_field]
-                    
-                    # Previene cambios si el estado ya es el actual
+                    relacion_actual = getattr(pedido, relacion_attr)
+
                     if getattr(pedido, id_field) == nuevo_id:
                         continue
 
-                    # Obtiene el nombre del estado anterior de forma segura
                     estado_anterior_nombre = relacion_actual.nombre_estado if relacion_actual else "N/A"
                     
-                    # Busca el nuevo estado en la BD para asegurar que existe
                     nuevo_estado_obj = ModeloEstado.query.get(nuevo_id)
                     if not nuevo_estado_obj:
                         raise RelatedResourceNotFoundError(f"El estado con ID {nuevo_id} no existe para el tipo {tipo_estado}.")
                     
-                    # Asigna el nuevo ID de estado al pedido
-                    setattr(pedido, id_field, nuevo_id)
+                    if id_field == 'id_estado_logistico':
+                        PedidoService.validar_transicion_logistica(relacion_actual, nuevo_estado_obj)
                     
-                    # Guarda los nombres (strings) para el historial
+                    setattr(pedido, id_field, nuevo_id)
                     cambios.append({
                         "estado_anterior": estado_anterior_nombre,
                         "estado_nuevo": nuevo_estado_obj.nombre_estado,
                         "tipo_estado": tipo_estado,
                     })
 
+                    # --- LÓGICA DE NEGOCIO AUTOMÁTICA ---
+                    # Si el estado de CRÉDITO cambia a APROBADO...
+                    if id_field == 'id_estado_credito' and nuevo_estado_obj.codigo_estado == 'APROBADO':
+                        # 1) Estado GENERAL pasa a EN_PROCESO si aún no lo está
+                        if not pedido.estado_general or pedido.estado_general.codigo_estado != 'EN_PROCESO':
+                            estado_en_proceso = EstadoPedido.query.filter_by(codigo_estado='EN_PROCESO').first()
+                            if estado_en_proceso:
+                                estado_anterior_general = pedido.estado_general.nombre_estado if pedido.estado_general else 'N/A'
+                                pedido.id_estado_general = estado_en_proceso.id_estado
+                                cambios.append({
+                                    "estado_anterior": estado_anterior_general,
+                                    "estado_nuevo": estado_en_proceso.nombre_estado,
+                                    "tipo_estado": "GENERAL",
+                                })
+
+                        # 2) y si no hay estado logístico, inicia PENDIENTE_WMS
+                        if pedido.id_estado_logistico is None:
+                            estado_pendiente_wms = EstadoLogistico.query.filter_by(codigo_estado='PENDIENTE_WMS').first()
+                            if estado_pendiente_wms:
+                                pedido.id_estado_logistico = estado_pendiente_wms.id_estado
+                                cambios.append({
+                                    "estado_anterior": "N/A",
+                                    "estado_nuevo": estado_pendiente_wms.nombre_estado,
+                                    "tipo_estado": "LOGISTICO",
+                                })
+
             if not cambios:
-                raise BusinessRuleError("No se especificó ningún cambio de estado válido o el estado ya era el actual.")
+                raise BusinessRuleError("No se especificó ningún cambio de estado válido.")
+
+            fecha_evento = data['fecha_evento']
 
             for cambio in cambios:
+                # Creamos una observación genérica si no viene una específica para el cambio automático.
+                observacion = data.get('observaciones')
+                if cambio['tipo_estado'] == 'LOGISTICO' and cambio['estado_anterior'] == 'N/A':
+                    observacion = "Inicio automático del flujo logístico tras aprobación de crédito."
+
                 historial = HistorialEstadoPedido(
                     id_pedido=pedido.id_pedido,
                     id_usuario_responsable=user_id_responsable,
-                    observaciones=data.get('observaciones', 'Sin observaciones.'),
-                    fecha_evento=data['fecha_evento'],
-                    # El operador ** desempaqueta el diccionario 'cambio' en argumentos
+                    observaciones=observacion,
+                    fecha_evento=fecha_evento,
                     **cambio 
                 )
                 db.session.add(historial)
 
-            # Guarda todos los cambios en la base de datos
             db.session.commit()
-            
-            # Devuelve el pedido recargado para asegurar que la respuesta contiene los datos actualizados
             return PedidoService.get_pedido_by_id(pedido_id)
 
-        except (RelatedResourceNotFoundError, BusinessRuleError):
+        except (RelatedResourceNotFoundError, BusinessRuleError) as e:
             db.session.rollback()
-            # Relanza la excepción para que sea manejada por la ruta
-            raise  
+            raise e
         except Exception as e:
             db.session.rollback()
-            # Envuelve cualquier otra excepción en un BusinessRuleError
             raise BusinessRuleError(f"Error interno al actualizar el estado: {str(e)}")
+
+
+    @staticmethod
+    def validar_transicion_logistica(estado_actual, estado_nuevo):
+        """
+        Valida que la transición entre estados logísticos siga el flujo definido.
+        """
+        flujo_permitido = {
+            # Desde un estado NULO (el inicio), solo se puede pasar a PENDIENTE_WMS.
+            None: ['PENDIENTE_WMS'],
+            'PENDIENTE_WMS': ['CREADO'],
+            'CREADO': ['LIBERADO'],
+            'LIBERADO': ['PICKING'],
+            'PICKING': ['EMBALAJE'],
+            'EMBALAJE': ['ANDEN'],
+            'ANDEN': ['DESPACHADO'],
+            'DESPACHADO': ['ENTREGADO']
+        }
+
+        codigo_actual = estado_actual.codigo_estado if estado_actual else None
+
+        # Verificamos si la transición es válida según nuestro mapa de flujo.
+        if codigo_actual not in flujo_permitido or estado_nuevo.codigo_estado not in flujo_permitido[codigo_actual]:
+            raise BusinessRuleError(f"Transición no permitida: de '{codigo_actual or 'N/A'}' a '{estado_nuevo.codigo_estado}'.")
+
+    @staticmethod
+    def marcar_facturado(pedido_id: int, data: dict, user_id_responsable: int):
+        """
+        Registra la facturación del pedido. Acepta factura manual o número SAP.
+        Agrega un registro en el historial (tipo GENERAL) con la observación provista.
+        """
+        pedido = Pedido.query.get_or_404(pedido_id)
+
+        factura_manual: bool = data.get('factura_manual', False)
+        numero_factura_sap = data.get('numero_factura_sap')
+        fecha_facturacion = data.get('fecha_facturacion') or datetime.utcnow()
+        observaciones = data.get('observaciones')
+
+        if not factura_manual and not numero_factura_sap:
+            raise BusinessRuleError("Debe indicar 'factura_manual' o proporcionar 'numero_factura_sap'.")
+
+        try:
+            pedido.factura_manual = factura_manual
+            pedido.numero_factura_sap = numero_factura_sap
+            pedido.fecha_facturacion = fecha_facturacion
+
+            historial = HistorialEstadoPedido(
+                id_pedido=pedido.id_pedido,
+                id_usuario_responsable=user_id_responsable,
+                fecha_evento=fecha_facturacion,
+                estado_anterior='N/A',
+                estado_nuevo='FACTURADO',
+                tipo_estado='GENERAL',
+                observaciones=observaciones
+            )
+            db.session.add(historial)
+
+            db.session.commit()
+            return PedidoService.get_pedido_by_id(pedido_id)
+        except Exception as e:
+            db.session.rollback()
+            raise BusinessRuleError(f"Error al registrar facturación: {str(e)}")
+
+    @staticmethod
+    def marcar_entregado(pedido_id: int, data: dict, user_id_responsable: int):
+        """
+        Marca el pedido como ENTREGADO en el flujo logístico, validando que el estado
+        actual sea DESPACHADO y registrando el cambio en el historial.
+        """
+        pedido = Pedido.query.get_or_404(pedido_id)
+
+        if not pedido.estado_logistico or pedido.estado_logistico.codigo_estado != 'DESPACHADO':
+            raise BusinessRuleError("Solo se puede marcar ENTREGADO un pedido en estado 'DESPACHADO'.")
+
+        estado_entregado = EstadoLogistico.query.filter_by(codigo_estado='ENTREGADO').first()
+        if not estado_entregado:
+            raise RelatedResourceNotFoundError("No se encontró el estado logístico 'ENTREGADO'.")
+
+        fecha_evento = data['fecha_evento']
+        observaciones = data.get('observaciones')
+
+        try:
+            estado_anterior_nombre = pedido.estado_logistico.nombre_estado if pedido.estado_logistico else 'N/A'
+            pedido.id_estado_logistico = estado_entregado.id_estado
+
+            historial = HistorialEstadoPedido(
+                id_pedido=pedido.id_pedido,
+                id_usuario_responsable=user_id_responsable,
+                fecha_evento=fecha_evento,
+                estado_anterior=estado_anterior_nombre,
+                estado_nuevo=estado_entregado.nombre_estado,
+                tipo_estado='LOGISTICO',
+                observaciones=observaciones
+            )
+            db.session.add(historial)
+
+            # Además, el estado GENERAL pasa a COMPLETADO
+            estado_completado = EstadoPedido.query.filter_by(codigo_estado='COMPLETADO').first()
+            if estado_completado:
+                estado_anterior_general = pedido.estado_general.nombre_estado if pedido.estado_general else 'NUEVO'
+                pedido.id_estado_general = estado_completado.id_estado
+                historial_general = HistorialEstadoPedido(
+                    id_pedido=pedido.id_pedido,
+                    id_usuario_responsable=user_id_responsable,
+                    fecha_evento=fecha_evento,
+                    estado_anterior=estado_anterior_general,
+                    estado_nuevo=estado_completado.nombre_estado,
+                    tipo_estado='GENERAL',
+                    observaciones='Entrega confirmada por logística.'
+                )
+                db.session.add(historial_general)
+
+            db.session.commit()
+            return PedidoService.get_pedido_by_id(pedido_id)
+        except (BusinessRuleError, RelatedResourceNotFoundError) as e:
+            db.session.rollback()
+            raise e
+        except Exception as e:
+            db.session.rollback()
+            raise BusinessRuleError(f"Error al marcar entrega: {str(e)}")

@@ -54,6 +54,7 @@ class PedidoCreateSchema(Schema):
     id_vendedor = fields.Int(allow_none=True)
     detalles = fields.List(fields.Nested(PedidoDetalleCreateSchema), required=True, validate=validate.Length(min=1))
     aprobacion_automatica = fields.Bool(load_default=False)
+    fecha_evento = fields.DateTime(required=True)
 
 class PedidoResponseSchema(Schema):
     id_pedido = fields.Int()
@@ -95,16 +96,26 @@ class PedidoUpdateEstadoSchema(Schema):
     fecha_evento = fields.DateTime(required=True)
 
     @validates('id_estado_credito')
-    def validate_estado_credito(self, value, **kwargs): # <-- CAMBIO APLICADO
+    def validate_estado_credito(self, value, **kwargs):
         if value is not None and not db.session.get(EstadoAprobacionCredito, value):
             raise ValidationError(f"El estado de crédito con ID {value} no existe.")
 
     @validates('id_estado_logistico')
-    def validate_estado_logistico(self, value, **kwargs): # <-- CAMBIO APLICADO
+    def validate_estado_logistico(self, value, **kwargs):
         if value is not None and not db.session.get(EstadoLogistico, value):
             raise ValidationError(f"El estado logístico con ID {value} no existe.")
 
     @validates('id_estado_general')
-    def validate_estado_general(self, value, **kwargs): # <-- CAMBIO APLICADO
+    def validate_estado_general(self, value, **kwargs):
         if value is not None and not db.session.get(EstadoPedido, value):
             raise ValidationError(f"El estado general con ID {value} no existe.")
+
+class PedidoFacturadoSchema(Schema):
+    factura_manual = fields.Bool(required=True)
+    numero_factura_sap = fields.Str(required=False, allow_none=True)
+    fecha_facturacion = fields.DateTime(required=False, allow_none=True)
+    observaciones = fields.Str(required=False, allow_none=True)
+
+class PedidoEntregadoSchema(Schema):
+    fecha_evento = fields.DateTime(required=True)
+    observaciones = fields.Str(required=False, allow_none=True)

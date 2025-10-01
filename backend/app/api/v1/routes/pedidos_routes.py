@@ -1,6 +1,6 @@
 # backend/app/api/v1/routes/pedidos_routes.py
 from flask import Blueprint, request, jsonify
-from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema
+from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
 from app.api.v1.utils.errors import BusinessRuleError, RelatedResourceNotFoundError
@@ -18,6 +18,8 @@ schema_response = PedidoResponseSchema()
 schema_list_response = PedidoListResponseSchema(many=True)
 pagination_schema = PaginationSchema()
 schema_update_estado = PedidoUpdateEstadoSchema()
+schema_facturado = PedidoFacturadoSchema()
+schema_entregado = PedidoEntregadoSchema()
 
 @pedidos_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -120,4 +122,51 @@ def update_pedido_estado(pedido_id):
         print(f"[RUTA] Traceback completo:")
         traceback.print_exc() # Imprime el stack trace completo en la consola
         print("--- FIN DE PETICIÓN CON ERROR ---\n")
+        return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+@pedidos_bp.route('/<int:pedido_id>/marcar-facturado', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:facturar')
+def marcar_facturado(pedido_id):
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+    
+    try:
+        data = schema_facturado.load(json_data)
+        current_user_id = int(get_jwt_identity())
+        
+        pedido_actualizado = PedidoService.marcar_facturado(pedido_id, data, current_user_id)
+        return schema_response.dump(pedido_actualizado), 200
+
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except (BusinessRuleError, RelatedResourceNotFoundError, NotFound) as err:
+        return jsonify({"error": str(err)}), getattr(err, 'status_code', 400)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+
+@pedidos_bp.route('/<int:pedido_id>/marcar-entregado', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:entregar')
+def marcar_entregado(pedido_id):
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+        
+    try:
+        data = schema_entregado.load(json_data)
+        current_user_id = int(get_jwt_identity())
+        
+        pedido_actualizado = PedidoService.marcar_entregado(pedido_id, data, current_user_id)
+        return schema_response.dump(pedido_actualizado), 200
+
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except (BusinessRuleError, RelatedResourceNotFoundError, NotFound) as err:
+        return jsonify({"error": str(err)}), getattr(err, 'status_code', 400)
+    except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500

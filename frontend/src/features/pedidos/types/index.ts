@@ -7,6 +7,12 @@ export interface Estado {
     nombre_estado: string;
 }
 
+export interface EstadoLogistico {
+    id_estado: number;
+    nombre_estado: string;
+    codigo_estado: string;
+}
+
 export interface ClienteSimple {
     id_cliente: number;
     codigo_cliente: string;
@@ -44,20 +50,23 @@ export interface Pedido {
     codigo_pedido_origen: string | null;
     numero_pedido_sap: string | null;
     numero_factura_sap: string | null;
-    
+
     cliente: ClienteSimple;
-    
+
     estado_general: Estado;
     estado_credito: Estado;
-    estado_logistico: Estado | null;
-    
+    estado_logistico: EstadoLogistico | null;
+
     monto_neto: string;
     monto_impuestos: string;
     monto_total: string;
 
     fecha_creacion: string;
     fecha_modificacion: string | null;
-    
+
+    factura_manual: boolean | null;
+    fecha_facturacion: string | null;
+
     detalles: PedidoDetalle[];
     historial_estados: HistorialEstado[];
 }
@@ -91,6 +100,7 @@ export type PedidoPayload = {
     id_canal_venta: number;
     id_vendedor?: number;
     id_usuario_b2b?: number;
+    fecha_evento: string;
     detalles: {
         id_producto: number;
         cantidad: number;

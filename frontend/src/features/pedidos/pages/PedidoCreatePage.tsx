@@ -1,5 +1,6 @@
 // frontend/src/features/pedidos/pages/PedidoCreatePage.tsx
 import { useForm, useFieldArray, Controller, type SubmitHandler } from 'react-hook-form';
+import { DateInput, TimeInput } from '@mantine/dates';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate } from 'react-router-dom';
@@ -16,16 +17,17 @@ import { ProductoSelect } from '../../productos/components/ProductoSelect';
 
 // Esquema de validación con Zod
 const validationSchema = z.object({
-  id_cliente: z.string().min(1, { message: 'Debe seleccionar un cliente' }),
-  id_canal_venta: z.string().min(1, { message: 'Debe seleccionar un canal de venta' }),
-  codigo_pedido_origen: z.string().optional(),
-  aprobacion_automatica: z.boolean(),
-  detalles: z.array(
-    z.object({
-      id_producto: z.string().min(1, { message: 'Debe seleccionar un producto' }),
-      cantidad: z.number().min(1, { message: 'La cantidad debe ser al menos 1' }),
-    })
-  ).min(1, { message: 'El pedido debe tener al menos un producto' }),
+    id_cliente: z.string().min(1, { message: 'Debe seleccionar un cliente' }),
+    id_canal_venta: z.string().min(1, { message: 'Debe seleccionar un canal de venta' }),
+    codigo_pedido_origen: z.string().optional(),
+    aprobacion_automatica: z.boolean(),
+    fecha_evento: z.coerce.date(),
+    detalles: z.array(
+        z.object({
+            id_producto: z.string().min(1, { message: 'Debe seleccionar un producto' }),
+            cantidad: z.number().min(1, { message: 'La cantidad debe ser al menos 1' }),
+        })
+    ).min(1, { message: 'El pedido debe tener al menos un producto' }),
 });
 
 type FormValues = z.infer<typeof validationSchema>;
@@ -41,6 +43,7 @@ export function PedidoCreatePage() {
             id_canal_venta: '',
             codigo_pedido_origen: '',
             aprobacion_automatica: false,
+            fecha_evento: new Date(),
             detalles: [{ id_producto: '', cantidad: 1 }]
         }
     });
@@ -57,12 +60,13 @@ export function PedidoCreatePage() {
             id_canal_venta: parseInt(data.id_canal_venta, 10),
             codigo_pedido_origen: data.codigo_pedido_origen || undefined,
             aprobacion_automatica: data.aprobacion_automatica,
+            fecha_evento: data.fecha_evento.toISOString(),
             detalles: data.detalles.map(d => ({
                 id_producto: parseInt(d.id_producto, 10),
                 cantidad: d.cantidad,
             }))
         };
-        
+
         try {
             await createPedido(payload);
             navigate('/pedidos');
@@ -78,7 +82,7 @@ export function PedidoCreatePage() {
             <Paper withBorder shadow="md" p={30} radius="md">
                 <form onSubmit={handleSubmit(onSubmit as any)}>
                     {error && <Alert color="red" title="Error en el envío" mb="lg">{error}</Alert>}
-                    
+
                     <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
                         <ClienteSelect
                             control={control}
@@ -86,7 +90,7 @@ export function PedidoCreatePage() {
                             label="Cliente"
                             error={errors.id_cliente?.message}
                         />
-                         <CanalVentaSelect
+                        <CanalVentaSelect
                             control={control}
                             name="id_canal_venta"
                             label="Canal de Venta"
@@ -112,6 +116,83 @@ export function PedidoCreatePage() {
                             )}
                         />
                     </SimpleGrid>
+
+                    <Controller
+                        name="fecha_evento"
+                        control={control}
+                        render={({ field }) => {
+                            // Nos aseguramos de que 'currentDate' sea siempre un objeto Date válido.
+                            const currentDate = field.value instanceof Date && !isNaN(field.value.getTime())
+                                ? field.value
+                                : new Date();
+
+                            // Esta función se activa SOLO cuando cambia la fecha (día, mes, año).
+                            // Mantiene la hora que ya estaba seleccionada.
+                            const handleDatePartChange = (valueFromInput: Date | string | null) => {
+                                if (!valueFromInput) return;
+                            
+                                let year, month, day;
+                            
+                                // --- AQUÍ ESTÁ LA LÓGICA CLAVE ---
+                                // Verificamos si el input nos da un string (ej: "2025-10-08") o un objeto Date
+                                if (typeof valueFromInput === 'string') {
+                                    // Si es un string, lo separamos para evitar la conversión automática a UTC.
+                                    const parts = valueFromInput.split(/[-/]/); // Funciona con '-' o '/'
+                                    year = parseInt(parts[0], 10);
+                                    month = parseInt(parts[1], 10) - 1; // ¡Importante! El mes en new Date() es 0-indexado (Enero=0)
+                                    day = parseInt(parts[2], 10);
+                                } else {
+                                    // Si ya es un objeto Date, podemos usar sus métodos de forma segura.
+                                    year = valueFromInput.getFullYear();
+                                    month = valueFromInput.getMonth();
+                                    day = valueFromInput.getDate();
+                                }
+                                
+                                // Nos aseguramos de que las partes de la fecha sean números válidos
+                                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                    // Reconstruimos la fecha completa manteniendo la hora que ya estaba seleccionada.
+                                    // Al construirla con sus partes, forzamos que sea en la zona horaria local.
+                                    const newFullDate = new Date(
+                                        year,
+                                        month,
+                                        day,
+                                        currentDate.getHours(),
+                                        currentDate.getMinutes()
+                                    );
+                                    field.onChange(newFullDate);
+                                }
+                            };
+                            
+                            // Esta función se activa SOLO cuando cambia la hora.
+                            // Mantiene la fecha que ya estaba seleccionada.
+                            const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                                const [hours, minutes] = e.currentTarget.value.split(':');
+                                const newFullDate = new Date(currentDate);
+                                newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                                field.onChange(newFullDate);
+                            };
+
+                            // Formateamos la hora al formato 'HH:mm' para el input.
+                            const timeValue = `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+
+                            return (
+                                <Group grow mt="md">
+                                    <DateInput
+                                        label="Fecha de Creación del Pedido"
+                                        value={currentDate}
+                                        onChange={(val) => handleDatePartChange(val as unknown as Date | null)}
+                                        required
+                                    />
+                                    <TimeInput
+                                        label="Hora de Creación"
+                                        value={timeValue}
+                                        onChange={handleTimePartChange}
+                                        required
+                                    />
+                                </Group>
+                            );
+                        }}
+                    />
 
                     <Title order={4} mt="xl" mb="md">Productos del Pedido</Title>
 
@@ -139,7 +220,7 @@ export function PedidoCreatePage() {
                             </ActionIcon>
                         </Group>
                     ))}
-                    
+
                     {errors.detalles?.message && <Text c="red" size="sm" mt="sm">{errors.detalles.message}</Text>}
 
                     <Button

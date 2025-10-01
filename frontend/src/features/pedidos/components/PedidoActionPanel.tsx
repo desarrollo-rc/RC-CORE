@@ -1,27 +1,56 @@
 // frontend/src/features/pedidos/components/PedidoActionPanel.tsx
 import { useState } from 'react';
-import { Paper, Title, Button, Group, Modal, Select, Textarea, TextInput } from '@mantine/core';
-import { TimeInput } from '@mantine/dates'; 
+import { Paper, Title, Button, Group, Modal, Select, Textarea, TextInput, Switch, Tooltip, Box } from '@mantine/core';
+import { DateInput, TimeInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import type { Pedido, PedidoUpdateEstadoPayload } from '../types';
-import { updatePedidoEstado } from '../services/pedidoService';
-// Asumimos que tienes servicios para obtener los posibles estados
-// import { getEstadosCredito } from '../../estados/services/estadoCreditoService';
-// import { getEstadosLogisticos } from '../../estados/services/estadoLogisticoService';
+import { updatePedidoEstado, updateEstadoLogistico, marcarFacturado, marcarEntregado } from '../services/pedidoService';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { showNotification } from '@mantine/notifications';
 
-const validationSchema = z.object({
-    nuevo_estado_id: z.string().min(1, 'Debe seleccionar un nuevo estado'),
-    observaciones: z.string().min(5, 'Debe ingresar una observación de al menos 5 caracteres'),
-    // Acepta Date o string y lo convierte a Date
-    fecha_evento: z.coerce.date().refine((d) => d instanceof Date && !isNaN(d.getTime()), {
-        message: 'Debe seleccionar una fecha y hora',
-    }),
+// --- SCHEMAS DE VALIDACIÓN ---
+const creditValidationSchema = z.object({
+    nuevo_estado_id: z.string().min(1, 'Debe seleccionar una decisión'),
+    observaciones: z.string().min(5, 'Debe ingresar una observación.'),
+    fecha_evento: z.coerce.date(),
 });
+type CreditFormValues = z.infer<typeof creditValidationSchema>;
 
-type FormValues = z.infer<typeof validationSchema>;
+const facturaSchema = z.object({
+    factura_manual: z.boolean(),
+    numero_factura_sap: z.string().optional(),
+    observaciones: z.string().min(5, 'La observación es requerida.'),
+});
+type FacturaFormValues = z.infer<typeof facturaSchema>;
+
+const entregaSchema = z.object({
+    observaciones: z.string().min(5, 'La observación es requerida.'),
+    fecha_evento: z.coerce.date(),
+});
+type EntregaFormValues = z.infer<typeof entregaSchema>;
+
+const confirmacionLogisticaSchema = z.object({
+    observaciones: z.string().optional(),
+    fecha_evento: z.coerce.date(),
+});
+type ConfirmacionLogisticaValues = z.infer<typeof confirmacionLogisticaSchema>;
+
+// --- CONSTANTES ---
+const ESTADOS_LOGISTICOS_IDS = {
+    PENDIENTE_WMS: 1, CREADO: 2, LIBERADO: 3, PICKING: 4,
+    EMBALAJE: 5, ANDEN: 6, DESPACHADO: 7, ENTREGADO: 8, NO_APLICA: 9,
+};
+
+const ESTADOS_GENERALES_IDS = {
+    NUEVO: 1,
+    EN_PROCESO: 2,
+    RETENIDO: 3,
+    COMPLETADO: 4,
+    CANCELADO: 5,
+};
 
 interface PedidoActionPanelProps {
     pedido: Pedido;
@@ -29,157 +58,357 @@ interface PedidoActionPanelProps {
 }
 
 export function PedidoActionPanel({ pedido, onUpdate }: PedidoActionPanelProps) {
-    const [opened, { open, close }] = useDisclosure(false);
-    const [actionType, setActionType] = useState<'CREDITO' | 'LOGISTICO' | null>(null);
-    const [possibleStates, setPossibleStates] = useState<{ value: string, label: string }[]>([]);
+    const queryClient = useQueryClient();
 
-    const { control, register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<FormValues>({
-        resolver: zodResolver(validationSchema) as any,
-        defaultValues: {
-            fecha_evento: new Date() // Por defecto, la hora actual
-        }
+    const [specificModalType, setSpecificModalType] = useState<'factura' | 'entrega' | null>(null);
+    const [specificModalOpened, { open: openSpecificModal, close: closeSpecificModal }] = useDisclosure(false);
+    const [creditModalOpened, { open: openCreditModal, close: closeCreditModal }] = useDisclosure(false);
+    const [confirmacion, setConfirmacion] = useState<{ idEstado: number, nombreAccion: string } | null>(null);
+    const [confirmacionModalOpened, { open: openConfirmacionModal, close: closeConfirmacionModal }] = useDisclosure(false);
+    const [confirmacionGeneral, setConfirmacionGeneral] = useState<{ idEstado: number, nombreAccion: string } | null>(null);
+    const [confirmacionGeneralModalOpened, { open: openConfirmacionGeneralModal, close: closeConfirmacionGeneralModal }] = useDisclosure(false);
+
+    // --- MUTATIONS ---
+    const estadoLogisticoMutation = useMutation({
+        mutationFn: (payload: { id_estado_logistico: number, fecha_evento: string, observaciones?: string }) => 
+            updateEstadoLogistico(pedido.id_pedido, payload),
+        onSuccess: (updatedPedido) => {
+            queryClient.setQueryData(['pedido', pedido.id_pedido], updatedPedido);
+            onUpdate(updatedPedido);
+            showNotification({ title: 'Éxito', message: 'Estado logístico actualizado.', color: 'green' });
+            closeConfirmacionModal();
+        },
+        onError: (error: any) => showNotification({ title: 'Error', message: error.message, color: 'red' })
     });
 
-    // Lógica para determinar qué acciones mostrar
-    const puedeAprobarCredito = pedido.estado_credito.codigo_estado === 'PENDIENTE';
-    const puedeEnviarABodega = pedido.estado_credito.codigo_estado === 'APROBADO' && !pedido.estado_logistico;
-    // ... aquí irían más reglas de negocio ...
+    const facturaMutation = useMutation({
+        mutationFn: (data: FacturaFormValues) => marcarFacturado(pedido.id_pedido, data),
+        onSuccess: (updatedPedido) => {
+            queryClient.setQueryData(['pedido', pedido.id_pedido], updatedPedido);
+            onUpdate(updatedPedido);
+            showNotification({ title: 'Éxito', message: 'Factura registrada.', color: 'green' });
+            closeSpecificModal();
+        },
+        onError: (error: any) => showNotification({ title: 'Error', message: error.message, color: 'red' })
+    });
 
-    const handleOpenModal = (type: 'CREDITO' | 'LOGISTICO') => {
-        setActionType(type);
-        // Aquí cargarías los estados posibles desde tu API
-        // Por ahora, simulamos con datos de ejemplo
-        if (type === 'CREDITO') {
-            setPossibleStates([
-                { value: '2', label: 'Aprobado' }, // Asumiendo ID 2 = Aprobado
-                { value: '3', label: 'Rechazado' }, // Asumiendo ID 3 = Rechazado
-            ]);
-        } else if (type === 'LOGISTICO') {
-            setPossibleStates([
-                { value: '1', label: 'Pendiente de Ingreso a Bodega' }, // Asumiendo IDs de estados logísticos
-                 // ... otros estados
-            ]);
-        }
-        open();
+    const entregaMutation = useMutation({
+        mutationFn: (data: EntregaFormValues) => marcarEntregado(pedido.id_pedido, { ...data, fecha_evento: data.fecha_evento.toISOString() }),
+        onSuccess: (updatedPedido) => {
+            queryClient.setQueryData(['pedido', pedido.id_pedido], updatedPedido);
+            onUpdate(updatedPedido);
+            showNotification({ title: 'Éxito', message: 'Entrega confirmada.', color: 'green' });
+            closeSpecificModal();
+        },
+        onError: (error: any) => showNotification({ title: 'Error', message: error.message, color: 'red' })
+    });
+
+    const estadoGeneralMutation = useMutation({
+        mutationFn: (payload: { id_estado_general: number, fecha_evento: string, observaciones?: string }) =>
+            updatePedidoEstado(pedido.id_pedido, payload as any),
+        onSuccess: (updatedPedido) => {
+            queryClient.setQueryData(['pedido', pedido.id_pedido], updatedPedido);
+            onUpdate(updatedPedido);
+            showNotification({ title: 'Éxito', message: 'Estado general actualizado.', color: 'green' });
+            closeConfirmacionGeneralModal();
+        },
+        onError: (error: any) => showNotification({ title: 'Error', message: error.message, color: 'red' })
+    });
+
+    const handleOpenConfirmacionModal = (idEstado: number, nombreAccion: string) => {
+        setConfirmacion({ idEstado, nombreAccion });
+        openConfirmacionModal();
     };
 
-    const onSubmit = async (data: FormValues) => {
-        const payload: PedidoUpdateEstadoPayload = {
-            observaciones: data.observaciones,
-            fecha_evento: new Date(data.fecha_evento).toISOString(),
-        };
-        if (actionType === 'CREDITO') {
-            const id = Number(data.nuevo_estado_id);
-            if (!Number.isNaN(id)) payload.id_estado_credito = id;
-        } else if (actionType === 'LOGISTICO') {
-            const id = Number(data.nuevo_estado_id);
-            if (!Number.isNaN(id)) payload.id_estado_logistico = id;
+    // Solo controlamos apertura/cierre del modal; el formulario vive en CreditForm
+
+    const renderAcciones = () => {
+        const estadoGeneral = pedido.estado_general?.codigo_estado;
+
+        if (estadoGeneral === 'CANCELADO') {
+            return <p>Pedido cancelado. No es posible realizar más acciones.</p>;
+        }
+        if (estadoGeneral === 'RETENIDO') {
+            return <p>Pedido retenido. Actívelo para continuar con el proceso.</p>;
         }
 
-        try {
-            console.log('[PedidoActionPanel] Enviando payload corregido al backend:', payload); // <-- Log adicional para confirmar
-            const updatedPedido = await updatePedidoEstado(pedido.id_pedido, payload);
-            
-            console.log('[PedidoActionPanel] Respuesta exitosa del backend:', updatedPedido);
-            onUpdate(updatedPedido); // Actualiza el estado en la página padre
-            reset();
-            close();
-        } catch (error: any) {
-            console.error("Error al actualizar estado:", error);
+        if (pedido.estado_credito.codigo_estado === 'PENDIENTE') {
+            return <Button onClick={openCreditModal}>Gestionar Crédito</Button>;
         }
+        if (pedido.estado_credito.codigo_estado !== 'APROBADO') {
+            return <p>El pedido no está aprobado por crédito.</p>;
+        }
+
+        const codigoEstadoActual = pedido.estado_logistico?.codigo_estado ?? null;
+
+        switch (codigoEstadoActual) {
+            case null:
+                return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.PENDIENTE_WMS, 'Enviar a Bodega')}>Enviar a Bodega</Button>;
+            case 'PENDIENTE_WMS':
+                return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.CREADO, 'Crear en Bodega')}>Crear en Bodega</Button>;
+            case 'CREADO':
+                return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.LIBERADO, 'Liberar Pedido')}>Liberar Pedido</Button>;
+            case 'LIBERADO':
+                return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.PICKING, 'Iniciar Picking')}>Iniciar Picking</Button>;
+            case 'PICKING':
+                return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.EMBALAJE, 'Finalizar Embalaje')}>Finalizar Embalaje</Button>;
+            case 'EMBALAJE':
+                 return <Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.ANDEN, 'Mover a Andén')}>Mover a Andén</Button>;
+            case 'ANDEN':
+                const puedeDespachar = !!pedido.numero_factura_sap || pedido.factura_manual === true;
+                return (
+                     <Group>
+                        <Button color="cyan" onClick={() => { setSpecificModalType('factura'); openSpecificModal(); }} disabled={puedeDespachar}>Registrar Factura</Button>
+                        <Tooltip label={!puedeDespachar ? "Se debe registrar la factura" : ""}>
+                           <Box><Button onClick={() => handleOpenConfirmacionModal(ESTADOS_LOGISTICOS_IDS.DESPACHADO, 'Despachar Pedido')} disabled={!puedeDespachar}>Despachar</Button></Box>
+                        </Tooltip>
+                     </Group>
+                );
+            case 'DESPACHADO':
+                return <Button color="green" onClick={() => { setSpecificModalType('entrega'); openSpecificModal(); }}>Confirmar Entrega</Button>;
+            case 'ENTREGADO':
+                return <p>✅ Pedido finalizado.</p>;
+            default:
+                return <p>Estado no reconocido.</p>;
+        }
+    };
+
+    const renderAccionesGenerales = () => {
+        const codigoGeneral = pedido.estado_general?.codigo_estado;
+        const esRetenido = codigoGeneral === 'RETENIDO';
+        const esCancelado = codigoGeneral === 'CANCELADO';
+
+        const handleOpenGeneral = (idEstado: number, nombreAccion: string) => {
+            setConfirmacionGeneral({ idEstado, nombreAccion });
+            openConfirmacionGeneralModal();
+        };
+
+        return (
+            <Group>
+                <Button
+                    color={esRetenido ? 'teal' : 'yellow'}
+                    onClick={() => handleOpenGeneral(esRetenido ? ESTADOS_GENERALES_IDS.EN_PROCESO : ESTADOS_GENERALES_IDS.RETENIDO, esRetenido ? 'Activar Pedido' : 'Retener Pedido')}
+                    disabled={esCancelado}
+                >
+                    {esRetenido ? 'Activar Pedido' : 'Retener Pedido'}
+                </Button>
+                <Tooltip label={esCancelado ? 'El pedido ya está cancelado' : 'Esta acción no se puede deshacer'}>
+                    <Box>
+                        <Button
+                            color="red"
+                            variant="filled"
+                            onClick={() => handleOpenGeneral(ESTADOS_GENERALES_IDS.CANCELADO, 'Cancelar Pedido')}
+                            disabled={esCancelado}
+                        >
+                            Cancelar Pedido
+                        </Button>
+                    </Box>
+                </Tooltip>
+            </Group>
+        );
     };
 
     return (
         <>
             <Paper withBorder p="lg">
                 <Title order={4} mb="md">Acciones Posibles</Title>
-                <Group>
-                    {puedeAprobarCredito && (
-                        <Button onClick={() => handleOpenModal('CREDITO')}>Gestionar Crédito</Button>
-                    )}
-                    {puedeEnviarABodega && (
-                        <Button onClick={() => handleOpenModal('LOGISTICO')}>Enviar a Bodega</Button>
-                    )}
-                    {/* Aquí irían más botones condicionales */}
-                </Group>
+                <Group>{renderAcciones()}</Group>
             </Paper>
 
-            <Modal opened={opened} onClose={close} title={`Actualizar Estado de ${actionType}`}>
-                <form onSubmit={handleSubmit(onSubmit as any)}>
-                    <Controller
-                        name="nuevo_estado_id"
-                        control={control}
-                        render={({ field }) => (
-                            <Select
-                                label="Nuevo Estado"
-                                placeholder="Seleccione el nuevo estado"
-                                data={possibleStates}
-                                value={field.value}
-                                onChange={field.onChange}
-                                onBlur={field.onBlur}
-                                ref={field.ref}
-                                error={errors.nuevo_estado_id?.message}
-                                mb="md"
-                            />
-                        )}
-                    />
-                    <Controller
-                        name="fecha_evento"
-                        control={control}
-                        render={({ field }) => {
-                            const current = field.value ? new Date(field.value) : new Date();
-                            const hours = String(current.getHours()).padStart(2, '0');
-                            const minutes = String(current.getMinutes()).padStart(2, '0');
+            <Paper withBorder p="lg" mt="md">
+                <Title order={4} mb="md">Estado General</Title>
+                {renderAccionesGenerales()}
+            </Paper>
 
-                            const applyTime = (val: string) => {
-                                const [h, m] = val.split(':').map((n) => parseInt(n, 10));
-                                if (Number.isFinite(h) && Number.isFinite(m)) {
-                                    const d = new Date(current);
-                                    d.setHours(h, m, 0, 0);
-                                    field.onChange(d);
-                                }
-                            };
+            <Modal opened={confirmacionModalOpened} onClose={closeConfirmacionModal} title={confirmacion?.nombreAccion || 'Confirmar Acción'} centered>
+                <ConfirmacionLogisticaForm mutation={estadoLogisticoMutation} idEstado={confirmacion?.idEstado} close={closeConfirmacionModal} />
+            </Modal>
 
-                            return (
-                                <Group grow align="flex-end" mb="md">
-                                    <TextInput
-                                        label="Fecha del Evento"
-                                        placeholder="Selecciona la fecha"
-                                        type="date"
-                                        value={`${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`}
-                                        onChange={(e) => {
-                                            const [y, m, d] = e.currentTarget.value.split('-').map((n) => parseInt(n,10));
-                                            if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
-                                                const nd = new Date(current);
-                                                nd.setFullYear(y, m - 1, d);
-                                                field.onChange(nd);
-                                            }
-                                        }}
-                                        error={errors.fecha_evento?.message}
-                                    />
-                                    <TimeInput
-                                        label="Hora"
-                                        value={`${hours}:${minutes}`}
-                                        onChange={(e) => applyTime(e.currentTarget.value)}
-                                    />
-                                </Group>
-                            );
-                        }}
-                    />
-                    <Textarea
-                        label="Observaciones"
-                        placeholder="Ingrese un comentario sobre el cambio de estado"
-                        {...register('observaciones')}
-                        error={errors.observaciones?.message}
-                        minRows={3}
-                        mb="md"
-                    />
-                    <Group justify="flex-end">
-                        <Button variant="default" onClick={close}>Cancelar</Button>
-                        <Button type="submit" loading={isSubmitting}>Actualizar</Button>
-                    </Group>
-                </form>
+            <Modal opened={specificModalOpened} onClose={closeSpecificModal} title={specificModalType === 'factura' ? "Registrar Factura" : "Confirmar Entrega"} centered>
+                {specificModalType === 'factura' && <FacturaForm mutation={facturaMutation} close={closeSpecificModal} />}
+                {specificModalType === 'entrega' && <EntregaForm mutation={entregaMutation} close={closeSpecificModal} />}
+            </Modal>
+
+            <Modal opened={creditModalOpened} onClose={closeCreditModal} title="Gestionar Crédito del Pedido" centered>
+                <CreditForm pedido={pedido} onUpdate={onUpdate} close={closeCreditModal} />
+            </Modal>
+
+            <Modal opened={confirmacionGeneralModalOpened} onClose={closeConfirmacionGeneralModal} title={confirmacionGeneral?.nombreAccion || 'Confirmar Acción'} centered>
+                <ConfirmacionLogisticaForm
+                    mutation={{
+                        mutate: (data: { fecha_evento: string; observaciones?: string }) =>
+                            estadoGeneralMutation.mutate({
+                                id_estado_general: confirmacionGeneral?.idEstado as number,
+                                fecha_evento: data.fecha_evento,
+                                observaciones: data.observaciones,
+                            }),
+                        isPending: estadoGeneralMutation.isPending,
+                    }}
+                    idEstado={confirmacionGeneral?.idEstado}
+                    close={closeConfirmacionGeneralModal}
+                />
             </Modal>
         </>
+    );
+}
+
+function FacturaForm({ mutation, close }: { mutation: any, close: () => void }) {
+    const { register, handleSubmit, formState: { errors } } = useForm<FacturaFormValues>({
+        resolver: zodResolver(facturaSchema),
+        defaultValues: { factura_manual: false, observaciones: `Facturación para pedido` }
+    });
+    return (
+        <form onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+            <Switch label="¿La factura fue manual?" {...register('factura_manual')} mb="md" />
+            <TextInput label="Nº Factura SAP (si aplica)" {...register('numero_factura_sap')} mb="md" />
+            <Textarea label="Observaciones" {...register('observaciones')} error={errors.observaciones?.message} minRows={3} mb="md" required />
+            <Group justify="flex-end" mt="lg">
+                <Button variant="default" onClick={close}>Cancelar</Button>
+                <Button type="submit" loading={mutation.isPending}>Guardar Factura</Button>
+            </Group>
+        </form>
+    );
+}
+
+function EntregaForm({ mutation, close }: { mutation: any, close: () => void }) {
+    const { control, register, handleSubmit, formState: { errors } } = useForm<EntregaFormValues>({
+        resolver: zodResolver(entregaSchema) as any,
+        defaultValues: { fecha_evento: new Date(), observaciones: 'Pedido entregado conforme.' }
+    });
+    return (
+        <form onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+            <Controller
+                name="fecha_evento"
+                control={control}
+                render={({ field }) => (
+                    <TextInput
+                        type="date"
+                        label="Fecha de Entrega"
+                        value={field.value.toISOString().split('T')[0]}
+                        onChange={(e) => {
+                            // Prevenir fecha inválida si el campo está vacío
+                            const date = e.currentTarget.value ? new Date(e.currentTarget.value) : new Date();
+                            field.onChange(date);
+                        }}
+                        mb="md"
+                        required
+                    />
+                )}
+            />
+            <Textarea label="Observaciones" {...register('observaciones')} error={errors.observaciones?.message} minRows={3} mb="md" required />
+            <Group justify="flex-end" mt="lg">
+                <Button variant="default" onClick={close}>Cancelar</Button>
+                <Button type="submit" loading={mutation.isPending}>Confirmar Entrega</Button>
+            </Group>
+        </form>
+    );
+}
+
+function CreditForm({ pedido, onUpdate, close }: { pedido: Pedido; onUpdate: (p: Pedido) => void; close: () => void; }) {
+    const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<CreditFormValues>({
+        resolver: zodResolver(creditValidationSchema) as unknown as import('react-hook-form').Resolver<CreditFormValues>,
+        defaultValues: { fecha_evento: new Date(), observaciones: '', nuevo_estado_id: '' }
+    });
+
+    const onCreditSubmit: SubmitHandler<CreditFormValues> = async (data) => {
+        const payload: PedidoUpdateEstadoPayload = {
+            id_estado_credito: Number(data.nuevo_estado_id),
+            observaciones: data.observaciones,
+            fecha_evento: data.fecha_evento.toISOString(),
+        };
+        try {
+            const updatedPedido = await updatePedidoEstado(pedido.id_pedido, payload);
+            onUpdate(updatedPedido);
+            close();
+            showNotification({ title: 'Éxito', message: 'Decisión de crédito guardada.', color: 'blue' });
+        } catch (error: any) {
+            showNotification({ title: 'Error', message: error.message, color: 'red' });
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit(onCreditSubmit)}>
+            <Controller name="nuevo_estado_id" control={control} render={({ field }) => (
+                <Select label="Decisión de Crédito" placeholder="Seleccione una opción" data={[{ value: '2', label: 'Aprobado' }, { value: '3', label: 'Rechazado' }]} {...field} error={errors.nuevo_estado_id?.message} mb="md" required/>
+            )}/>
+            <FechaHoraController control={control} name="fecha_evento" />
+            <Textarea label="Observaciones" placeholder="Motivo de la aprobación o rechazo" {...control.register('observaciones')} error={errors.observaciones?.message} minRows={3} mt="md" required/>
+            <Group justify="flex-end" mt="lg">
+                <Button variant="default" onClick={close}>Cancelar</Button>
+                <Button type="submit" loading={isSubmitting}>Guardar Decisión</Button>
+            </Group>
+        </form>
+    );
+}
+
+function ConfirmacionLogisticaForm({ mutation, idEstado, close }: { mutation: any, idEstado?: number, close: () => void }) {
+    const { control, register, handleSubmit } = useForm<ConfirmacionLogisticaValues>({
+        resolver: zodResolver(confirmacionLogisticaSchema) as unknown as import('react-hook-form').Resolver<ConfirmacionLogisticaValues>,
+        defaultValues: { fecha_evento: new Date(), observaciones: '' }
+    });
+
+    const onSubmit: SubmitHandler<ConfirmacionLogisticaValues> = (data) => {
+        if (typeof mutation?.mutate !== 'function') return;
+        const fechaIso = data.fecha_evento instanceof Date ? data.fecha_evento.toISOString() : new Date(data.fecha_evento as any).toISOString();
+        // Para mutaciones logísticas, se pasa id_estado_logistico; para generales, el wrapper ya formatea el payload
+        if (idEstado) {
+            mutation.mutate({ 
+                id_estado_logistico: idEstado, 
+                fecha_evento: fechaIso, 
+                observaciones: data.observaciones 
+            });
+        } else {
+            mutation.mutate({
+                fecha_evento: fechaIso,
+                observaciones: data.observaciones,
+            });
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <FechaHoraController control={control} name="fecha_evento" />
+            <Textarea label="Observaciones (Opcional)" {...register('observaciones')} mt="md" />
+            <Group justify="flex-end" mt="lg">
+                <Button variant="default" onClick={close}>Cancelar</Button>
+                <Button type="submit" loading={mutation.isPending}>Confirmar</Button>
+            </Group>
+        </form>
+    );
+}
+
+function FechaHoraController({ control, name }: { control: any, name: string }) {
+    return (
+        <Controller
+            name={name}
+            control={control}
+            render={({ field }) => {
+                const currentDate = field.value instanceof Date && !isNaN(field.value.getTime()) ? field.value : new Date();
+                const handleDatePartChange = (valueFromInput: Date | string | null) => {
+                    if (!valueFromInput) return;
+                    const datePart = new Date(valueFromInput);
+                    if (datePart && !isNaN(datePart.getTime())) {
+                        const newFullDate = new Date(datePart.getFullYear(), datePart.getMonth(), datePart.getDate(), currentDate.getHours(), currentDate.getMinutes());
+                        field.onChange(newFullDate);
+                    }
+                };
+                const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const [hours, minutes] = e.currentTarget.value.split(':');
+                    if (!isNaN(parseInt(hours,10)) && !isNaN(parseInt(minutes,10))) {
+                        const newFullDate = new Date(currentDate);
+                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                        field.onChange(newFullDate);
+                    }
+                };
+                const timeValue = `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+
+                return (
+                    <Group grow mt="md">
+                        <DateInput value={currentDate} onChange={handleDatePartChange} label="Fecha del Evento" required />
+                        <TimeInput value={timeValue} onChange={handleTimePartChange} label="Hora del Evento" required />
+                    </Group>
+                );
+            }}
+        />
     );
 }
