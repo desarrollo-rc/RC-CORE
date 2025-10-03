@@ -20,8 +20,16 @@ class PedidoService:
 
         if filters.get('id_cliente'):
             query = query.filter(Pedido.id_cliente == filters['id_cliente'])
+        if filters.get('id_vendedor'):
+            # Coincide si el pedido tiene ese vendedor o si el cliente asignado lo tiene
+            from app.models.entidades import MaestroClientes
+            query = query.join(Pedido.cliente).filter(
+                (Pedido.id_vendedor == filters['id_vendedor']) | (MaestroClientes.id_vendedor == filters['id_vendedor'])
+            )
         if filters.get('id_estado_general'):
             query = query.filter(Pedido.id_estado_general == filters['id_estado_general'])
+        if filters.get('codigo_b2b'):
+            query = query.filter(Pedido.codigo_pedido_origen.ilike(f"%{filters['codigo_b2b']}%"))
         if filters.get('fecha_desde'):
             query = query.filter(Pedido.fecha_creacion >= filters['fecha_desde'])
         if filters.get('fecha_hasta'):
@@ -87,6 +95,12 @@ class PedidoService:
                 id_estado_general=2 if aprobacion_automatica else 1,
                 id_estado_credito=estado_credito_inicial.id_estado,
             )
+            # Asegurar que la fecha de creación del pedido sea la indicada por el usuario
+            # y no la fecha actual por defecto del servidor
+            nuevo_pedido.fecha_creacion = fecha_del_evento
+            # Si se creó con aprobación automática, debe venir el número de orden SAP
+            if aprobacion_automatica and data.get('numero_pedido_sap'):
+                nuevo_pedido.numero_pedido_sap = data['numero_pedido_sap']
             
             # Procesamiento de Detalles y Cálculo de Montos
             monto_neto = Decimal('0.0')
@@ -95,8 +109,8 @@ class PedidoService:
                 if not producto:
                     raise RelatedResourceNotFoundError(f"Producto con ID {item_data['id_producto']} no encontrado.")
                 
-                # Aquí deberías tener tu lógica real de precios
-                precio_unitario = producto.costo_base 
+                # Usar el precio unitario enviado desde el frontend
+                precio_unitario = Decimal(str(item_data['precio_unitario']))
                 subtotal = Decimal(item_data['cantidad']) * precio_unitario
 
                 detalle = PedidoDetalle(
@@ -114,6 +128,11 @@ class PedidoService:
 
             db.session.add(nuevo_pedido)
             db.session.flush() # Para obtener el ID del pedido recién creado
+
+            # Forzar la fecha de creación exacta indicada por el usuario por si el DEFAULT del DB la sobreescribió
+            db.session.query(Pedido).filter_by(id_pedido=nuevo_pedido.id_pedido).update({
+                Pedido.fecha_creacion: fecha_del_evento
+            })
 
             # --- 4. CORRECCIÓN: Creación del Primer Historial con Fecha ---
             historial = HistorialEstadoPedido(
@@ -193,6 +212,11 @@ class PedidoService:
                     # --- LÓGICA DE NEGOCIO AUTOMÁTICA ---
                     # Si el estado de CRÉDITO cambia a APROBADO...
                     if id_field == 'id_estado_credito' and nuevo_estado_obj.codigo_estado == 'APROBADO':
+                        # Exigir y setear número de pedido SAP si viene en payload
+                        numero_pedido_sap = (data.get('numero_pedido_sap') or '').strip()
+                        if not numero_pedido_sap:
+                            raise BusinessRuleError("Debe indicar 'numero_pedido_sap' al aprobar el crédito.")
+                        pedido.numero_pedido_sap = numero_pedido_sap
                         # 1) Estado GENERAL pasa a EN_PROCESO si aún no lo está
                         if not pedido.estado_general or pedido.estado_general.codigo_estado != 'EN_PROCESO':
                             estado_en_proceso = EstadoPedido.query.filter_by(codigo_estado='EN_PROCESO').first()
@@ -365,3 +389,35 @@ class PedidoService:
         except Exception as e:
             db.session.rollback()
             raise BusinessRuleError(f"Error al marcar entrega: {str(e)}")
+
+    @staticmethod
+    def update_cantidades_detalle(pedido_id: int, detalles_actualizados: list, user_id_responsable: int):
+        pedido = Pedido.query.get_or_404(pedido_id)
+
+        for item_data in detalles_actualizados:
+            detalle = PedidoDetalle.query.filter_by(
+                id_pedido=pedido_id,
+                id_pedido_detalle=item_data['id_pedido_detalle']
+            ).first()
+
+            if detalle:
+                if 'cantidad_enviada' in item_data:
+                    detalle.cantidad_enviada = item_data['cantidad_enviada']
+                if 'cantidad_recibida' in item_data:
+                    detalle.cantidad_recibida = item_data['cantidad_recibida']
+                if 'observacion_linea' in item_data:
+                    detalle.observacion_linea = item_data['observacion_linea']
+
+        # Registrar en el historial que se modificaron las cantidades
+        historial = HistorialEstadoPedido(
+            id_pedido=pedido.id_pedido,
+            id_usuario_responsable=user_id_responsable,
+            fecha_evento=datetime.utcnow(),
+            estado_anterior="N/A",
+            estado_nuevo="MODIFICACION_CANTIDADES",
+            tipo_estado="LOGISTICO",
+            observaciones="Se actualizaron las cantidades de los productos."
+        )
+        db.session.add(historial)
+        db.session.commit()
+        return pedido

@@ -86,6 +86,10 @@ class PedidoDetalle(db.Model):
     descuento_aplicado = db.Column(db.Numeric(10, 2), default=0.0)
     subtotal = db.Column(db.Numeric(15, 2), nullable=False)
 
+    cantidad_enviada = db.Column(db.Integer, nullable=True)
+    cantidad_recibida = db.Column(db.Integer, nullable=True)
+    observacion_linea = db.Column(db.String(255), nullable=True)
+
     pedido = db.relationship('Pedido', back_populates='detalles')
     producto = db.relationship('MaestroProductos')
 

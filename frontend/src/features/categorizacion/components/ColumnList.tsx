@@ -19,9 +19,10 @@ interface ColumnListProps {
     onDeactivate: (item: ListItem) => void;
     onActivate: (item: ListItem) => void;
     disabled?: boolean;
+    footer?: React.ReactNode;
 }
 
-export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, onDeactivate, onActivate, disabled = false }: ColumnListProps) {
+export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, onDeactivate, onActivate, disabled = false, footer }: ColumnListProps) {
     const rows = items.map((item) => (
         <Table.Tr
             key={item.id}
@@ -76,6 +77,7 @@ export function ColumnList({ title, items, selectedId, onSelect, onAdd, onEdit, 
                     <Table.Tbody>{rows}</Table.Tbody>
                 </Table>
             </ScrollArea>
+            {footer}
         </Paper>
     );
 }

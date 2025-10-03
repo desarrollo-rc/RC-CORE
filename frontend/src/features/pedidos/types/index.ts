@@ -41,6 +41,9 @@ export interface PedidoDetalle {
     precio_unitario: string;
     subtotal: string;
     producto: ProductoDetalle;
+    cantidad_enviada: number | null;
+    cantidad_recibida: number | null;
+    observacion_linea: string | null;
 }
 
 // --- Interfaz principal del Pedido (lo que recibimos de la API) ---
@@ -104,8 +107,10 @@ export type PedidoPayload = {
     detalles: {
         id_producto: number;
         cantidad: number;
+        precio_unitario: number;
     }[];
     aprobacion_automatica?: boolean;
+    numero_pedido_sap?: string; // requerido si aprobacion_automatica es true
 };
 
 export type PedidoUpdateEstadoPayload = {
@@ -114,13 +119,16 @@ export type PedidoUpdateEstadoPayload = {
     id_estado_logistico?: number;
     observaciones: string;
     fecha_evento: string;
+    numero_pedido_sap?: string; // requerido cuando se aprueba crédito
 }
 
 export type PedidoFilters = {
     page?: number;
     per_page?: number;
     cliente_id?: number;
+    vendedor_id?: number;
     estado_id?: number;
+    codigo_b2b?: string;
     fecha_desde?: string;
     fecha_hasta?: string;
 };

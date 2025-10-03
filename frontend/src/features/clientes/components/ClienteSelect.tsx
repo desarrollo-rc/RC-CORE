@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Select } from '@mantine/core';
 import { Controller, type Control } from 'react-hook-form';
-import { getClientes } from '../services/clienteService'; // Asumimos que esta función existe
+import { fetchAllClientes } from '../services/clienteService';
 import type { Cliente } from '../types';
 
 interface ClienteSelectProps {
@@ -24,9 +24,8 @@ export function ClienteSelect({ control, name, label, error }: ClienteSelectProp
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        // Asumimos que getClientes puede recibir filtros para traer todos los registros
-        const response = await getClientes(); 
-        const options = response.clientes.map((cliente: Cliente) => ({
+        const list = await fetchAllClientes();
+        const options = list.map((cliente: Cliente) => ({
           value: cliente.id_cliente.toString(),
           label: `${cliente.codigo_cliente} - ${cliente.nombre_cliente}`,
         }));

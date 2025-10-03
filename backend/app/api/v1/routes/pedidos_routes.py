@@ -1,6 +1,6 @@
 # backend/app/api/v1/routes/pedidos_routes.py
 from flask import Blueprint, request, jsonify
-from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema
+from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema, PedidoUpdateCantidadesSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
 from app.api.v1.utils.errors import BusinessRuleError, RelatedResourceNotFoundError
@@ -20,6 +20,8 @@ pagination_schema = PaginationSchema()
 schema_update_estado = PedidoUpdateEstadoSchema()
 schema_facturado = PedidoFacturadoSchema()
 schema_entregado = PedidoEntregadoSchema()
+schema_update_cantidades = PedidoUpdateCantidadesSchema()
+
 
 @pedidos_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -49,11 +51,36 @@ def get_pedidos():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     
+    codigo_b2b = request.args.get('codigo_b2b', type=str)
+    codigo_b2b = codigo_b2b.strip() if isinstance(codigo_b2b, str) else None
+
+    fecha_desde_raw = request.args.get('fecha_desde')
+    fecha_hasta_raw = request.args.get('fecha_hasta')
+
+    # Esperamos formato 'YYYY-MM-DD' desde el frontend. Convertimos a inicio/fin de día.
+    fecha_desde = None
+    fecha_hasta = None
+    try:
+        if fecha_desde_raw:
+            y, m, d = map(int, fecha_desde_raw.split('T')[0].split('-'))
+            from datetime import datetime
+            fecha_desde = datetime(y, m, d, 0, 0, 0)
+        if fecha_hasta_raw:
+            y, m, d = map(int, fecha_hasta_raw.split('T')[0].split('-'))
+            from datetime import datetime
+            fecha_hasta = datetime(y, m, d, 23, 59, 59)
+    except Exception:
+        # Si el formato no es válido, se ignoran las fechas.
+        fecha_desde = None
+        fecha_hasta = None
+
     filters = {
         'id_cliente': request.args.get('cliente_id', type=int),
+        'id_vendedor': request.args.get('vendedor_id', type=int),
         'id_estado_general': request.args.get('estado_id', type=int),
-        'fecha_desde': request.args.get('fecha_desde'),
-        'fecha_hasta': request.args.get('fecha_hasta')
+        'codigo_b2b': codigo_b2b or None,
+        'fecha_desde': fecha_desde,
+        'fecha_hasta': fecha_hasta
     }
 
     filters = {k: v for k, v in filters.items() if v is not None}
@@ -170,3 +197,21 @@ def marcar_entregado(pedido_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+@pedidos_bp.route('/<int:pedido_id>/cantidades', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:actualizar-estado')
+def update_pedido_cantidades(pedido_id):
+    json_data = request.get_json()
+    if not json_data or 'detalles' not in json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+
+    try:
+        data = schema_update_cantidades.load(json_data)
+        current_user_id = int(get_jwt_identity())
+        pedido_actualizado = PedidoService.update_cantidades_detalle(pedido_id, data['detalles'], current_user_id)
+        return schema_response.dump(pedido_actualizado), 200
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -1,7 +1,10 @@
 // frontend/src/features/pedidos/pages/PedidosPage.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
+import { getClientes } from '../../clientes/services/clienteService';
+import { getVendedores } from '../../vendedores/services/vendedorService';
 import { IconPlus } from '@tabler/icons-react';
 import { PedidosTable } from '../components/PedidosTable';
 import { getPedidos } from '../services/pedidoService';
@@ -15,6 +18,8 @@ export function PedidosPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filters, setFilters] = useState<PedidoFilters>({ page: 1, per_page: PAGE_SIZE });
+    const [clienteOptions, setClienteOptions] = useState<{ value: string; label: string }[]>([]);
+    const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -31,6 +36,26 @@ export function PedidosPage() {
         };
         fetchData();
     }, [filters]);
+
+    useEffect(() => {
+        // cargar opciones básicas de clientes y vendedores para filtros
+        (async () => {
+            try {
+                const [clientesResp, vendedoresResp] = await Promise.all([
+                    getClientes(),
+                    getVendedores(),
+                ]);
+                setClienteOptions(
+                    (clientesResp.clientes || []).map(c => ({ value: c.id_cliente.toString(), label: `${c.codigo_cliente} - ${c.nombre_cliente}` }))
+                );
+                setVendedorOptions(
+                    (vendedoresResp || []).map(v => ({ value: v.id_vendedor.toString(), label: v.usuario.nombre_completo }))
+                );
+            } catch (e) {
+                // silencio: filtros siguen funcionando manualmente
+            }
+        })();
+    }, []);
 
     const handleViewDetails = (record: PedidoList) => {
         // Navegaremos a una futura página de detalle
@@ -72,7 +97,59 @@ export function PedidosPage() {
                 </Button>
             </Group>
             
-            {/* Aquí podrías agregar los componentes de filtro en el futuro */}
+            <Group mb="md" grow>
+                {/* helper para parsear YYYY-MM-DD a Date local sin shift */}
+                {null}
+                <TextInput
+                    label="Código B2B"
+                    placeholder="Ej: B2B-1234"
+                    value={filters.codigo_b2b || ''}
+                    onChange={(e: any) => {
+                        const val = typeof e === 'string' ? e : e?.currentTarget?.value;
+                        setFilters(f => ({ ...f, page: 1, codigo_b2b: val || undefined }));
+                    }}
+                />
+                <Select
+                    label="Cliente"
+                    placeholder="Seleccione cliente"
+                    data={clienteOptions}
+                    searchable
+                    clearable
+                    value={filters.cliente_id ? String(filters.cliente_id) : null}
+                    onChange={(val) => setFilters(f => ({ ...f, page: 1, cliente_id: val ? Number(val) : undefined }))}
+                />
+                <Select
+                    label="Vendedor"
+                    placeholder="Seleccione vendedor"
+                    data={vendedorOptions}
+                    searchable
+                    clearable
+                    value={filters.vendedor_id ? String(filters.vendedor_id) : null}
+                    onChange={(val) => setFilters(f => ({ ...f, page: 1, vendedor_id: val ? Number(val) : undefined }))}
+                />
+                <TextInput
+                    type="date"
+                    label="Fecha desde"
+                    value={(filters.fecha_desde as string) || ''}
+                    onChange={(e: any) => {
+                        const val = e?.currentTarget?.value ?? e?.target?.value ?? '';
+                        setFilters(f => ({ ...f, page: 1, fecha_desde: val || undefined }));
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                />
+                <TextInput
+                    type="date"
+                    label="Fecha hasta"
+                    value={(filters.fecha_hasta as string) || ''}
+                    onChange={(e: any) => {
+                        const val = e?.currentTarget?.value ?? e?.target?.value ?? '';
+                        setFilters(f => ({ ...f, page: 1, fecha_hasta: val || undefined }));
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                />
+            </Group>
 
             {renderContent()}
         </Box>

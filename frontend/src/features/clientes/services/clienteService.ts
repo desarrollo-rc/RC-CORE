@@ -13,9 +13,21 @@ interface PaginatedResponse {
     }
 }
 
-export const getClientes = async (): Promise<PaginatedResponse> => {
-    const response = await apiClient.get<PaginatedResponse>('/clientes');
+export const getClientes = async (params?: { page?: number; per_page?: number; search?: string }): Promise<PaginatedResponse> => {
+    const response = await apiClient.get<PaginatedResponse>('/clientes', { params });
     return response.data;
+};
+
+export const fetchAllClientes = async (): Promise<Cliente[]> => {
+    // Intenta traer todas las páginas de clientes para usarlas en selects
+    const first = await getClientes({ page: 1, per_page: 50 });
+    let all: Cliente[] = [...first.clientes];
+    const totalPages = first.pagination?.pages ?? 1;
+    for (let p = 2; p <= totalPages; p++) {
+        const resp = await getClientes({ page: p, per_page: 50 });
+        all = all.concat(resp.clientes);
+    }
+    return all;
 };
 
 export const createCliente = async (data: ClientePayload): Promise<Cliente> => {

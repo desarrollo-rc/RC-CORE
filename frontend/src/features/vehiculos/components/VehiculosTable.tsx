@@ -14,9 +14,10 @@ interface VehiculosTableProps {
     onEdit: (version: VersionVehiculo) => void;
     onToggleActive: (version: VersionVehiculo) => void;
     onRowClick: (version: VersionVehiculo) => void;
+    paginationSlot?: React.ReactNode;
 }
 
-export function VehiculosTable({ marca, modelo, versiones, marcas, modelos, selectedVersionId, onAdd, onEdit, onToggleActive, onRowClick }: VehiculosTableProps) {
+export function VehiculosTable({ marca, modelo, versiones, marcas, modelos, selectedVersionId, onAdd, onEdit, onToggleActive, onRowClick, paginationSlot }: VehiculosTableProps) {
     const rows = versiones.map((version) => {
         const resolvedMarcaId = version.modelo?.id_marca ?? version.modelo?.marca?.id_marca
             ?? modelos.find(md => md.id_modelo === version.id_modelo)?.id_marca;
@@ -35,9 +36,7 @@ export function VehiculosTable({ marca, modelo, versiones, marcas, modelos, sele
                 bg={version.id_version === selectedVersionId ? 'var(--mantine-color-blue-light)' : undefined}
                 style={{ cursor: 'pointer' }}
             >
-                <Table.Td>{resolvedMarcaNombre}</Table.Td>
-                <Table.Td>{resolvedModeloNombre}</Table.Td>
-                <Table.Td>{version.nombre_version}</Table.Td>
+                <Table.Td>{resolvedMarcaNombre} {resolvedModeloNombre} {version.nombre_version}</Table.Td>
                 <Table.Td>{version.anios_fabricacion.join(', ')}</Table.Td>
                 <Table.Td><Badge variant="outline">{version.transmision || 'N/A'}</Badge></Table.Td>
                 <Table.Td>{version.traccion || '—'}</Table.Td>
@@ -91,8 +90,6 @@ export function VehiculosTable({ marca, modelo, versiones, marcas, modelos, sele
                 <Table.Thead>
                     <Table.Tr>
                         <Table.Th>Marca</Table.Th>
-                        <Table.Th>Modelo</Table.Th>
-                        <Table.Th>Versión</Table.Th>
                         <Table.Th>Años</Table.Th>
                         <Table.Th>Transmisión</Table.Th>
                         <Table.Th>Tracción</Table.Th>
@@ -113,6 +110,7 @@ export function VehiculosTable({ marca, modelo, versiones, marcas, modelos, sele
                     )}
                 </Table.Tbody>
             </Table>
+            {paginationSlot}
         </Paper>
     );
 }

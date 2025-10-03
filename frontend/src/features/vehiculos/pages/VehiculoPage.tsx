@@ -1,6 +1,6 @@
 // frontend/src/features/vehiculos/pages/VehiculosPage.tsx
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Title, Grid, Loader, Center, Modal } from '@mantine/core';
+import { Box, Title, Grid, Loader, Center, Modal, Group, Pagination } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -34,6 +34,14 @@ export function VehiculosPage() {
     const [modalContent, setModalContent] = useState<{ type: string, title: string, editingItem: any | null } | null>(null);
     const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
 
+    // --- Paginación ---
+    const PAGE_SIZE_MARCAS = 5;
+    const PAGE_SIZE_MODELOS = 5;
+    const PAGE_SIZE_VERSIONES = 10;
+    const [pageMarcas, setPageMarcas] = useState(1);
+    const [pageModelos, setPageModelos] = useState(1);
+    const [pageVersiones, setPageVersiones] = useState(1);
+
     const fetchData = () => {
         setLoading(true);
         Promise.all([ getMarcasVehiculos(), getAllVersiones() ])
@@ -50,6 +58,9 @@ export function VehiculosPage() {
     };
 
     useEffect(() => { fetchData(); }, []);
+
+    // Reiniciar página de versiones al cambiar filtros
+    useEffect(() => { setPageVersiones(1); }, [selectedMarca, selectedModelo]);
 
     // --- LÓGICA DE FILTRADO DERIVADA DEL ESTADO ---
     const modelosFiltrados = useMemo(() => {
@@ -87,6 +98,25 @@ export function VehiculosPage() {
         }
         return versionesFiltradas;
     }, [selectedMarca, selectedModelo, versionesFiltradas, allModelos]);
+
+    // --- Slices paginados ---
+    const marcasItems = useMemo(() => marcas.map(m => ({ id: m.id_marca, nombre: m.nombre_marca, codigo: m.codigo_marca, activo: m.activo, detalle: m.ambito_marca })), [marcas]);
+    const modelosItems = useMemo(() => modelosFiltrados.map(m => ({ id: m.id_modelo, nombre: m.nombre_modelo, codigo: m.codigo_modelo || 'S/C', activo: m.activo })), [modelosFiltrados]);
+    const marcasTotalPages = Math.max(1, Math.ceil(marcasItems.length / PAGE_SIZE_MARCAS));
+    const modelosTotalPages = Math.max(1, Math.ceil(modelosItems.length / PAGE_SIZE_MODELOS));
+    const versionesTotalPages = Math.max(1, Math.ceil(tablaVersiones.length / PAGE_SIZE_VERSIONES));
+    const marcasPaginated = useMemo(() => {
+        const from = (pageMarcas - 1) * PAGE_SIZE_MARCAS;
+        return marcasItems.slice(from, from + PAGE_SIZE_MARCAS);
+    }, [marcasItems, pageMarcas]);
+    const modelosPaginated = useMemo(() => {
+        const from = (pageModelos - 1) * PAGE_SIZE_MODELOS;
+        return modelosItems.slice(from, from + PAGE_SIZE_MODELOS);
+    }, [modelosItems, pageModelos]);
+    const versionesPaginated = useMemo(() => {
+        const from = (pageVersiones - 1) * PAGE_SIZE_VERSIONES;
+        return tablaVersiones.slice(from, from + PAGE_SIZE_VERSIONES);
+    }, [tablaVersiones, pageVersiones]);
 
     // --- MANEJADORES DE EVENTOS ---
     const handleSelectMarca = (marca: MarcaVehiculo | null) => {
@@ -196,19 +226,20 @@ export function VehiculosPage() {
                         <Grid.Col span={{ base: 12, md: 6 }}>
                             <ColumnList
                                 title="Marcas (Filtro)"
-                                items={marcas.map(m => ({ id: m.id_marca, nombre: m.nombre_marca, codigo: m.codigo_marca, activo: m.activo, detalle: m.ambito_marca }))}
+                                items={marcasPaginated}
                                 selectedId={selectedMarca?.id_marca || null}
                                 onSelect={(item) => handleSelectMarca(marcas.find(m => m.id_marca === item.id) || null)}
                                 onAdd={() => handleOpenModal('marca', 'Crear Nueva Marca')}
                                 onEdit={(item) => handleOpenModal('marca', 'Editar Marca', marcas.find(m => m.id_marca === item.id))}
                                 onDeactivate={handleToggleMarcaActiva}
                                 onActivate={handleToggleMarcaActiva}
+                                footer={<Group justify="center" mt="sm"><Pagination total={marcasTotalPages} value={pageMarcas} onChange={setPageMarcas} size="sm" /></Group>}
                             />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, md: 6 }}>
                             <ColumnList
                                 title="Modelos (Filtro)"
-                                items={modelosFiltrados.map(m => ({ id: m.id_modelo, nombre: m.nombre_modelo, codigo: m.codigo_modelo || 'S/C', activo: m.activo }))}
+                                items={modelosPaginated}
                                 selectedId={selectedModelo?.id_modelo || null}
                                 onSelect={(item) => handleSelectModelo(modelosFiltrados.find(m => m.id_modelo === item.id) || null)}
                                 onAdd={() => handleOpenModal('modelo', 'Crear Nuevo Modelo')}
@@ -217,6 +248,7 @@ export function VehiculosPage() {
                                 // Las funciones de activar/desactivar se manejarán desde la tabla principal
                                 onDeactivate={() => {}} 
                                 onActivate={() => {}}
+                                footer={<Group justify="center" mt="sm"><Pagination total={modelosTotalPages} value={pageModelos} onChange={setPageModelos} size="sm" /></Group>}
                             />
                         </Grid.Col>
                     </Grid>
@@ -225,7 +257,7 @@ export function VehiculosPage() {
                         <VehiculosTable
                             marca={selectedMarca}
                             modelo={selectedModelo}
-                            versiones={tablaVersiones}
+                            versiones={versionesPaginated}
                             marcas={marcas}
                             modelos={allModelos}
                             selectedVersionId={selectedVersion?.id_version || null}
@@ -233,6 +265,13 @@ export function VehiculosPage() {
                             onEdit={(version) => handleOpenModal('version', 'Editar Versión', version)}
                             onToggleActive={handleToggleVersionActiva}
                             onRowClick={(version) => setSelectedVersion(version)}
+                            paginationSlot={
+                                <Box mt="sm">
+                                    <Group justify="center">
+                                        <Pagination total={versionesTotalPages} value={pageVersiones} onChange={setPageVersiones} />
+                                    </Group>
+                                </Box>
+                            }
                         />
                     </Box>
                 </>

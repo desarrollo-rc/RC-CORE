@@ -1,5 +1,5 @@
 # backend/app/api/v1/schemas/pedidos_schemas.py
-from marshmallow import Schema, fields, validate, ValidationError, validates
+from marshmallow import Schema, fields, validate, ValidationError, validates, validates_schema
 from .usuario_schemas import UsuarioSimpleSchema
 from .cliente_schemas import ClienteResponseSchema
 from ....models.negocio.pedidos import EstadoAprobacionCredito, EstadoLogistico, EstadoPedido
@@ -31,8 +31,26 @@ class PedidoDetalleResponseSchema(Schema):
     precio_unitario = fields.Decimal(as_string=True, places=2)
     subtotal = fields.Decimal(as_string=True, places=2)
     
-    # Añadimos datos del producto para enriquecer la respuesta
+    cantidad_enviada = fields.Int(allow_none=True)
+    cantidad_recibida = fields.Int(allow_none=True)
+    observacion_linea = fields.Str(allow_none=True)
+
     producto = fields.Nested(ProductoSimpleSchema, attribute="producto")
+
+class PedidoDetalleUpdateCantidadesSchema(Schema):
+    """Schema para validar cada línea de producto que se actualiza."""
+    id_pedido_detalle = fields.Int(required=True)
+    cantidad_enviada = fields.Int(required=False, allow_none=True, validate=validate.Range(min=0))
+    cantidad_recibida = fields.Int(required=False, allow_none=True, validate=validate.Range(min=0))
+    observacion_linea = fields.Str(required=False, allow_none=True, validate=validate.Length(max=255))
+
+class PedidoUpdateCantidadesSchema(Schema):
+    """Schema principal para validar el payload de la ruta /cantidades."""
+    detalles = fields.List(
+        fields.Nested(PedidoDetalleUpdateCantidadesSchema), 
+        required=True, 
+        validate=validate.Length(min=1)
+    )
 
 class HistorialEstadoPedidoSchema(Schema):
     fecha_evento = fields.DateTime()
@@ -45,6 +63,7 @@ class HistorialEstadoPedidoSchema(Schema):
 class PedidoDetalleCreateSchema(Schema):
     id_producto = fields.Int(required=True)
     cantidad = fields.Int(required=True, validate=validate.Range(min=1))
+    precio_unitario = fields.Decimal(required=True, validate=validate.Range(min=0))
 
 class PedidoCreateSchema(Schema):
     codigo_pedido_origen = fields.Str(allow_none=True)
@@ -54,7 +73,15 @@ class PedidoCreateSchema(Schema):
     id_vendedor = fields.Int(allow_none=True)
     detalles = fields.List(fields.Nested(PedidoDetalleCreateSchema), required=True, validate=validate.Length(min=1))
     aprobacion_automatica = fields.Bool(load_default=False)
+    numero_pedido_sap = fields.Str(allow_none=True)
     fecha_evento = fields.DateTime(required=True)
+
+    @validates_schema
+    def validate_numero_pedido_sap_on_auto(self, data, **kwargs):
+        if data.get('aprobacion_automatica'):
+            num = (data.get('numero_pedido_sap') or '').strip()
+            if not num:
+                raise ValidationError({'numero_pedido_sap': ['Debe indicar el número de orden SAP cuando la aprobación es automática.']})
 
 class PedidoResponseSchema(Schema):
     id_pedido = fields.Int()
@@ -94,6 +121,7 @@ class PedidoUpdateEstadoSchema(Schema):
     id_estado_logistico = fields.Int()
     observaciones = fields.Str(required=True, validate=validate.Length(min=5))
     fecha_evento = fields.DateTime(required=True)
+    numero_pedido_sap = fields.Str(allow_none=True)
 
     @validates('id_estado_credito')
     def validate_estado_credito(self, value, **kwargs):
@@ -109,6 +137,17 @@ class PedidoUpdateEstadoSchema(Schema):
     def validate_estado_general(self, value, **kwargs):
         if value is not None and not db.session.get(EstadoPedido, value):
             raise ValidationError(f"El estado general con ID {value} no existe.")
+
+    @validates_schema
+    def validate_numero_sap_when_approving(self, data, **kwargs):
+        id_estado_credito = data.get('id_estado_credito')
+        if id_estado_credito is None:
+            return
+        estado = db.session.get(EstadoAprobacionCredito, id_estado_credito)
+        if estado and getattr(estado, 'codigo_estado', None) == 'APROBADO':
+            num = (data.get('numero_pedido_sap') or '').strip()
+            if not num:
+                raise ValidationError({'numero_pedido_sap': ['Debe indicar el número de orden SAP al aprobar crédito.']})
 
 class PedidoFacturadoSchema(Schema):
     factura_manual = fields.Bool(required=True)

@@ -1,6 +1,6 @@
 // frontend/src/features/clientes/pages/ClientesPage.tsx
 import { useEffect, useState } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput, Pagination } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -58,6 +58,9 @@ const emptyFormValues: ClienteFormData = {
 
 export function ClientesPage() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
+    const [page, setPage] = useState(1);
+    const [perPage] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
     const [maestros, setMaestros] = useState<MaestrosData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -73,12 +76,13 @@ export function ClientesPage() {
                 listasPreciosData, condicionesPagoData, empresasData, vendedoresData,
                 marcasData, categoriasData
             ] = await Promise.all([
-                getClientes(), getTiposCliente(), getSegmentosCliente(), getTiposNegocio(),
+                getClientes({ page, per_page: perPage }), getTiposCliente(), getSegmentosCliente(), getTiposNegocio(),
                 getListasPrecios(), getCondicionesPago(), getEmpresas(), getVendedores(),
                 getMarcas(true), getCategorias(true) // Obtenemos todos, activos e inactivos
             ]);
             
             setClientes(clientesResponse.clientes);
+            setTotalPages(clientesResponse.pagination?.pages || 1);
             setMaestros({
                 tiposCliente: tiposClienteData, segmentosCliente: segmentosClienteData,
                 tiposNegocio: tiposNegocioData, listasPrecios: listasPreciosData,
@@ -92,7 +96,7 @@ export function ClientesPage() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [page, perPage]);
 
     const handleSubmit = async (formValues: ClienteFormData) => {
         if (!maestros) return;
@@ -264,7 +268,12 @@ export function ClientesPage() {
                     Crear Cliente
                 </Button>
             </Group>
-            {loading ? <Center h={400}><Loader /></Center> : error ? <Alert color="red" title="Error">{error}</Alert> : <ClientesTable records={clientes} onView={handleView} onEdit={handleEdit} onDeactivate={handleDeactivate} onActivate={handleActivate} />}
+            {loading ? <Center h={400}><Loader /></Center> : error ? <Alert color="red" title="Error">{error}</Alert> : <>
+                <ClientesTable records={clientes} onView={handleView} onEdit={handleEdit} onDeactivate={handleDeactivate} onActivate={handleActivate} />
+                <Group justify="center" mt="md">
+                    <Pagination total={totalPages} value={page} onChange={setPage} />
+                </Group>
+            </>}
             <DetalleClienteModal opened={viewModalOpened} onClose={closeViewModal} record={viewRecord} />
             <Modal opened={modalOpened} onClose={closeModal} title={editingRecord ? 'Editar Cliente' : 'Crear Nuevo Cliente'} size="80%">
                 {maestros && (

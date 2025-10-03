@@ -16,6 +16,12 @@ const creditValidationSchema = z.object({
     nuevo_estado_id: z.string().min(1, 'Debe seleccionar una decisión'),
     observaciones: z.string().min(5, 'Debe ingresar una observación.'),
     fecha_evento: z.coerce.date(),
+    numero_pedido_sap: z.string().optional(),
+}).superRefine((val, ctx) => {
+    // Si el estado elegido es Aprobado (id '2'), exigir el número SAP
+    if (val.nuevo_estado_id === '2' && (!val.numero_pedido_sap || val.numero_pedido_sap.trim() === '')) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numero_pedido_sap'], message: 'Requerido al aprobar crédito' });
+    }
 });
 type CreditFormValues = z.infer<typeof creditValidationSchema>;
 
@@ -315,6 +321,7 @@ function CreditForm({ pedido, onUpdate, close }: { pedido: Pedido; onUpdate: (p:
             id_estado_credito: Number(data.nuevo_estado_id),
             observaciones: data.observaciones,
             fecha_evento: data.fecha_evento.toISOString(),
+            numero_pedido_sap: data.nuevo_estado_id === '2' ? (data.numero_pedido_sap || undefined) : undefined,
         };
         try {
             const updatedPedido = await updatePedidoEstado(pedido.id_pedido, payload);
@@ -330,6 +337,10 @@ function CreditForm({ pedido, onUpdate, close }: { pedido: Pedido; onUpdate: (p:
         <form onSubmit={handleSubmit(onCreditSubmit)}>
             <Controller name="nuevo_estado_id" control={control} render={({ field }) => (
                 <Select label="Decisión de Crédito" placeholder="Seleccione una opción" data={[{ value: '2', label: 'Aprobado' }, { value: '3', label: 'Rechazado' }]} {...field} error={errors.nuevo_estado_id?.message} mb="md" required/>
+            )}/>
+            {/** Campo condicional para número de pedido SAP al aprobar **/}
+            <Controller name="numero_pedido_sap" control={control} render={({ field }) => (
+                <TextInput label="Número de Orden SAP" placeholder="Ingrese Nº de Orden SAP (obligatorio si aprueba)" {...field} error={errors.numero_pedido_sap?.message} mb="md" />
             )}/>
             <FechaHoraController control={control} name="fecha_evento" />
             <Textarea label="Observaciones" placeholder="Motivo de la aprobación o rechazo" {...control.register('observaciones')} error={errors.observaciones?.message} minRows={3} mt="md" required/>
