@@ -1,10 +1,10 @@
 // frontend/src/features/pedidos/pages/PedidoCreatePage.tsx
 import { useForm, useFieldArray, Controller, type SubmitHandler } from 'react-hook-form';
-import { DateInput, TimeInput } from '@mantine/dates';
+import { TimeInput } from '@mantine/dates';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Button, Paper, SimpleGrid, TextInput, NumberInput, ActionIcon, Text, Alert, Switch, Table, TableThead, TableTbody, TableTr, TableTh, TableTd } from '@mantine/core';
+import { Box, Title, Group, Button, Paper, SimpleGrid, TextInput, NumberInput, ActionIcon, Text, Alert, Switch, Table, TableThead, TableTbody, TableTr, TableTh, TableTd, Divider, Stack } from '@mantine/core';
 import { IconTrash, IconPlus } from '@tabler/icons-react';
 import { createPedido } from '../services/pedidoService';
 import type { PedidoPayload } from '../types';
@@ -14,6 +14,7 @@ import { ClienteSelect } from '../../clientes/components/ClienteSelect';
 import { CanalVentaSelect } from '../../canales-venta/components/CanalVentaSelect';
 import { ProductoSelectWithCreate } from '../components/ProductoSelectWithCreate';
 import type { Producto } from '../../productos/types';
+import { getAllProductos } from '../../productos/services/productoService';
 
 
 // Esquema de validación con Zod
@@ -46,9 +47,9 @@ type FormValues = z.infer<typeof validationSchema>;
 export function PedidoCreatePage() {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
-    const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+    // Removed selectedProductIds as we don't filter products in the add selector
 
-    const { control, handleSubmit, formState: { errors, isSubmitting }, watch } = useForm<FormValues>({
+    const { control, handleSubmit, formState: { errors, isSubmitting }, watch, setValue } = useForm<FormValues>({
         resolver: zodResolver(validationSchema) as any,
         defaultValues: {
             id_cliente: '',
@@ -57,35 +58,52 @@ export function PedidoCreatePage() {
             aprobacion_automatica: false,
             numero_pedido_sap: '',
             fecha_evento: new Date(),
-            detalles: [{ id_producto: '', cantidad: 1, precio_unitario: 0 }]
+            detalles: []
         }
     });
 
-    // Observar cambios en los detalles para actualizar la lista de productos seleccionados
-    const detalles = watch('detalles');
-    
-    // Actualizar la lista cuando cambien los detalles
-    useEffect(() => {
-        const currentSelectedIds = detalles
-            .map(d => d.id_producto ? parseInt(d.id_producto, 10) : null)
-            .filter((id): id is number => id !== null);
-        console.log('Updating selected product IDs from form:', currentSelectedIds);
-        setSelectedProductIds(currentSelectedIds);
-    }, [detalles]);
+    // Removed selectedProductIds tracking as we don't filter products in the add selector
 
     const { fields, append, remove } = useFieldArray<FormValues, 'detalles'>({
         control,
         name: "detalles"
     });
 
+    const [productById, setProductById] = useState<Record<number, { sku: string; nombre: string }>>({});
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const prods = await getAllProductos();
+                const map: Record<number, { sku: string; nombre: string }> = {};
+                for (const p of prods) {
+                    map[p.id_producto] = { sku: p.sku, nombre: p.nombre_producto || 'Producto sin nombre' };
+                }
+                setProductById(map);
+            } catch {
+                // silencioso
+            }
+        })();
+    }, []);
+
     const handleProductCreated = (producto: Producto) => {
-        console.log('Product created, updating selected list:', producto.id_producto);
-        // Actualizar la lista de productos seleccionados
-        setSelectedProductIds(prev => {
-            const newList = [...prev, producto.id_producto];
-            console.log('Updated selected product IDs:', newList);
-            return newList;
-        });
+        console.log('Product created:', producto.id_producto);
+        // Actualizar el mapa para mostrar SKU/nombre
+        setProductById(prev => ({ ...prev, [producto.id_producto]: { sku: producto.sku, nombre: producto.nombre_producto || 'Producto sin nombre' } }));
+    };
+
+    // Campos temporales para agregar un detalle
+    const newIdProducto = watch('new_id_producto' as any) as string | undefined;
+    const newCantidad = watch('new_cantidad' as any) as number | undefined;
+    const newPrecio = watch('new_precio' as any) as number | undefined;
+
+    const addNewDetalle = () => {
+        if (!newIdProducto || !newCantidad || newCantidad <= 0 || newPrecio == null || newPrecio < 0) return;
+        append({ id_producto: newIdProducto, cantidad: newCantidad, precio_unitario: newPrecio } as any);
+        // Limpiar todos los campos del formulario de agregar
+        setValue('new_id_producto' as any, '');
+        setValue('new_cantidad' as any, 1);
+        setValue('new_precio' as any, 0);
     };
 
     const onSubmit: SubmitHandler<FormValues> = async (data) => {
@@ -173,72 +191,42 @@ export function PedidoCreatePage() {
                         name="fecha_evento"
                         control={control}
                         render={({ field }) => {
-                            // Nos aseguramos de que 'currentDate' sea siempre un objeto Date válido.
                             const currentDate = field.value instanceof Date && !isNaN(field.value.getTime())
                                 ? field.value
                                 : new Date();
 
-                            // Esta función se activa SOLO cuando cambia la fecha (día, mes, año).
-                            // Mantiene la hora que ya estaba seleccionada.
-                            const handleDatePartChange = (valueFromInput: Date | string | null) => {
-                                if (!valueFromInput) return;
-                            
-                                let year, month, day;
-                            
-                                // --- AQUÍ ESTÁ LA LÓGICA CLAVE ---
-                                // Verificamos si el input nos da un string (ej: "2025-10-08") o un objeto Date
-                                if (typeof valueFromInput === 'string') {
-                                    // Si es un string, lo separamos para evitar la conversión automática a UTC.
-                                    const parts = valueFromInput.split(/[-/]/); // Funciona con '-' o '/'
-                                    year = parseInt(parts[0], 10);
-                                    month = parseInt(parts[1], 10) - 1; // ¡Importante! El mes en new Date() es 0-indexado (Enero=0)
-                                    day = parseInt(parts[2], 10);
-                                } else {
-                                    // Si ya es un objeto Date, podemos usar sus métodos de forma segura.
-                                    year = valueFromInput.getFullYear();
-                                    month = valueFromInput.getMonth();
-                                    day = valueFromInput.getDate();
-                                }
-                                
-                                // Nos aseguramos de que las partes de la fecha sean números válidos
-                                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-                                    // Reconstruimos la fecha completa manteniendo la hora que ya estaba seleccionada.
-                                    // Al construirla con sus partes, forzamos que sea en la zona horaria local.
-                                    const newFullDate = new Date(
-                                        year,
-                                        month,
-                                        day,
-                                        currentDate.getHours(),
-                                        currentDate.getMinutes()
-                                    );
-                                    field.onChange(newFullDate);
-                                }
-                            };
-                            
-                            // Esta función se activa SOLO cuando cambia la hora.
-                            // Mantiene la fecha que ya estaba seleccionada.
-                            const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-                                const [hours, minutes] = e.currentTarget.value.split(':');
-                                const newFullDate = new Date(currentDate);
-                                newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
-                                field.onChange(newFullDate);
+                            const valueForInput = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
+                            const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                                const str = e.currentTarget.value; // YYYY-MM-DD
+                                if (!str) return;
+                                const [yyyy, mm, dd] = str.split('-').map(Number);
+                                // conserva la hora/minutos actuales del campo
+                                const newDate = new Date(yyyy, (mm || 1) - 1, dd || 1, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                field.onChange(newDate);
                             };
 
-                            // Formateamos la hora al formato 'HH:mm' para el input.
                             const timeValue = `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+                            const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                                const [hh, mm] = e.currentTarget.value.split(':');
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                field.onChange(newDate);
+                            };
 
                             return (
                                 <Group grow mt="md">
-                                    <DateInput
+                                    <TextInput
+                                        type="date"
                                         label="Fecha de Creación del Pedido"
-                                        value={currentDate}
-                                        onChange={(val) => handleDatePartChange(val as unknown as Date | null)}
+                                        value={valueForInput}
+                                        onChange={handleDateChange}
                                         required
                                     />
                                     <TimeInput
                                         label="Hora de Creación"
                                         value={timeValue}
-                                        onChange={handleTimePartChange}
+                                        onChange={handleTimeChange}
                                         required
                                     />
                                 </Group>
@@ -248,91 +236,123 @@ export function PedidoCreatePage() {
 
                     <Title order={4} mt="xl" mb="md">Productos del Pedido</Title>
 
-                    {fields.length > 0 && (
-                        <Table withTableBorder mb="md">
-                            <TableThead>
+                    <Paper withBorder p="md" mb="md">
+                        <Stack gap="sm">
+                            <Group grow>
+                                <ProductoSelectWithCreate
+                                    control={control}
+                                    name={"new_id_producto" as any}
+                                    label="Producto"
+                                    selectedProductIds={[]} // No filtrar productos en el selector de agregar
+                                    onProductCreated={handleProductCreated}
+                                />
+                                <Controller
+                                    name={"new_cantidad" as any}
+                                    control={control}
+                                    render={({ field }) => (
+                                        <NumberInput
+                                            label="Cantidad"
+                                            placeholder="Cantidad"
+                                            min={1}
+                                            {...field}
+                                        />
+                                    )}
+                                />
+                                <Controller
+                                    name={"new_precio" as any}
+                                    control={control}
+                                    render={({ field }) => (
+                                        <NumberInput
+                                            label="Precio Unitario"
+                                            placeholder="Precio"
+                                            min={0}
+                                            decimalScale={2}
+                                            prefix="$"
+                                            {...field}
+                                        />
+                                    )}
+                                />
+                                <Button mt={22} onClick={addNewDetalle} leftSection={<IconPlus size={14} />}>Agregar</Button>
+                            </Group>
+                        </Stack>
+                    </Paper>
+
+                    <Table withTableBorder mb="md">
+                        <TableThead>
+                            <TableTr>
+                                <TableTh>#</TableTh>
+                                <TableTh>SKU</TableTh>
+                                <TableTh>Nombre</TableTh>
+                                <TableTh ta="right">Cantidad</TableTh>
+                                <TableTh ta="right">Precio Unitario</TableTh>
+                                <TableTh ta="right">Subtotal</TableTh>
+                                <TableTh ta="right">Acciones</TableTh>
+                            </TableTr>
+                        </TableThead>
+                        <TableTbody>
+                            {fields.length === 0 ? (
                                 <TableTr>
-                                    <TableTh>Producto</TableTh>
-                                    <TableTh>Cantidad</TableTh>
-                                    <TableTh>Precio Unitario</TableTh>
-                                    <TableTh>Subtotal</TableTh>
-                                    <TableTh>Acciones</TableTh>
+                                    <TableTd colSpan={7}><Text c="dimmed">Aún no hay productos agregados.</Text></TableTd>
                                 </TableTr>
-                            </TableThead>
-                            <TableTbody>
-                                {fields.map((item, index) => {
+                            ) : (
+                                fields.map((item, index) => {
+                                    const idStr = watch(`detalles.${index}.id_producto`) as unknown as string;
+                                    const idNum = parseInt(idStr || '0', 10);
                                     const cantidad = watch(`detalles.${index}.cantidad`) || 0;
                                     const precioUnitario = watch(`detalles.${index}.precio_unitario`) || 0;
                                     const subtotal = cantidad * precioUnitario;
-                                    
+                                    const meta = productById[idNum];
                                     return (
                                         <TableTr key={item.id}>
-                                            <TableTd>
-                                                <ProductoSelectWithCreate
-                                                    control={control}
-                                                    name={`detalles.${index}.id_producto`}
-                                                    error={errors.detalles?.[index]?.id_producto?.message}
-                                                    selectedProductIds={selectedProductIds}
-                                                    onProductCreated={handleProductCreated}
-                                                />
-                                            </TableTd>
-                                            <TableTd>
-                                                <Controller
-                                                    name={`detalles.${index}.cantidad`}
-                                                    control={control}
-                                                    render={({ field }) => (
-                                                        <NumberInput
-                                                            placeholder="Cantidad"
-                                                            min={1}
-                                                            {...field}
-                                                            error={errors.detalles?.[index]?.cantidad?.message}
-                                                        />
-                                                    )}
-                                                />
-                                            </TableTd>
-                                            <TableTd>
-                                                <Controller
-                                                    name={`detalles.${index}.precio_unitario`}
-                                                    control={control}
-                                                    render={({ field }) => (
-                                                        <NumberInput
-                                                            placeholder="Precio"
-                                                            min={0}
-                                                            decimalScale={2}
-                                                            prefix="$"
-                                                            {...field}
-                                                            error={errors.detalles?.[index]?.precio_unitario?.message}
-                                                        />
-                                                    )}
-                                                />
-                                            </TableTd>
-                                            <TableTd>
-                                                <Text fw={500}>
-                                                    ${subtotal.toLocaleString('es-CL')}
-                                                </Text>
-                                            </TableTd>
-                                            <TableTd>
+                                            <TableTd>{index + 1}</TableTd>
+                                            <TableTd>{meta?.sku || idStr || '-'}</TableTd>
+                                            <TableTd>{meta?.nombre || '-'}</TableTd>
+                                            <TableTd ta="right">{cantidad}</TableTd>
+                                            <TableTd ta="right">${Math.round(precioUnitario).toLocaleString('es-CL')}</TableTd>
+                                            <TableTd ta="right">${Math.round(subtotal).toLocaleString('es-CL')}</TableTd>
+                                            <TableTd ta="right">
                                                 <ActionIcon color="red" onClick={() => remove(index)}>
                                                     <IconTrash size={16} />
                                                 </ActionIcon>
                                             </TableTd>
                                         </TableTr>
                                     );
-                                })}
-                            </TableTbody>
-                        </Table>
-                    )}
+                                })
+                            )}
+                        </TableTbody>
+                    </Table>
+
+                    {(() => {
+                        const sum = fields.reduce((acc, _, index) => {
+                            const cantidad = watch(`detalles.${index}.cantidad`) || 0;
+                            const precioUnitario = watch(`detalles.${index}.precio_unitario`) || 0;
+                            return acc + cantidad * precioUnitario;
+                        }, 0);
+                        const neto = Math.round(sum);
+                        const iva = Math.round(neto * 0.19);
+                        const total = neto + iva;
+                        return (
+                            <Group justify="flex-end" mt="sm">
+                                <Stack gap={4} ta="right">
+                                    <Group justify="space-between" gap="xl">
+                                        <Text>Subtotal (Neto):</Text>
+                                        <Text fw={600}>${neto.toLocaleString('es-CL')}</Text>
+                                    </Group>
+                                    <Group justify="space-between" gap="xl">
+                                        <Text>IVA (19%):</Text>
+                                        <Text fw={600}>${iva.toLocaleString('es-CL')}</Text>
+                                    </Group>
+                                    <Divider my={4} />
+                                    <Group justify="space-between" gap="xl">
+                                        <Text>Total:</Text>
+                                        <Text fw={700}>${total.toLocaleString('es-CL')}</Text>
+                                    </Group>
+                                </Stack>
+                            </Group>
+                        );
+                    })()}
 
                     {errors.detalles?.message && <Text c="red" size="sm" mt="sm">{errors.detalles.message}</Text>}
-
-                    <Button
-                        mt="md"
-                        leftSection={<IconPlus size={14} />}
-                        variant="light"
-                        onClick={() => append({ id_producto: '', cantidad: 1, precio_unitario: 0 })}
-                    >
-                        Agregar Producto
-                    </Button>
 
                     <Group justify="flex-end" mt="xl">
                         <Button variant="default" onClick={() => navigate('/pedidos')}>Cancelar</Button>

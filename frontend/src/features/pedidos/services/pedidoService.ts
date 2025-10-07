@@ -46,3 +46,11 @@ export const updateEstadoLogistico = async (
     const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/estado`, payload);
     return response.data;
 };
+
+export const exportPedidosCutoff = async (fecha: string, cutoffHour: number): Promise<Blob> => {
+    const response = await apiClient.get(`/pedidos/export`, {
+        params: { fecha, cutoff_hour: cutoffHour },
+        responseType: 'blob'
+    });
+    return response.data;
+};

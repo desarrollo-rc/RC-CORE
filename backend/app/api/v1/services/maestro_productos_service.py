@@ -16,6 +16,13 @@ class MaestroProductoService:
         return query.order_by(MaestroProductos.nombre_producto).all()
 
     @staticmethod
+    def get_productos_paginated(page: int, per_page: int, include_inactive: bool = False):
+        query = MaestroProductos.query
+        if not include_inactive:
+            query = query.filter_by(activo=True)
+        return query.order_by(MaestroProductos.nombre_producto).paginate(page=page, per_page=per_page, error_out=False)
+
+    @staticmethod
     def get_producto_by_id(producto_id):
         return MaestroProductos.query.get_or_404(producto_id)
 

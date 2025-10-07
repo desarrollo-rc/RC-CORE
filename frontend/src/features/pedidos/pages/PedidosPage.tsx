@@ -1,13 +1,12 @@
 // frontend/src/features/pedidos/pages/PedidosPage.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
-import { getClientes } from '../../clientes/services/clienteService';
+import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select, NumberInput } from '@mantine/core';
+import { fetchAllClientes } from '../../clientes/services/clienteService';
 import { getVendedores } from '../../vendedores/services/vendedorService';
 import { IconPlus } from '@tabler/icons-react';
 import { PedidosTable } from '../components/PedidosTable';
-import { getPedidos } from '../services/pedidoService';
+import { getPedidos, exportPedidosCutoff } from '../services/pedidoService';
 import type { PedidoList, PedidoFilters, PaginatedPedidosResponse } from '../types';
 
 const PAGE_SIZE = 15;
@@ -20,6 +19,8 @@ export function PedidosPage() {
     const [filters, setFilters] = useState<PedidoFilters>({ page: 1, per_page: PAGE_SIZE });
     const [clienteOptions, setClienteOptions] = useState<{ value: string; label: string }[]>([]);
     const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
+    const [exportDate, setExportDate] = useState<string>('');
+    const [cutoffHour, setCutoffHour] = useState<number>(12);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -38,16 +39,15 @@ export function PedidosPage() {
     }, [filters]);
 
     useEffect(() => {
-        // cargar opciones básicas de clientes y vendedores para filtros
+        // cargar todas las opciones de clientes y vendedores para filtros
         (async () => {
             try {
                 const [clientesResp, vendedoresResp] = await Promise.all([
-                    getClientes(),
+                    // usamos fetchAllClientes para traer todos
+                    fetchAllClientes().then(c => ({ clientes: c } as any)),
                     getVendedores(),
                 ]);
-                setClienteOptions(
-                    (clientesResp.clientes || []).map(c => ({ value: c.id_cliente.toString(), label: `${c.codigo_cliente} - ${c.nombre_cliente}` }))
-                );
+                setClienteOptions((clientesResp.clientes || []).map((c: any) => ({ value: c.id_cliente.toString(), label: `${c.codigo_cliente} - ${c.nombre_cliente}` })));
                 setVendedorOptions(
                     (vendedoresResp || []).map(v => ({ value: v.id_vendedor.toString(), label: v.usuario.nombre_completo }))
                 );
@@ -149,6 +149,41 @@ export function PedidosPage() {
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                 />
+            </Group>
+
+            <Group mt="md" align="end">
+                <TextInput
+                    type="date"
+                    label="Fecha objetivo informe"
+                    value={exportDate}
+                    onChange={(e: any) => setExportDate(e.currentTarget.value)}
+                    style={{ maxWidth: 220 }}
+                />
+                <NumberInput
+                    label="Hora de corte"
+                    min={0}
+                    max={23}
+                    value={cutoffHour}
+                    onChange={(v) => setCutoffHour(Number(v) || 0)}
+                    style={{ maxWidth: 180 }}
+                />
+                <Button
+                    variant="outline"
+                    onClick={async () => {
+                        if (!exportDate) return;
+                        const blob = await exportPedidosCutoff(exportDate, cutoffHour);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `pedidos_${exportDate}_cutoff_${cutoffHour}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                    }}
+                >
+                    Descargar informe (corte)
+                </Button>
             </Group>
 
             {renderContent()}

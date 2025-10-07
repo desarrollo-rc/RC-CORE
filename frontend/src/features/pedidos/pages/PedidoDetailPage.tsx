@@ -17,7 +17,7 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                     <Text c="dimmed">{pedido.cliente.nombre_cliente}</Text>
                 </Box>
                 <Box ta="right">
-                    <Text size="lg" fw={700}>{`$${Number(pedido.monto_total).toLocaleString('es-CL')}`}</Text>
+                    <Text size="lg" fw={700}>{`$${Math.round(Number(pedido.monto_total)).toLocaleString('es-CL')}`}</Text>
                     <Text c="dimmed" size="sm">Total</Text>
                 </Box>
             </Group>

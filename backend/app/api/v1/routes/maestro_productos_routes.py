@@ -1,6 +1,6 @@
 # backend/app/api/v1/routes/maestro_productos_routes.py
 from flask import Blueprint, request, jsonify
-from app.api.v1.schemas.maestro_productos_schemas import MaestroProductoSchema, UpdateMaestroProductoSchema
+from app.api.v1.schemas.maestro_productos_schemas import MaestroProductoSchema, UpdateMaestroProductoSchema, PaginationSchema
 from app.api.v1.services.maestro_productos_service import MaestroProductoService
 from app.api.v1.utils.errors import BusinessRuleError
 from app.api.v1.utils.decorators import permission_required
@@ -13,6 +13,7 @@ maestro_productos_bp = Blueprint('maestro_productos_bp', __name__)
 schema_single = MaestroProductoSchema()
 schema_many = MaestroProductoSchema(many=True)
 schema_update = UpdateMaestroProductoSchema()
+pagination_schema = PaginationSchema()
 
 @maestro_productos_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -33,8 +34,21 @@ def create_producto():
 @permission_required('productos:listar')
 def get_productos():
     include_inactive = request.args.get('incluir_inactivos', 'false').lower() == 'true'
-    productos = MaestroProductoService.get_all_productos(include_inactive)
-    return schema_many.dump(productos), 200
+
+    page = request.args.get('page', type=int)
+    per_page = request.args.get('per_page', type=int)
+
+    if page and per_page:
+        paginated = MaestroProductoService.get_productos_paginated(page, per_page, include_inactive)
+        items = schema_many.dump(paginated.items)
+        meta = pagination_schema.dump(paginated)
+        return jsonify({
+            'items': items,
+            'pagination': meta
+        }), 200
+    else:
+        productos = MaestroProductoService.get_all_productos(include_inactive)
+        return schema_many.dump(productos), 200
 
 @maestro_productos_bp.route('/sku/<string:sku>', methods=['GET'])
 @jwt_required()

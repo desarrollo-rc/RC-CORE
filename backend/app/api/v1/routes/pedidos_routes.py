@@ -1,5 +1,5 @@
 # backend/app/api/v1/routes/pedidos_routes.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema, PedidoUpdateCantidadesSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
@@ -94,6 +94,59 @@ def get_pedidos():
         'pedidos': pedidos_data,
         'pagination': pagination_data
     }), 200
+
+
+@pedidos_bp.route('/export', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:listar')
+def export_pedidos_cutoff():
+    """
+    Exporta pedidos de la ventana definida por fecha objetivo y hora de corte.
+    Query params:
+    - fecha=YYYY-MM-DD (obligatorio)
+    - cutoff_hour=0-23 (obligatorio; ej 12)
+    Respuesta: CSV text/plain
+    """
+    fecha_str = request.args.get('fecha')
+    cutoff_hour = request.args.get('cutoff_hour', type=int)
+    if not fecha_str or cutoff_hour is None:
+        return jsonify({"error": "Parametros requeridos: fecha (YYYY-MM-DD) y cutoff_hour (0-23)."}), 400
+
+    try:
+        y, m, d = map(int, fecha_str.split('-'))
+        target_date = datetime(y, m, d)
+    except Exception:
+        return jsonify({"error": "Formato de fecha inválido. Use YYYY-MM-DD."}), 400
+
+    try:
+        pedidos = PedidoService.get_pedidos_cutoff_window(target_date, cutoff_hour)
+    except Exception:
+        return jsonify({"error": "Ocurrió un error al generar el informe."}), 500
+
+    # Construir CSV simple
+    # Campos clave: id_pedido, codigo_pedido_origen, cliente, fecha_creacion, monto_total, estado
+    import csv
+    from io import StringIO
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id_pedido", "codigo_b2b", "cliente", "fecha_creacion", "monto_total", "estado_general"])
+    for p in pedidos:
+        cliente_nombre = p.cliente.nombre_cliente if getattr(p, 'cliente', None) else ''
+        estado_nombre = p.estado_general.nombre_estado if getattr(p, 'estado_general', None) else ''
+        writer.writerow([
+            p.id_pedido,
+            p.codigo_pedido_origen or '',
+            cliente_nombre,
+            p.fecha_creacion.isoformat(sep=' '),
+            f"{p.monto_total}",
+            estado_nombre
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+    return Response(csv_data, mimetype='text/csv', headers={
+        'Content-Disposition': f'attachment; filename="pedidos_export_{fecha_str}_cutoff_{cutoff_hour}.csv"'
+    })
 
 @pedidos_bp.route('/<int:pedido_id>', methods=['GET'])
 @jwt_required()

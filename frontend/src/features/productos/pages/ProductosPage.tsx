@@ -1,6 +1,6 @@
 // frontend/src/features/productos/pages/ProductosPage.tsx
 import { useState, useEffect } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Modal, Affix, ActionIcon, rem, Text } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Modal, Affix, ActionIcon, rem, Text, Pagination } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -35,19 +35,17 @@ export function ProductosPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Producto | null>(null);
 
-    useEffect(() => {
-        const fetchAllData = async () => {
-            try {
-                setLoading(true);
-                const [
-                    productosData, codigosRefData, marcasData, calidadesData,
-                    origenesData, fabricasData, proveedoresData
-                ] = await Promise.all([
-                    getProductos(), getCodigosReferencia(), getMarcas(), getCalidades(),
-                    getOrigenes(), getFabricas(), getProveedores()
-                ]);
+    const [page, setPage] = useState(1);
+    const [perPage] = useState(15);
+    const [total, setTotal] = useState(0);
+    const [pages, setPages] = useState(1);
 
-                setProductos(productosData);
+    useEffect(() => {
+        const fetchMasters = async () => {
+            try {
+                const [codigosRefData, marcasData, calidadesData, origenesData, fabricasData, proveedoresData] = await Promise.all([
+                    getCodigosReferencia(), getMarcas(), getCalidades(), getOrigenes(), getFabricas(), getProveedores()
+                ]);
                 setMaestros({
                     codigosRef: codigosRefData,
                     marcas: marcasData,
@@ -58,12 +56,27 @@ export function ProductosPage() {
                 });
             } catch (err) {
                 setError('No se pudieron cargar los datos necesarios para la página.');
+            }
+        };
+        fetchMasters();
+    }, []);
+
+    useEffect(() => {
+        const fetchProductosList = async () => {
+            try {
+                setLoading(true);
+                const { items, pagination } = await getProductos({ page, per_page: perPage });
+                setProductos(items);
+                setTotal(pagination.total);
+                setPages(pagination.pages);
+            } catch (err) {
+                setError('No se pudieron cargar los productos.');
             } finally {
                 setLoading(false);
             }
         };
-        fetchAllData();
-    }, []);
+        fetchProductosList();
+    }, [page, perPage]);
 
     const handleSubmit = async (formValues: ProductoFormData) => {
         setIsSubmitting(true);
@@ -90,8 +103,12 @@ export function ProductosPage() {
                 setProductos(current => current.map(p => p.id_producto === updated.id_producto ? updated : p));
                 notifications.show({ title: 'Éxito', message: 'Producto actualizado.' });
             } else {
-                const newData = await createProducto(payload);
-                setProductos(current => [...current, newData]);
+                await createProducto(payload);
+                // Refrescar la página actual para reflejar el nuevo registro
+                const { items, pagination } = await getProductos({ page, per_page: perPage });
+                setProductos(items);
+                setTotal(pagination.total);
+                setPages(pagination.pages);
                 notifications.show({ title: 'Éxito', message: 'Producto creado.' });
             }
             closeModal();
@@ -146,6 +163,10 @@ export function ProductosPage() {
                 <Title order={2}>Gestión de Productos (SKUs)</Title>
             </Group>
             <ProductosTable records={productos} onEdit={(r) => { setEditingRecord(r); openModal(); }} onDeactivate={handleDeactivate} onActivate={handleActivate} />
+            <Group justify="center" mt="md">
+                <Pagination total={pages} value={page} onChange={setPage} withEdges />
+                <Text size="sm" c="dimmed">{total} registros</Text>
+            </Group>
             <Modal opened={modalOpened} onClose={closeModal} title={editingRecord ? 'Editar Producto' : 'Crear Producto'} size="xl" centered>
                 <ProductoForm
                     onSubmit={handleSubmit}

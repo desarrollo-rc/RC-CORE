@@ -295,6 +295,27 @@ class PedidoService:
             raise BusinessRuleError(f"Transición no permitida: de '{codigo_actual or 'N/A'}' a '{estado_nuevo.codigo_estado}'.")
 
     @staticmethod
+    def get_pedidos_cutoff_window(target_date: datetime, cutoff_hour: int):
+        """
+        Retorna pedidos entre (día_anterior HH:00) y (día_target (HH-1):59) considerando cutoff_hour.
+        La ventana es: (target_date - 1 día, cutoff_hour:00:00) -> (target_date, cutoff_hour-1:59:59).
+        Para cutoff 12: 12:00 del día anterior hasta 11:59 del día target.
+        """
+        from datetime import timedelta
+
+        cutoff_hour = int(cutoff_hour)
+        # inicio: día anterior a target a las cutoff_hour:00:00
+        start_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0) - timedelta(days=1)
+        start_dt = start_dt.replace(hour=cutoff_hour, minute=0, second=0, microsecond=0)
+
+        # fin: día target a las cutoff_hour-1:59:59 (si cutoff 0 no es válido, asumimos >=1)
+        end_hour = (cutoff_hour - 1) % 24
+        end_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0)
+        end_dt = end_dt.replace(hour=end_hour, minute=59, second=59, microsecond=999999)
+
+        return Pedido.query.filter(Pedido.fecha_creacion >= start_dt, Pedido.fecha_creacion <= end_dt).order_by(Pedido.fecha_creacion.asc()).all()
+
+    @staticmethod
     def marcar_facturado(pedido_id: int, data: dict, user_id_responsable: int):
         """
         Registra la facturación del pedido. Acepta factura manual o número SAP.

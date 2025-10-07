@@ -3,6 +3,22 @@ import { Table, Group, Text, ActionIcon, Tooltip, Badge } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
 import type { PedidoList } from '../types';
 
+function formatDateTime(input: string | number | Date): string {
+	const date = new Date(input);
+	const day = String(date.getDate()).padStart(2, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const year = date.getFullYear();
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
+	return `${day}-${month}-${year}, ${hours}:${minutes}`;
+}
+
+function formatCLP(value: number | string): string {
+	const numericValue = Number(value);
+	if (Number.isNaN(numericValue)) return '';
+	return `$${Math.round(numericValue).toLocaleString('es-CL')}`;
+}
+
 interface PedidosTableProps {
     records: PedidoList[];
     onView: (record: PedidoList) => void;
@@ -13,13 +29,13 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
         <Table.Tr key={record.id_pedido}>
             <Table.Td>{record.codigo_pedido_origen || record.id_pedido}</Table.Td>
             <Table.Td>{record.cliente_nombre}</Table.Td>
-            <Table.Td>{new Date(record.fecha_creacion).toLocaleDateString('es-CL')}</Table.Td>
+            <Table.Td>{formatDateTime(record.fecha_creacion)}</Table.Td>
             <Table.Td>
                 <Badge color={record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue'}>
                     {record.estado_general?.nombre_estado || 'N/A'}
                 </Badge>
             </Table.Td>
-            <Table.Td style={{ textAlign: 'right' }}>{`$${Number(record.monto_total).toLocaleString('es-CL')}`}</Table.Td>
+            <Table.Td style={{ textAlign: 'right' }}>{formatCLP(record.monto_total)}</Table.Td>
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
                     <Tooltip label="Ver Detalle del Pedido">

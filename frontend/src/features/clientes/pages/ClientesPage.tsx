@@ -59,7 +59,7 @@ const emptyFormValues: ClienteFormData = {
 export function ClientesPage() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [page, setPage] = useState(1);
-    const [perPage] = useState(10);
+    const [perPage] = useState(15);
     const [totalPages, setTotalPages] = useState(1);
     const [maestros, setMaestros] = useState<MaestrosData | null>(null);
     const [loading, setLoading] = useState(true);

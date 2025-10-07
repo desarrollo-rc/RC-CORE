@@ -8,12 +8,7 @@ interface ProductoFilters {
     // ... otros filtros que puedas necesitar
 }
 
-export const getProductos = async (filters: ProductoFilters): Promise<PaginatedProductosResponse> => {
-    const response = await apiClient.get<PaginatedProductosResponse>('/productos', { params: filters });
-    return response.data;
-};
-
-export const getProductosPaginados = async (filters: ProductoFilters): Promise<PaginatedProductosResponse> => {
+export const getProductos = async (filters: ProductoFilters = { page: 1, per_page: 10 }): Promise<PaginatedProductosResponse> => {
     const response = await apiClient.get<PaginatedProductosResponse>('/productos', { params: filters });
     return response.data;
 };

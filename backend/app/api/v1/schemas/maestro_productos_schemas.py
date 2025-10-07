@@ -76,3 +76,12 @@ class UpdateMaestroProductoSchema(Schema):
     costo_base = fields.Decimal(as_string=True, validate=validate.Range(min=0))
     es_kit = fields.Bool()
     proveedores = fields.List(fields.Nested(ProductoProveedorSchema))
+
+
+class PaginationSchema(Schema):
+    total = fields.Int(dump_only=True)
+    pages = fields.Int(dump_only=True)
+    page = fields.Int(dump_only=True)
+    per_page = fields.Int(dump_only=True)
+    has_next = fields.Bool(dump_only=True)
+    has_prev = fields.Bool(dump_only=True)

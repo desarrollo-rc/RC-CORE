@@ -1,5 +1,5 @@
 // frontend/src/features/pedidos/components/ProductoSelectWithCreate.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Select, Button, Group, Alert, Text } from '@mantine/core';
 import { Controller, type Control } from 'react-hook-form';
 import { IconPlus, IconSearch } from '@tabler/icons-react';
@@ -12,6 +12,7 @@ interface ProductoSelectWithCreateProps {
     error?: string;
     selectedProductIds?: number[]; // IDs de productos ya seleccionados
     onProductCreated?: (producto: Producto) => void; // Callback cuando se crea un producto
+    label?: string;
 }
 
 interface SelectOption {
@@ -24,7 +25,8 @@ export function ProductoSelectWithCreate({
     name, 
     error, 
     selectedProductIds = [], 
-    onProductCreated 
+    onProductCreated,
+    label
 }: ProductoSelectWithCreateProps) {
     const [productos, setProductos] = useState<SelectOption[]>([]);
     const [loading, setLoading] = useState(true);
@@ -33,8 +35,8 @@ export function ProductoSelectWithCreate({
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
     const [currentSearchTerm, setCurrentSearchTerm] = useState('');
-    const [forceRerender, setForceRerender] = useState(0); // Para forzar re-render
     const [lastCreatedOption, setLastCreatedOption] = useState<SelectOption | null>(null);
+    const fieldOnChangeRef = useRef<((value: string) => void) | null>(null);
 
     // Los productos se filtran en el render para incluir el seleccionado actual
 
@@ -62,23 +64,25 @@ export function ProductoSelectWithCreate({
         setSearchValue(value);
         setCreateError(null);
         
-        // Solo actualizar currentSearchTerm si hay un valor
+        // Normalizar término: si viene "SKU - Nombre", tomar solo el SKU
+        const rawTrimmed = value.trim();
+        const rawSkuPart = rawTrimmed.split(' - ')[0];
         if (value) {
-            setCurrentSearchTerm(value);
+            setCurrentSearchTerm(rawSkuPart);
         }
         
-        // Si no hay resultados y el usuario está buscando algo, mostrar opción de crear
-        const hasResults = productos.some(p => 
-            p.label.toLowerCase().includes(value.toLowerCase())
-        );
-        
-        console.log('Has results:', hasResults, 'Total products:', productos.length);
-        
-        if (value && !hasResults) {
-            console.log('Showing create form');
+        // Mostrar opción de crear si NO existe un SKU EXACTO
+        // aunque existan coincidencias parciales
+        const normalizedSkuPart = rawSkuPart.trim().toLowerCase();
+        const hasExactSku = productos.some(p => {
+            const skuPart = (p.label.split(' - ')[0] || '').trim().toLowerCase();
+            return skuPart === normalizedSkuPart;
+        });
+
+        if (value && !hasExactSku) {
             setShowCreateForm(true);
-        } else if (!value && !showCreateForm) {
-            // Solo ocultar si no estamos en modo creación
+        } else if (hasExactSku) {
+            // Ocultar solo si encontramos coincidencia exacta
             setShowCreateForm(false);
         }
     };
@@ -145,26 +149,18 @@ export function ProductoSelectWithCreate({
             const productId = newProduct.id_producto.toString();
             console.log('Setting field value to:', productId, 'for component:', name);
             
-            // Limpiar formulario primero
-            setSearchValue('');
-            setCurrentSearchTerm('');
-            setShowCreateForm(false);
+            // Establecer el valor inmediatamente
+            field.onChange(productId);
+            console.log('Field value set:', productId);
             
-            // Establecer el valor tras el siguiente tick para asegurar datos cargados
-            setTimeout(() => {
-                field.onChange(productId);
-                console.log('Field value set (next tick):', productId);
-            }, 0);
-            
-            // Forzar limpieza del searchValue después de un breve delay
+            // Limpiar formulario después de establecer el valor
             setTimeout(() => {
                 setSearchValue('');
-                console.log('SearchValue cleared after timeout');
+                setCurrentSearchTerm('');
+                setShowCreateForm(false);
+                setLastCreatedOption(null);
             }, 100);
             
-            // Forzar re-render del componente
-            setForceRerender(prev => prev + 1);
-            console.log('Force rerender triggered');
             
             console.log('Product added to list and selected:', newProduct.id_producto);
             
@@ -181,6 +177,9 @@ export function ProductoSelectWithCreate({
                 name={name}
                 control={control}
                 render={({ field }) => {
+                    // Guardar la función onChange del field en el ref
+                    fieldOnChangeRef.current = field.onChange;
+                    
                     // Filtrar productos ya seleccionados, pero incluir el producto actualmente seleccionado
                     const filteredProductos = productos.filter(p => {
                         const productId = parseInt(p.value);
@@ -201,6 +200,7 @@ export function ProductoSelectWithCreate({
                     return (
                     <>
                         <Select
+                            label={label}
                             placeholder="Busque por SKU o nombre"
                             data={dataToShow}
                             searchable
@@ -216,60 +216,64 @@ export function ProductoSelectWithCreate({
                             }}
                             value={field.value}
                             error={error}
-                            key={`select-${field.value}-${forceRerender}`} // Forzar re-render cuando cambie el valor o se fuerce
                         />
-                        
-                        {showCreateForm && (
-                            <Alert 
-                                color="blue" 
-                                title="Producto no encontrado" 
-                                mt="sm"
-                                icon={<IconSearch size={16} />}
-                            >
-                                <Text size="sm" mb="md">
-                                    No se encontró un producto con SKU "{currentSearchTerm}". 
-                                    ¿Desea crear uno nuevo?
-                                </Text>
-                                
-                                {createError && (
-                                    <Alert color="red" mb="md">
-                                        {createError}
-                                    </Alert>
-                                )}
-                                
-                                <Group>
-                                    <Button
-                                        size="xs"
-                                        leftSection={<IconPlus size={14} />}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            console.log('Button clicked!');
-                                            console.log('Current search term at click:', currentSearchTerm);
-                                            handleCreateProduct(field);
-                                        }}
-                                        loading={creating}
-                                    >
-                                        Crear Producto
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="light"
-                                        onClick={() => {
-                                            setShowCreateForm(false);
-                                            setSearchValue('');
-                                            setCurrentSearchTerm('');
-                                        }}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                </Group>
-                            </Alert>
-                        )}
                     </>
                     );
                 }}
             />
+            {showCreateForm && (
+                <Alert 
+                    color="blue" 
+                    title="Producto no encontrado" 
+                    mt="sm"
+                    icon={<IconSearch size={16} />}
+                >
+                    <Text size="sm" mb="md">
+                        No se encontró un producto con SKU "{currentSearchTerm}". 
+                        ¿Desea crear uno nuevo?
+                    </Text>
+                    
+                    {createError && (
+                        <Alert color="red" mb="md">
+                            {createError}
+                        </Alert>
+                    )}
+                    
+                    <Group>
+                        <Button
+                            onMouseDown={(e) => e.preventDefault()}
+                            size="xs"
+                            leftSection={<IconPlus size={14} />}
+                            onClick={() => {
+                                console.log('Button clicked!');
+                                console.log('Current search term at click:', currentSearchTerm);
+                                // Usar el ref para acceder al onChange del field
+                                if (fieldOnChangeRef.current) {
+                                    handleCreateProduct({ 
+                                        value: '',
+                                        onChange: fieldOnChangeRef.current
+                                    });
+                                }
+                            }}
+                            loading={creating}
+                        >
+                            Crear Producto
+                        </Button>
+                        <Button
+                            onMouseDown={(e) => e.preventDefault()}
+                            size="xs"
+                            variant="light"
+                            onClick={() => {
+                                setShowCreateForm(false);
+                                setSearchValue('');
+                                setCurrentSearchTerm('');
+                            }}
+                        >
+                            Cancelar
+                        </Button>
+                    </Group>
+                </Alert>
+            )}
         </div>
     );
 }
