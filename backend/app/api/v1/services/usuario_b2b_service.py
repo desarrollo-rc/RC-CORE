@@ -1,6 +1,6 @@
 # backend/app/api/v1/services/usuario_b2b_service.py
 from app.models.entidades.usuarios_b2b import UsuarioB2B
-from app.api.v1.utils.errors import NotFoundError, BusinessLogicError
+from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 from app.extensions import db
 
 class UsuarioB2BService:
@@ -16,7 +16,7 @@ class UsuarioB2BService:
     def get_usuario_b2b_by_id(usuario_id):
         usuario = UsuarioB2B.query.get(usuario_id)
         if not usuario:
-            raise NotFoundError(f"Usuario B2B con ID {usuario_id} no encontrado.")
+            raise RelatedResourceNotFoundError(f"Usuario B2B con ID {usuario_id} no encontrado.")
         return usuario
 
     @staticmethod

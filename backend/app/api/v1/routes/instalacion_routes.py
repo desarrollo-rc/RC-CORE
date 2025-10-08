@@ -2,7 +2,8 @@
 from flask import Blueprint, request, jsonify
 from app.api.v1.services.instalacion_service import InstalacionService
 from app.api.v1.schemas.instalacion_schemas import instalacion_schema, instalaciones_schema, create_instalacion_schema, update_instalacion_schema
-from app.api.v1.utils.decorators import jwt_required, permission_required
+from flask_jwt_extended import jwt_required
+from app.api.v1.utils.decorators import permission_required
 from marshmallow import ValidationError
 
 instalaciones_bp = Blueprint('instalaciones_bp', __name__)

@@ -2,8 +2,9 @@
 from flask import Blueprint, request, jsonify
 from app.api.v1.schemas.usuario_b2b_schemas import usuarios_b2b_schema, usuarios_b2b_schema_list, create_usuario_b2b_schema, update_usuario_b2b_schema
 from app.api.v1.services.usuario_b2b_service import UsuarioB2BService
-from app.api.v1.utils.errors import BusinessLogicError
-from app.api.v1.utils.decorators import jwt_required, permission_required
+from app.api.v1.utils.errors import BusinessRuleError
+from flask_jwt_extended import jwt_required
+from app.api.v1.utils.decorators import permission_required
 from marshmallow import ValidationError
 
 usuarios_b2b_bp = Blueprint('usuarios_b2b_bp', __name__)
@@ -32,7 +33,7 @@ def create_usuario_b2b():
         return jsonify(usuarios_b2b_schema.dump(nuevo_usuario_b2b)), 201
     except ValidationError as err:
         return jsonify(err.messages), 422
-    except BusinessLogicError as e:
+    except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>', methods=['PUT'])
@@ -45,7 +46,7 @@ def update_usuario_b2b(usuario_b2b_id):
         return jsonify(usuarios_b2b_schema.dump(usuario_b2b_actualizado)), 200
     except ValidationError as err:
         return jsonify(err.messages), 422
-    except BusinessLogicError as e:
+    except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>/desactivar', methods=['PUT'])
@@ -55,7 +56,7 @@ def deactivate_usuario_b2b(usuario_b2b_id):
     try:
         usuario_b2b = UsuarioB2BService.deactivate_usuario_b2b(usuario_b2b_id)
         return jsonify(usuarios_b2b_schema.dump(usuario_b2b)), 200
-    except BusinessLogicError as e:
+    except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>/activar', methods=['PUT'])
@@ -65,5 +66,5 @@ def activate_usuario_b2b(usuario_b2b_id):
     try:
         usuario_b2b = UsuarioB2BService.activate_usuario_b2b(usuario_b2b_id)
         return jsonify(usuarios_b2b_schema.dump(usuario_b2b)), 200
-    except BusinessLogicError as e:
+    except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code

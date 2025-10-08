@@ -1,6 +1,6 @@
 # backend/app/api/v1/services/caso_service.py
 from app.models.soporte.casos import Caso
-from app.api.v1.utils.errors import NotFoundError, BusinessRuleError
+from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 from app.extensions import db
 
 class CasoService:
@@ -16,7 +16,7 @@ class CasoService:
     def get_caso_by_id(caso_id):
         caso = Caso.query.get(caso_id)
         if not caso:
-            raise NotFoundError(f"Caso con ID {caso_id} no encontrado.")
+            raise RelatedResourceNotFoundError(f"Caso con ID {caso_id} no encontrado.")
         return caso
     
     @staticmethod

@@ -15,3 +15,7 @@ class RelatedResourceNotFoundError(BusinessRuleError):
     """Lanzada cuando una entidad relacionada no se encuentra."""
     def __init__(self, message):
         super().__init__(message, status_code=404)
+
+# Alias para compatibilidad con código existente
+NotFoundError = RelatedResourceNotFoundError
+BusinessLogicError = BusinessRuleError

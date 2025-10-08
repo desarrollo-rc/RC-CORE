@@ -3,7 +3,7 @@ from app.models.soporte.instalaciones import Instalacion
 from app.api.v1.services.caso_service import CasoService  # Usamos el servicio
 from app.api.v1.services.usuario_b2b_service import UsuarioB2BService # Usamos el servicio
 from app.extensions import db
-from app.api.v1.utils.errors import NotFoundError, BusinessRuleError
+from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 
 class InstalacionService:
     @staticmethod
@@ -14,7 +14,7 @@ class InstalacionService:
     def get_instalacion_by_id(instalacion_id):
         instalacion = Instalacion.query.get(instalacion_id)
         if not instalacion:
-            raise NotFoundError(f"Instalación con ID {instalacion_id} no encontrada.")
+            raise RelatedResourceNotFoundError(f"Instalación con ID {instalacion_id} no encontrada.")
         return instalacion
 
     @staticmethod

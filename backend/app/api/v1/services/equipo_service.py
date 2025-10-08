@@ -1,6 +1,6 @@
 # backend/app/api/v1/services/equipo_service.py
 from app.models.entidades.equipos import Equipo
-from app.api.v1.utils.errors import NotFoundError, BusinessRuleError
+from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 from app.extensions import db
 
 class EquipoService:
@@ -12,7 +12,7 @@ class EquipoService:
     def get_equipo_by_id(equipo_id):
         equipo = Equipo.query.get(equipo_id)
         if not equipo:
-            raise NotFoundError(f"Equipo con ID {equipo_id} no encontrado.")
+            raise RelatedResourceNotFoundError(f"Equipo con ID {equipo_id} no encontrado.")
         return equipo
 
     @staticmethod
