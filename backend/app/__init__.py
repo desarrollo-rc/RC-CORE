@@ -147,6 +147,9 @@ def create_app(config_class=Config):
     from .api.v1.routes.equipo_routes import equipos_bp
     app.register_blueprint(equipos_bp, url_prefix='/api/v1/equipos')
 
+    from .api.v1.routes.tipo_caso_routes import tipos_caso_bp
+    app.register_blueprint(tipos_caso_bp, url_prefix='/api/v1/tipos-caso')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

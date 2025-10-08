@@ -2,6 +2,20 @@
 from app.extensions import db
 from app.models.entidades.entidades_auxiliares import MixinAuditoria
 from sqlalchemy.orm import validates
+import enum
+
+class CategoriaTipoCaso(enum.Enum):
+    INSTALACION_CLIENTE_NUEVO = "INSTALACION_CLIENTE_NUEVO"
+    INSTALACION_USUARIO_NUEVO = "INSTALACION_USUARIO_NUEVO"
+    INSTALACION_USUARIO_ADICIONAL = "INSTALACION_USUARIO_ADICIONAL"
+    INSTALACION_CAMBIO_EQUIPO = "INSTALACION_CAMBIO_EQUIPO"
+    SOPORTE_TECNICO = "SOPORTE_TECNICO"
+    CONSULTA = "CONSULTA"
+    BLOQUEO = "BLOQUEO"
+    OTRO = "OTRO"
+    
+    def __str__(self):
+        return self.value
 
 class TipoCaso(db.Model, MixinAuditoria):
     __tablename__ = 'tipos_caso'
@@ -11,6 +25,8 @@ class TipoCaso(db.Model, MixinAuditoria):
     codigo_tipo_caso = db.Column(db.String(50), unique=True, nullable=False)
     nombre_tipo_caso = db.Column(db.String(100), nullable=False)
     descripcion_tipo_caso = db.Column(db.String(255), nullable=True)
+    categoria_uso = db.Column(db.Enum(CategoriaTipoCaso), nullable=True, 
+                              comment='Categoría para identificar automáticamente el tipo de caso en flujos')
 
     # Relación inversa: Un tipo puede tener muchos casos
     casos = db.relationship('Caso', back_populates='tipo_caso')
@@ -26,6 +42,11 @@ class TipoCaso(db.Model, MixinAuditoria):
     def get_by_codigo(cls, codigo):
         """Busca un tipo de caso por su código."""
         return cls.query.filter_by(codigo_tipo_caso=codigo.upper().strip(), activo=True).first()
+    
+    @classmethod
+    def get_by_categoria(cls, categoria):
+        """Busca un tipo de caso por su categoría."""
+        return cls.query.filter_by(categoria_uso=categoria, activo=True).first()
 
     def __repr__(self):
         return f"<TipoCaso {self.nombre_tipo_caso}>"

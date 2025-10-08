@@ -51,7 +51,7 @@ def update_usuario_b2b(usuario_b2b_id):
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>/desactivar', methods=['PUT'])
 @jwt_required()
-@permission_required('usuarios_b2b:cambio-estado')
+@permission_required('usuarios_b2b:cambiar-estado')
 def deactivate_usuario_b2b(usuario_b2b_id):
     try:
         usuario_b2b = UsuarioB2BService.deactivate_usuario_b2b(usuario_b2b_id)
@@ -61,7 +61,7 @@ def deactivate_usuario_b2b(usuario_b2b_id):
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>/activar', methods=['PUT'])
 @jwt_required()
-@permission_required('usuarios_b2b:cambio-estado')
+@permission_required('usuarios_b2b:cambiar-estado')
 def activate_usuario_b2b(usuario_b2b_id):
     try:
         usuario_b2b = UsuarioB2BService.activate_usuario_b2b(usuario_b2b_id)

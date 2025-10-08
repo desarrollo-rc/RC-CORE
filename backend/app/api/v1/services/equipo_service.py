@@ -19,9 +19,19 @@ class EquipoService:
     def create_equipo(data):
         # Validar que el usuario B2B exista
         from app.api.v1.services.usuario_b2b_service import UsuarioB2BService
+        from app.models.entidades.equipos import EstadoAltaEquipo
         usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(data['id_usuario_b2b'])
         
-        nuevo_equipo = Equipo(**data)
+        nuevo_equipo = Equipo(
+            id_usuario_b2b=data['id_usuario_b2b'],
+            nombre_equipo=data['nombre_equipo'],
+            mac_address=data['mac_address'],
+            procesador=data['procesador'],
+            placa_madre=data['placa_madre'],
+            disco_duro=data['disco_duro'],
+            estado_alta=EstadoAltaEquipo.PENDIENTE,
+            estado=False
+        )
         db.session.add(nuevo_equipo)
         db.session.commit()
         return nuevo_equipo

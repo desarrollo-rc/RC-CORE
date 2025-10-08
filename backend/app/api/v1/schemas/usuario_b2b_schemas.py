@@ -10,7 +10,7 @@ class UsuarioB2BSchema(Schema):
     activo = fields.Bool(dump_only=True)
     fecha_creacion = fields.DateTime(dump_only=True)
     fecha_modificacion = fields.DateTime(dump_only=True)
-    cliente = fields.Nested("MaestroClientesSchema", dump_only=True)
+    cliente = fields.Nested("ClienteResponseSchema", dump_only=True, only=("id_cliente", "nombre_cliente", "codigo_cliente"))
 
 class CreateUsuarioB2BSchema(Schema):
     nombre_completo = fields.Str(required=True, validate=validate.Length(min=1, max=150))

@@ -23,7 +23,8 @@ class Equipo(db.Model, MixinAuditoria):
     placa_madre = db.Column(db.String(100), nullable=True)
     disco_duro = db.Column(db.String(100), nullable=True)
 
-    estado_alta = db.Column(db.Enum(EstadoAltaEquipo), nullable=False, default=EstadoAltaEquipo.PENDIENTE)
+    estado_alta = db.Column(db.Enum(EstadoAltaEquipo), nullable=False, default=EstadoAltaEquipo.PENDIENTE, comment="Aprobado/Rechazado/Pendiente")
+    estado = db.Column(db.Boolean, default=False, nullable=False, comment="Activo=True/Inactivo=False")
 
     usuario_b2b = db.relationship('UsuarioB2B', back_populates='equipos')
     instalaciones = db.relationship('Instalacion', back_populates='equipo')
@@ -35,4 +36,4 @@ class Equipo(db.Model, MixinAuditoria):
         return None
 
     def __repr__(self):
-        return f"<Equipo {self.nombre_equipo} ({'Activo' if self.activo else 'Inactivo'})>"
+        return f"<Equipo {self.nombre_equipo} ({'Activo' if self.estado else 'Inactivo'})>"

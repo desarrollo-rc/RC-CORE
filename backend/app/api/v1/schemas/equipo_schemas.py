@@ -9,9 +9,8 @@ class EquipoSchema(Schema):
     procesador = fields.Str(required=True, validate=validate.Length(min=1))
     placa_madre = fields.Str(required=True, validate=validate.Length(min=1))
     disco_duro = fields.Str(required=True, validate=validate.Length(min=1))
-    estado_alta = fields.Str(required=True, validate=validate.OneOf(["PENDIENTE", "APROBADO", "RECHAZADO"]))
-    usuario_b2b = fields.Nested("UsuarioB2BSchema", dump_only=True)
-    instalaciones = fields.Nested("InstalacionSchema", dump_only=True)
+    estado_alta = fields.Str(dump_only=True)
+    estado = fields.Bool(dump_only=True)
 
 class CreateEquipoSchema(Schema):
     id_usuario_b2b = fields.Int(required=True)
@@ -20,7 +19,6 @@ class CreateEquipoSchema(Schema):
     procesador = fields.Str(required=True, validate=validate.Length(min=1))
     placa_madre = fields.Str(required=True, validate=validate.Length(min=1))
     disco_duro = fields.Str(required=True, validate=validate.Length(min=1))
-    estado_alta = fields.Str(required=True, validate=validate.OneOf(["PENDIENTE", "APROBADO", "RECHAZADO"]))
 
 class UpdateEquipoSchema(Schema):
     nombre_equipo = fields.Str(required=True, validate=validate.Length(min=1))

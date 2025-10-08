@@ -52,7 +52,7 @@ def update_caso(caso_id):
 
 @casos_bp.route('/<int:caso_id>/desactivar', methods=['PUT'])
 @jwt_required()
-@permission_required('instalaciones:cambio-estado')
+@permission_required('instalaciones:cambiar-estado')
 def deactivate_caso(caso_id):
     try:
         caso = CasoService.deactivate_caso(caso_id)
@@ -62,7 +62,7 @@ def deactivate_caso(caso_id):
 
 @casos_bp.route('/<int:caso_id>/activar', methods=['PUT'])
 @jwt_required()
-@permission_required('instalaciones:cambio-estado')
+@permission_required('instalaciones:cambiar-estado')
 def activate_caso(caso_id):
     try:
         caso = CasoService.activate_caso(caso_id)

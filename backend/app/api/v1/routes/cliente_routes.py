@@ -168,3 +168,17 @@ def activate_cliente(cliente_id):
         return cliente_response_schema_single.dump(cliente), 200
     except NotFound:
         return jsonify({"error": f"Cliente con ID {cliente_id} no encontrado."}), 404
+
+@clientes_bp.route('/seleccion-libre', methods=['GET'])
+@jwt_required()
+@permission_required('clientes:listar')
+def get_clientes_seleccion_libre():
+    """
+    Endpoint para obtener todos los clientes con información extendida
+    para selección en instalaciones (incluye info B2B, vendedor, contacto).
+    """
+    try:
+        clientes_data = ClienteService.get_clientes_para_seleccion_libre()
+        return jsonify(clientes_data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

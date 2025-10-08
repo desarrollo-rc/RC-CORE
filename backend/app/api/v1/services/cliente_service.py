@@ -269,6 +269,49 @@ class ClienteService:
         customer.motivo_bloqueo = None
         db.session.commit()
         return customer
+    
+    @staticmethod
+    def get_clientes_para_seleccion_libre():
+        """
+        Obtiene todos los clientes con información extendida para selección en instalaciones.
+        Incluye: datos B2B, vendedor, contacto principal.
+        """
+        from app.models.entidades.usuarios_b2b import UsuarioB2B
+        from sqlalchemy import case
+        
+        # Query con LEFT JOIN a usuarios_b2b para ver si tiene usuarios
+        clientes = MaestroClientes.query.outerjoin(
+            UsuarioB2B, MaestroClientes.id_cliente == UsuarioB2B.id_cliente
+        ).all()
+        
+        result = []
+        for cliente in clientes:
+            # Verificar si tiene usuarios B2B
+            tiene_usuarios = len(cliente.usuarios_b2b) > 0
+            es_b2b = cliente.b2b_habilitado
+            
+            contacto_principal = cliente.contacto_principal
+            
+            cliente_dict = {
+                'value': cliente.id_cliente,
+                'label': f"{cliente.nombre_cliente} - {cliente.rut_cliente}",
+                'es_b2b': es_b2b,
+                'tiene_usuarios': tiene_usuarios,
+                'b2b_habilitado': cliente.b2b_habilitado,
+                'vendedor_id': cliente.id_vendedor,
+                'vendedor_nombre': cliente.vendedor.nombre_completo if cliente.vendedor else None,
+                'rut': cliente.rut_cliente,
+                'contacto': contacto_principal.nombre if contacto_principal else None,
+                'num_contacto': contacto_principal.telefono if contacto_principal else None,
+                'activo': cliente.activo
+            }
+            
+            result.append(cliente_dict)
+        
+        # Ordenar por nombre
+        result.sort(key=lambda x: x['label'])
+        
+        return result
 
     @staticmethod
     def _sync_afinidades(data, customer):

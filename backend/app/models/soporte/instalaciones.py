@@ -7,9 +7,14 @@ import enum
 class EstadoInstalacion(enum.Enum):
     PENDIENTE_APROBACION = "Pendiente Aprobación"
     PENDIENTE_INSTALACION = "Pendiente Instalación"
+    USUARIO_CREADO = "Usuario Creado"
+    CONFIGURACION_PENDIENTE = "Configuración Pendiente"
     AGENDADA = "Agendada"
     COMPLETADA = "Completada"
     CANCELADA = "Cancelada"
+    
+    def __str__(self):
+        return self.value
 
 
 class Instalacion(db.Model):
@@ -38,6 +43,21 @@ class Instalacion(db.Model):
     usuario_b2b = db.relationship('UsuarioB2B', foreign_keys=[id_usuario_b2b])
     equipo = db.relationship('Equipo', back_populates='instalaciones')
 
-
     def __repr__(self):
         return f"<Instalacion ID: {self.id_instalacion} para Caso ID: {self.id_caso}>"
+    
+    def puede_ser_aprobada(self):
+        return self.estado == EstadoInstalacion.PENDIENTE_APROBACION
+    
+    def puede_crear_usuario(self):
+        return self.estado == EstadoInstalacion.PENDIENTE_INSTALACION
+    
+    def puede_agendar(self):
+        return self.estado in [EstadoInstalacion.USUARIO_CREADO, EstadoInstalacion.CONFIGURACION_PENDIENTE]
+    
+    def puede_ser_instalada(self):
+        return self.estado in [EstadoInstalacion.USUARIO_CREADO, EstadoInstalacion.CONFIGURACION_PENDIENTE, EstadoInstalacion.AGENDADA]
+    
+    def puede_ser_finalizada(self):
+        # Solo se puede finalizar después de instalar
+        return self.fecha_instalacion is not None and self.estado != EstadoInstalacion.COMPLETADA

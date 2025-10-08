@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory, IconShoppingCart } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory, IconShoppingCart, IconTool, IconAlertCircle } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -54,6 +54,18 @@ const menuItems = [
         id: 'pedidos',
         subItems: [
             { icon: IconShoppingCart, label: 'Pedidos', to: '/pedidos' },
+        ],
+    },
+    {
+        icon: IconTool,
+        label: 'Soporte',
+        id: 'soporte',
+        subItems: [
+            { icon: IconAlertCircle, label: 'Casos', to: '/casos' },
+            { icon: IconTags, label: 'Tipos de Caso', to: '/tipos-caso' },
+            { icon: IconTool, label: 'Instalaciones', to: '/instalaciones' },
+            { icon: IconUsers, label: 'Usuarios B2B', to: '/usuarios-b2b' },
+            { icon: IconCube, label: 'Equipos', to: '/equipos' },
         ],
     },
     {

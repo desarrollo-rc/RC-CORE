@@ -35,6 +35,12 @@ import { ClientesPage } from './features/clientes/pages/ClientesPage';
 import { PedidosPage } from './features/pedidos/pages/PedidosPage';
 import { PedidoCreatePage } from './features/pedidos/pages/PedidoCreatePage';
 import { PedidoDetailPage } from './features/pedidos/pages/PedidoDetailPage';
+import { InstalacionesPage } from './features/instalaciones/pages/InstalacionesPage';
+import { InstalacionDetailPage } from './features/instalaciones/pages/InstalacionDetailPage';
+import { CasosPage } from './features/casos/pages/CasosPage';
+import { UsuariosB2BPage } from './features/usuarios-b2b/pages/UsuariosB2BPage';
+import { EquiposPage } from './features/equipos/pages/EquiposPage';
+import { TiposCasoPage } from './features/tipos-caso/pages/TiposCasoPage';
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
@@ -90,6 +96,12 @@ function App() {
           <Route path="/pedidos" element={<PedidosPage />} />
           <Route path="/pedidos/crear" element={<PedidoCreatePage />} /> 
           <Route path="/pedidos/:id" element={<PedidoDetailPage />} />
+          <Route path="/instalaciones" element={<InstalacionesPage />} />
+          <Route path="/instalaciones/:id" element={<InstalacionDetailPage />} />
+          <Route path="/casos" element={<CasosPage />} />
+          <Route path="/usuarios-b2b" element={<UsuariosB2BPage />} />
+          <Route path="/equipos" element={<EquiposPage />} />
+          <Route path="/tipos-caso" element={<TiposCasoPage />} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

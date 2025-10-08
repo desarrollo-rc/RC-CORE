@@ -51,7 +51,7 @@ def update_equipo(equipo_id):
 
 @equipos_bp.route('/<int:equipo_id>/desactivar', methods=['PUT'])
 @jwt_required()
-@permission_required('equipos:cambio-estado')
+@permission_required('equipos:cambiar-estado')
 def deactivate_equipo(equipo_id):
     try:
         equipo = EquipoService.deactivate_equipo(equipo_id)
@@ -61,7 +61,7 @@ def deactivate_equipo(equipo_id):
 
 @equipos_bp.route('/<int:equipo_id>/activar', methods=['PUT'])
 @jwt_required()
-@permission_required('equipos:cambio-estado')
+@permission_required('equipos:cambiar-estado')
 def activate_equipo(equipo_id):
     try:
         equipo = EquipoService.activate_equipo(equipo_id)
