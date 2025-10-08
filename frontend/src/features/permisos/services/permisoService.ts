@@ -20,7 +20,6 @@ export const getPermisos = async (): Promise<Permiso[]> => {
  * Crea un nuevo permiso.
  * @param permisoData - Los datos del permiso a crear.
  */
-
 export const createPermiso = async (permisoData: PermisoPayload): Promise<Permiso> => {
     try {
         const response = await apiClient.post<Permiso>('/permisos', permisoData);

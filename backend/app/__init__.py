@@ -135,6 +135,15 @@ def create_app(config_class=Config):
     from .api.v1.routes.geografia_routes import geografia_bp
     app.register_blueprint(geografia_bp, url_prefix='/api/v1/geografia')
 
+    from .api.v1.routes.usuario_b2b_routes import usuarios_b2b_bp
+    app.register_blueprint(usuarios_b2b_bp, url_prefix='/api/v1/usuarios-b2b')
+
+    from .api.v1.routes.caso_routes import casos_bp
+    app.register_blueprint(casos_bp, url_prefix='/api/v1/casos')
+    
+    from .api.v1.routes.instalacion_routes import instalaciones_bp
+    app.register_blueprint(instalaciones_bp, url_prefix='/api/v1/instalaciones')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])
