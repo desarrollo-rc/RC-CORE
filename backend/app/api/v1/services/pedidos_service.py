@@ -313,7 +313,9 @@ class PedidoService:
         end_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0)
         end_dt = end_dt.replace(hour=end_hour, minute=59, second=59, microsecond=999999)
 
-        return Pedido.query.filter(Pedido.fecha_creacion >= start_dt, Pedido.fecha_creacion <= end_dt).order_by(Pedido.fecha_creacion.asc()).all()
+        return Pedido.query.options(
+            joinedload(Pedido.detalles)
+        ).filter(Pedido.fecha_creacion >= start_dt, Pedido.fecha_creacion <= end_dt).order_by(Pedido.fecha_creacion.asc()).all()
 
     @staticmethod
     def marcar_facturado(pedido_id: int, data: dict, user_id_responsable: int):

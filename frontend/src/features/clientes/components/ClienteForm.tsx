@@ -92,8 +92,9 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
             id_condicion_pago: isNotEmpty('La condición de pago es requerida'),
             ids_empresa: (value) => (value.length === 0 ? 'Debe seleccionar al menos una empresa' : null),
             // id_vendedor es opcional, no requerido
-            contactos: (value) => (value.length === 0 ? 'Debe agregar al menos un contacto' : null),
-            direcciones: (value) => (value.length === 0 ? 'Debe agregar al menos una dirección' : null),
+            // Contactos y direcciones son opcionales para mantener consistencia con el extractor Gmail
+            contactos: (value) => null,
+            direcciones: (value) => null,
         },
     });
 
@@ -103,10 +104,9 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
 
     const hasGeneralErrors = !!(form.errors.codigo_cliente || form.errors.rut_cliente || form.errors.nombre_cliente);
     const hasComercialErrors = !!(form.errors.id_tipo_cliente || form.errors.id_segmento_cliente || form.errors.id_tipo_negocio || form.errors.id_lista_precios || form.errors.id_condicion_pago || form.errors.ids_empresa);
-    const allContactosBlank = form.values.contactos.length > 0 && form.values.contactos.every(c => !c.nombre && !c.email && !c.telefono && !c.cargo);
-    const hasContactosErrors = form.values.contactos.length === 0 || allContactosBlank || !!form.errors.contactos;
-    const allDireccionesBlank = form.values.direcciones.length > 0 && form.values.direcciones.every(d => !d.calle && (d.id_comuna === null || d.id_comuna === undefined) && !d.numero && !d.codigo_postal);
-    const hasDireccionesErrors = form.values.direcciones.length === 0 || allDireccionesBlank || !!form.errors.direcciones;
+    // Contactos y direcciones ya no tienen errores de validación (son opcionales)
+    const hasContactosErrors = false;
+    const hasDireccionesErrors = false;
 
     // Opciones para los Selects
     const tiposClienteOptions = maestros.tiposCliente.map(tc => ({ value: tc.id_tipo_cliente.toString(), label: tc.nombre_tipo_cliente }));
@@ -179,13 +179,31 @@ export function ClienteForm({ onSubmit, isSubmitting, initialValues, maestros }:
                 </Stack></Tabs.Panel>
 
                 <Tabs.Panel value="contactos" pt="md">
-                    {contactoFields}
-                    <Button mt="md" onClick={() => form.insertListItem('contactos', initialContact)}>Añadir Contacto</Button>
+                    {form.values.contactos.length === 0 ? (
+                        <Paper withBorder p="md" style={{ textAlign: 'center' }}>
+                            <Text c="dimmed" mb="md">No hay contactos agregados</Text>
+                            <Text size="sm" c="dimmed" mb="md">Los contactos son opcionales. Puedes agregar uno o más contactos si es necesario.</Text>
+                        </Paper>
+                    ) : (
+                        contactoFields
+                    )}
+                    <Button mt="md" onClick={() => form.insertListItem('contactos', initialContact)}>
+                        Añadir Contacto
+                    </Button>
                 </Tabs.Panel>
 
                 <Tabs.Panel value="direcciones" pt="md">
-                    {direccionFields}
-                    <Button mt="md" onClick={() => form.insertListItem('direcciones', { ...initialAddress })}>Añadir Dirección</Button>
+                    {form.values.direcciones.length === 0 ? (
+                        <Paper withBorder p="md" style={{ textAlign: 'center' }}>
+                            <Text c="dimmed" mb="md">No hay direcciones agregadas</Text>
+                            <Text size="sm" c="dimmed" mb="md">Las direcciones son opcionales. Puedes agregar una o más direcciones si es necesario.</Text>
+                        </Paper>
+                    ) : (
+                        direccionFields
+                    )}
+                    <Button mt="md" onClick={() => form.insertListItem('direcciones', { ...initialAddress })}>
+                        Añadir Dirección
+                    </Button>
                 </Tabs.Panel>
             </Tabs>
 

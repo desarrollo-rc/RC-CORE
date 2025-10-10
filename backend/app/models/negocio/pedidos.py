@@ -36,6 +36,7 @@ class Pedido(db.Model, MixinAuditoria):
     codigo_pedido_origen = db.Column(db.String(50), nullable=True, index=True) # De momento si el pedido no es B2B este campo es NULL
     numero_pedido_sap = db.Column(db.String(50), nullable=True, index=True)
     numero_factura_sap = db.Column(db.String(50), nullable=True, index=True)
+    ruta_pdf = db.Column(db.String(500), nullable=True, comment="Ruta del PDF extraído de Gmail")
 
     id_cliente = db.Column(db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), nullable=False)
     id_usuario_b2b = db.Column(db.Integer, db.ForeignKey('entidades.usuarios_b2b.id_usuario_b2b'), nullable=True, comment="Si el pedido fue creado por un usuario B2B")

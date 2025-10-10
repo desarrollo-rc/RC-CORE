@@ -53,6 +53,7 @@ export interface Pedido {
     codigo_pedido_origen: string | null;
     numero_pedido_sap: string | null;
     numero_factura_sap: string | null;
+    ruta_pdf: string | null;
 
     cliente: ClienteSimple;
 

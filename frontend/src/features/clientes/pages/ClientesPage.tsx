@@ -50,8 +50,8 @@ const emptyFormValues: ClienteFormData = {
     id_tipo_cliente: null, id_segmento_cliente: null, id_tipo_negocio: null,
     id_lista_precios: null, id_condicion_pago: null, id_vendedor: null,
     ids_empresa: [],
-    contactos: [{ nombre: '', cargo: '', email: '', telefono: '', es_principal: true }],
-    direcciones: [{ calle: '', numero: '', id_comuna: null, id_ciudad: null, id_region: null, codigo_postal: '', es_facturacion: true, es_despacho: true }],
+    contactos: [],
+    direcciones: [],
     definir_afinidad: false, marcas_afinidad_ids: [], categorias_afinidad_ids: []
 };
 
@@ -253,8 +253,8 @@ export function ClientesPage() {
         id_condicion_pago: editingRecord.condicion_pago.id_condicion_pago.toString(),
         id_vendedor: editingRecord.vendedor?.id_vendedor.toString() || null,
         ids_empresa: editingRecord.empresas.map(e => e.id_empresa.toString()),
-        contactos: editingRecord.contactos.length > 0 ? editingRecord.contactos : [emptyFormValues.contactos[0]],
-        direcciones: editingRecord.direcciones.length > 0 ? editingRecord.direcciones : [emptyFormValues.direcciones[0]],
+        contactos: editingRecord.contactos || [],
+        direcciones: editingRecord.direcciones || [],
         definir_afinidad: (editingRecord.marcas_afinidad.length > 0 || editingRecord.categorias_afinidad.length > 0),
         marcas_afinidad_ids: editingRecord.marcas_afinidad.map(m => m.id_marca.toString()),
         categorias_afinidad_ids: editingRecord.categorias_afinidad.map(c => c.id_categoria.toString()),

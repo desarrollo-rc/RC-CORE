@@ -8,18 +8,18 @@ from .categoria_schemas import CategoriaSchema
 
 class ContactoSchema(Schema):
     id_contacto = fields.Int()
-    nombre = fields.Str(required=True)
-    cargo = fields.Str()
-    email = fields.Email(required=True)
-    telefono = fields.Str()
+    nombre = fields.Str(required=False, allow_none=True)
+    cargo = fields.Str(allow_none=True)
+    email = fields.Email(required=False, allow_none=True)
+    telefono = fields.Str(allow_none=True)
     es_principal = fields.Bool(load_default=False)
 
 class DireccionSchema(Schema):
     id_direccion = fields.Int()
-    calle = fields.Str(required=True)
-    numero = fields.Str()
-    id_comuna = fields.Int()
-    codigo_postal = fields.Str()
+    calle = fields.Str(required=False, allow_none=True)
+    numero = fields.Str(allow_none=True)
+    id_comuna = fields.Int(allow_none=True)
+    codigo_postal = fields.Str(allow_none=True)
     es_facturacion = fields.Bool(load_default=False)
     es_despacho = fields.Bool(load_default=True)
 
@@ -79,8 +79,8 @@ class ClienteSchema(BaseClienteSchema):
     codigo_cliente = fields.Str(required=True, validate=validate.Length(min=3))
     rut_cliente = fields.Str(required=True, validate=validate.Length(min=8))
     nombre_cliente = fields.Str(required=True)
-    contactos = fields.List(fields.Nested(ContactoSchema), required=True, validate=validate.Length(min=1))
-    direcciones = fields.List(fields.Nested(DireccionSchema), required=True, validate=validate.Length(min=1))
+    contactos = fields.List(fields.Nested(ContactoSchema), required=False, load_default=[])
+    direcciones = fields.List(fields.Nested(DireccionSchema), required=False, load_default=[])
 
     # Campos de código para las relaciones, requeridos en la creación
     codigo_tipo_cliente = fields.Str(required=True)
@@ -152,7 +152,7 @@ class UpdateClienteSchema(Schema):
     codigo_tipo_negocio = fields.Str()
     codigo_lista_precios = fields.Str()
     codigo_condicion_pago = fields.Str()
-    codigos_empresa = fields.List(fields.Str(), validate=validate.Length(min=1))
+    codigos_empresa = fields.List(fields.Str(), required=False, load_default=None)
 
     id_vendedor = fields.Int(required=False, allow_none=True)
 
@@ -160,8 +160,8 @@ class UpdateClienteSchema(Schema):
     categorias_afinidad_ids = fields.List(fields.Int(), required=False)
 
     # Relaciones anidadas (no son requeridas en la actualización)
-    contactos = fields.List(fields.Nested(ContactoSchema))
-    direcciones = fields.List(fields.Nested(DireccionSchema))
+    contactos = fields.List(fields.Nested(ContactoSchema), required=False, load_default=[])
+    direcciones = fields.List(fields.Nested(DireccionSchema), required=False, load_default=[])
 
 class DeactivateClienteSchema(Schema):
     """

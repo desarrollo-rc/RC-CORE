@@ -84,6 +84,7 @@ export interface PedidoPreview {
     fecha_pedido: string;
     aprobacion_automatica?: boolean;
     numero_pedido_sap?: string | null;
+    ruta_pdf?: string | null;
     info_cliente: {
         rut: string;
         razon_social: string;
@@ -96,7 +97,7 @@ export interface PedidoPreview {
     id_cliente: number | null;
     productos: ProductoPreview[];
     advertencias: string[];
-    estado_validacion: 'valido' | 'advertencia' | 'error';
+    estado_validacion: 'valido' | 'advertencia' | 'error' | 'cargado';
     seleccionado: boolean;
 }
 

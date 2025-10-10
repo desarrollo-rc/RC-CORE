@@ -124,22 +124,29 @@ def export_pedidos_cutoff():
         return jsonify({"error": "Ocurrió un error al generar el informe."}), 500
 
     # Construir CSV simple
-    # Campos clave: id_pedido, codigo_pedido_origen, cliente, fecha_creacion, monto_total, estado
+    # Campos clave: id_pedido, codigo_pedido_origen, cliente, fecha_creacion, monto_total, estado, cantidad_skus, total_unidades
     import csv
     from io import StringIO
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["id_pedido", "codigo_b2b", "cliente", "fecha_creacion", "monto_total", "estado_general"])
+    writer.writerow(["id_pedido", "codigo_b2b", "cliente", "fecha_creacion", "monto_total", "estado_general", "cantidad_skus", "total_unidades"])
     for p in pedidos:
         cliente_nombre = p.cliente.nombre_cliente if getattr(p, 'cliente', None) else ''
         estado_nombre = p.estado_general.nombre_estado if getattr(p, 'estado_general', None) else ''
+        
+        # Calcular cantidad de SKUs y total de unidades
+        cantidad_skus = len(p.detalles) if hasattr(p, 'detalles') else 0
+        total_unidades = sum(d.cantidad for d in p.detalles) if hasattr(p, 'detalles') else 0
+        
         writer.writerow([
             p.id_pedido,
             p.codigo_pedido_origen or '',
             cliente_nombre,
             p.fecha_creacion.isoformat(sep=' '),
             f"{p.monto_total}",
-            estado_nombre
+            estado_nombre,
+            cantidad_skus,
+            total_unidades
         ])
 
     csv_data = output.getvalue()

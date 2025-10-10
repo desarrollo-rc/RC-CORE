@@ -88,6 +88,7 @@ class PedidoResponseSchema(Schema):
     codigo_pedido_origen = fields.Str()
     numero_pedido_sap = fields.Str()
     numero_factura_sap = fields.Str()
+    ruta_pdf = fields.Str()
     
     cliente = fields.Nested(lambda: ClienteResponseSchema(only=("id_cliente", "codigo_cliente", "nombre_cliente")))
     

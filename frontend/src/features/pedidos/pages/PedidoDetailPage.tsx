@@ -1,19 +1,74 @@
 // frontend/src/features/pedidos/pages/PedidoDetailPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Paper, Text, Grid, Badge, Table, Timeline, ThemeIcon } from '@mantine/core';
-import { IconCircleCheck } from '@tabler/icons-react';
+import { Box, Title, Group, Alert, Center, Loader, Paper, Text, Grid, Badge, Table, Timeline, ThemeIcon, ActionIcon, Tooltip } from '@mantine/core';
+import { IconCircleCheck, IconFileText } from '@tabler/icons-react';
 import { getPedidoById } from '../services/pedidoService';
+import { descargarPDFGmail, descargarArchivo } from '../services/archivoService';
 import type { Pedido, PedidoDetalle as PedidoDetalleType, HistorialEstado } from '../types';
 import { PedidoActionPanel } from '../components/PedidoActionPanel';
+import { notifications } from '@mantine/notifications';
 
 // --- Componente para la Cabecera ---
 function PedidoHeader({ pedido }: { pedido: Pedido }) {
+    const handleDescargarPDF = async () => {
+        if (!pedido.ruta_pdf) return;
+
+        try {
+            // Extraer la ruta relativa del path completo
+            const rutaRelativa = pedido.ruta_pdf.split('gmail_pdfs/')[1];
+            
+            notifications.show({
+                id: 'descargando-pdf',
+                title: 'Descargando PDF',
+                message: 'Preparando descarga del archivo...',
+                loading: true,
+                autoClose: false,
+            });
+
+            const blob = await descargarPDFGmail(rutaRelativa);
+            const nombreArchivo = `${pedido.codigo_pedido_origen || pedido.id_pedido}.pdf`;
+            descargarArchivo(blob, nombreArchivo);
+
+            notifications.update({
+                id: 'descargando-pdf',
+                title: 'Descarga Completada',
+                message: `PDF ${nombreArchivo} descargado exitosamente`,
+                color: 'green',
+                loading: false,
+                autoClose: 3000,
+            });
+        } catch (error: any) {
+            notifications.update({
+                id: 'descargando-pdf',
+                title: 'Error en Descarga',
+                message: error.response?.data?.mensaje || 'Error al descargar el PDF',
+                color: 'red',
+                loading: false,
+                autoClose: 5000,
+            });
+        }
+    };
+
     return (
         <Paper withBorder p="lg" mb="lg">
             <Group justify="space-between">
                 <Box>
-                    <Title order={2}>Pedido #{pedido.codigo_pedido_origen || pedido.id_pedido}</Title>
+                    <Group gap="md" align="center">
+                        <Title order={2}>Pedido #{pedido.codigo_pedido_origen || pedido.id_pedido}</Title>
+                        {pedido.ruta_pdf && (
+                            <Tooltip label="Descargar PDF del pedido">
+                                <ActionIcon
+                                    size="lg"
+                                    variant="light"
+                                    color="red"
+                                    onClick={handleDescargarPDF}
+                                >
+                                    <IconFileText size={18} />
+                                </ActionIcon>
+                            </Tooltip>
+                        )}
+                    </Group>
                     <Text c="dimmed">{pedido.cliente.nombre_cliente}</Text>
                 </Box>
                 <Box ta="right">

@@ -1,5 +1,5 @@
 // frontend/src/features/pedidos/pages/GmailReviewPage.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Box,
@@ -17,7 +17,6 @@ import {
     ActionIcon,
     TextInput,
     NumberInput,
-    Loader,
     Center,
     Divider,
     Switch,
@@ -32,10 +31,12 @@ import {
     IconTrash,
     IconChevronLeft,
     IconUpload,
+    IconFileText,
     IconInfoCircle,
 } from '@tabler/icons-react';
-import type { PedidoPreview, ProductoPreview } from '../services/pedidoService';
+import type { PedidoPreview } from '../services/pedidoService';
 import { procesarPedidosGmail } from '../services/pedidoService';
+import { descargarPDFGmail, descargarArchivo } from '../services/archivoService';
 
 export function GmailReviewPage() {
     const navigate = useNavigate();
@@ -44,11 +45,41 @@ export function GmailReviewPage() {
     const [loading, setLoading] = useState(false);
     const [crearClientes, setCrearClientes] = useState(true);
     const [crearProductos, setCrearProductos] = useState(true);
+    const initializedRef = useRef(false);
+
+    const handleTogglePedido = useCallback((pedidoIndex: number) => {
+        setPedidos(prev => {
+            const pedido = prev[pedidoIndex];
+            
+            if ((pedido.estado_validacion === 'error' || pedido.estado_validacion === 'cargado') && !pedido.seleccionado) {
+                notifications.show({
+                    title: 'No se puede seleccionar',
+                    message: pedido.estado_validacion === 'cargado' 
+                        ? 'Este pedido ya está cargado en el sistema'
+                        : 'Este pedido tiene errores que deben corregirse primero',
+                    color: 'orange',
+                });
+                return prev;
+            }
+            
+            return prev.map((p, idx) => 
+                idx === pedidoIndex 
+                    ? { ...p, seleccionado: !p.seleccionado }
+                    : p
+            );
+        });
+    }, []);
 
     useEffect(() => {
+        // Prevenir doble inicialización en React Strict Mode
+        if (initializedRef.current) {
+            return;
+        }
+        
         // Recibir los pedidos desde el estado de navegación
         if (location.state?.pedidos) {
             setPedidos(location.state.pedidos);
+            initializedRef.current = true;
         } else {
             // Si no hay datos, redirigir a la página de pedidos
             notifications.show({
@@ -58,32 +89,16 @@ export function GmailReviewPage() {
             });
             navigate('/pedidos');
         }
-    }, [location, navigate]);
+    }, [location.state?.pedidos, navigate]);
 
-    const handleTogglePedido = (index: number) => {
-        setPedidos(prev => {
-            const updated = [...prev];
-            // Solo permitir deseleccionar, no seleccionar si hay errores
-            if (updated[index].estado_validacion === 'error' && !updated[index].seleccionado) {
-                notifications.show({
-                    title: 'No se puede seleccionar',
-                    message: 'Este pedido tiene errores que deben corregirse primero',
-                    color: 'orange',
-                });
-                return prev;
-            }
-            updated[index].seleccionado = !updated[index].seleccionado;
-            return updated;
-        });
-    };
 
     const handleToggleAll = () => {
-        const todosValidos = pedidos.filter(p => p.estado_validacion !== 'error');
-        const todosSeleccionados = todosValidos.every(p => p.seleccionado);
+        const pedidosSeleccionables = pedidos.filter(p => p.estado_validacion !== 'error' && p.estado_validacion !== 'cargado');
+        const todosSeleccionados = pedidosSeleccionables.every(p => p.seleccionado);
         
         setPedidos(prev => prev.map(p => ({
             ...p,
-            seleccionado: p.estado_validacion === 'error' ? false : !todosSeleccionados
+            seleccionado: (p.estado_validacion === 'error' || p.estado_validacion === 'cargado') ? false : !todosSeleccionados
         })));
     };
 
@@ -127,6 +142,42 @@ export function GmailReviewPage() {
             };
             return updated;
         });
+    };
+
+    const handleDescargarPDF = async (rutaPdf: string, codigoB2B: string) => {
+        try {
+            // Extraer la ruta relativa del path completo
+            const rutaRelativa = rutaPdf.split('gmail_pdfs/')[1];
+            
+            notifications.show({
+                id: 'descargando-pdf',
+                title: 'Descargando PDF',
+                message: 'Preparando descarga del archivo...',
+                loading: true,
+                autoClose: false,
+            });
+
+            const blob = await descargarPDFGmail(rutaRelativa);
+            descargarArchivo(blob, `${codigoB2B}.pdf`);
+
+            notifications.update({
+                id: 'descargando-pdf',
+                title: 'Descarga Completada',
+                message: `PDF ${codigoB2B} descargado exitosamente`,
+                color: 'green',
+                loading: false,
+                autoClose: 3000,
+            });
+        } catch (error: any) {
+            notifications.update({
+                id: 'descargando-pdf',
+                title: 'Error en Descarga',
+                message: error.response?.data?.mensaje || 'Error al descargar el PDF',
+                color: 'red',
+                loading: false,
+                autoClose: 5000,
+            });
+        }
     };
 
     const handleProcesar = async () => {
@@ -282,6 +333,8 @@ export function GmailReviewPage() {
                 return <Badge color="yellow" leftSection={<IconAlertTriangle size={14} />}>Advertencia</Badge>;
             case 'error':
                 return <Badge color="red" leftSection={<IconAlertCircle size={14} />}>Error</Badge>;
+            case 'cargado':
+                return <Badge color="blue" leftSection={<IconCheck size={14} />}>Cargado</Badge>;
             default:
                 return <Badge color="gray">Desconocido</Badge>;
         }
@@ -346,51 +399,68 @@ export function GmailReviewPage() {
                         />
                     </Group>
                     <Button variant="outline" size="sm" onClick={handleToggleAll}>
-                        {pedidos.filter(p => p.estado_validacion !== 'error').every(p => p.seleccionado)
+                        {pedidos.filter(p => p.estado_validacion !== 'error' && p.estado_validacion !== 'cargado').every(p => p.seleccionado)
                             ? 'Deseleccionar Todos'
-                            : 'Seleccionar Todos los Válidos'}
+                            : 'Seleccionar Todos los Disponibles'}
                     </Button>
                 </Group>
             </Paper>
 
-            <Accordion variant="separated" multiple>
+            <Stack gap="md">
                 {pedidos.map((pedido, pedidoIndex) => (
-                    <Accordion.Item key={pedidoIndex} value={`pedido-${pedidoIndex}`}>
-                        <Accordion.Control>
-                            <Group justify="space-between" wrap="nowrap">
-                                <Group>
-                                    <Checkbox
-                                        checked={pedido.seleccionado}
-                                        onChange={() => handleTogglePedido(pedidoIndex)}
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <div>
-                                        <Group gap="xs">
-                                            <Text fw={600}>{pedido.codigo_b2b}</Text>
-                                            {getEstadoBadge(pedido.estado_validacion)}
-                                            {!pedido.cliente_existe && (
-                                                <Badge color="orange" size="sm">Cliente Nuevo</Badge>
-                                            )}
-                                        </Group>
-                                        <Text size="sm" c="dimmed">
-                                            {pedido.info_cliente.razon_social} - {pedido.productos.length} producto(s)
-                                        </Text>
-                                    </div>
-                                </Group>
-                                <ActionIcon
-                                    color="red"
-                                    variant="subtle"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEliminarPedido(pedidoIndex);
-                                    }}
-                                >
-                                    <IconTrash size={18} />
-                                </ActionIcon>
+                    <Paper key={pedido.codigo_b2b} p="md" withBorder>
+                        <Group justify="space-between" wrap="nowrap" mb="md">
+                            <Group>
+                                <Checkbox
+                                    checked={pedido.seleccionado}
+                                    onChange={() => handleTogglePedido(pedidoIndex)}
+                                    disabled={pedido.estado_validacion === 'cargado'}
+                                />
+                                <div>
+                                    <Group gap="xs">
+                                        <Text fw={600}>{pedido.codigo_b2b}</Text>
+                                        {getEstadoBadge(pedido.estado_validacion)}
+                                        {!pedido.cliente_existe && (
+                                            <Badge color="orange" size="sm">Cliente Nuevo</Badge>
+                                        )}
+                                    </Group>
+                                    <Text size="sm" c="dimmed">
+                                        {pedido.info_cliente.razon_social} - {pedido.productos.length} producto(s)
+                                    </Text>
+                                </div>
                             </Group>
-                        </Accordion.Control>
-                        <Accordion.Panel>
-                            <Stack gap="md">
+                            <Group gap="xs">
+                                {pedido.ruta_pdf && (
+                                    <Button
+                                        size="xs"
+                                        variant="light"
+                                        color="blue"
+                                        leftSection={<IconFileText size={12} />}
+                                        onClick={() => handleDescargarPDF(pedido.ruta_pdf!, pedido.codigo_b2b)}
+                                    >
+                                        PDF
+                                    </Button>
+                                )}
+                                <Button
+                                    size="xs"
+                                    variant="light"
+                                    color="red"
+                                    leftSection={<IconTrash size={12} />}
+                                    onClick={() => handleEliminarPedido(pedidoIndex)}
+                                >
+                                    Eliminar
+                                </Button>
+                            </Group>
+                        </Group>
+                        
+                        <Accordion variant="default">
+                            <Accordion.Item value={`pedido-${pedidoIndex}`}>
+                                <Accordion.Control>
+                                    <Text size="sm" c="dimmed">📋 Ver detalles del pedido</Text>
+                                </Accordion.Control>
+                                <Accordion.Panel>
+                                    <Stack gap="md">
+
                                 {/* Advertencias */}
                                 {pedido.advertencias.length > 0 && (
                                     <Alert
@@ -528,11 +598,13 @@ export function GmailReviewPage() {
                                         </Table>
                                     </ScrollArea>
                                 </div>
-                            </Stack>
-                        </Accordion.Panel>
-                    </Accordion.Item>
+                                    </Stack>
+                                </Accordion.Panel>
+                            </Accordion.Item>
+                        </Accordion>
+                    </Paper>
                 ))}
-            </Accordion>
+            </Stack>
 
             {/* Footer fijo */}
             <Paper shadow="md" p="md" mt="xl" style={{ position: 'sticky', bottom: 0, zIndex: 100 }}>

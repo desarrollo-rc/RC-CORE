@@ -96,8 +96,9 @@ class ClienteService:
 
         new_customer.empresas = entities['empresas']
 
-        new_customer.contactos = [Contacto(**c_data) for c_data in data['contactos']]
-        new_customer.direcciones = [Direccion(**d_data) for d_data in data['direcciones']]
+        # Crear contactos y direcciones solo si existen en los datos
+        new_customer.contactos = [Contacto(**c_data) for c_data in data.get('contactos', [])]
+        new_customer.direcciones = [Direccion(**d_data) for d_data in data.get('direcciones', [])]
         
         return new_customer
     

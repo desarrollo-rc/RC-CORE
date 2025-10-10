@@ -53,6 +53,47 @@ def extraer_campo(texto, patron, default=''):
     return match.group(1).strip() if match else default
 
 
+def guardar_pdf_extraido(pdf_data: bytes, codigo_b2b: str, fecha_correo: datetime) -> Optional[str]:
+    """
+    Guarda el PDF extraído en la estructura de carpetas organizada.
+    
+    Args:
+        pdf_data: Datos binarios del PDF
+        codigo_b2b: Código del pedido B2B
+        fecha_correo: Fecha del correo
+    
+    Returns:
+        Ruta del archivo guardado o None si hay error
+    """
+    try:
+        # Crear estructura de carpetas por año/mes
+        año = fecha_correo.strftime('%Y')
+        mes = fecha_correo.strftime('%m')
+        
+        # Ruta base para archivos extraídos
+        base_path = '/home/cecheverria/work/projects/RepuestoCenter/backend/archivos_extraidos/gmail_pdfs'
+        carpeta_pdf = os.path.join(base_path, año, mes)
+        
+        # Crear carpeta si no existe
+        os.makedirs(carpeta_pdf, exist_ok=True)
+        
+        # Nombre del archivo: B2B00006752_2025-10-06_04-17.pdf
+        timestamp = fecha_correo.strftime('%Y-%m-%d_%H-%M')
+        nombre_archivo = f"{codigo_b2b}_{timestamp}.pdf"
+        ruta_completa = os.path.join(carpeta_pdf, nombre_archivo)
+        
+        # Guardar PDF
+        with open(ruta_completa, 'wb') as f:
+            f.write(pdf_data)
+        
+        print(f"DEBUG: PDF guardado en {ruta_completa}")
+        return ruta_completa
+        
+    except Exception as e:
+        print(f"ERROR guardando PDF para {codigo_b2b}: {e}")
+        return None
+
+
 def extraer_info_cliente(texto_plano: str) -> Dict[str, str]:
     """Extrae la información del cliente, dirección, etc."""
     info = {
@@ -554,8 +595,12 @@ def extraer_pedidos_preview(
                 info_cliente = {}
                 productos_extraidos = []
                 numero_sap = ''
+                ruta_pdf = None
                 
                 if pdf_part:
+                    # Guardar PDF extraído para descarga posterior
+                    ruta_pdf = guardar_pdf_extraido(pdf_part, codigo_b2b_actual, fecha_correo)
+                    
                     # Extraer del PDF (fuente principal para cliente y productos)
                     info_cliente = extraer_info_cliente_de_pdf(pdf_part)
                     productos_extraidos = extraer_productos_de_pdf(pdf_part)
@@ -590,9 +635,11 @@ def extraer_pedidos_preview(
                 estado_validacion = 'valido'  # 'valido', 'advertencia', 'error'
                 
                 # Verificar si el pedido ya existe
+                pedido_existe = False
                 if db and pedido_ya_existe(codigo_b2b_actual, db):
                     advertencias.append('El pedido ya existe en el sistema')
-                    estado_validacion = 'error'
+                    pedido_existe = True
+                    estado_validacion = 'cargado'  # Cambiar de 'error' a 'cargado'
                 
                 # Verificar si el cliente existe
                 cliente_existe = False
@@ -643,13 +690,14 @@ def extraer_pedidos_preview(
                     'fecha_pedido': fecha_correo.isoformat(),  # Usar fecha del correo
                     'aprobacion_automatica': esta_aprobado,  # Si está confirmado
                     'numero_pedido_sap': numero_sap if esta_aprobado else None,  # Solo si está aprobado
+                    'ruta_pdf': ruta_pdf if pdf_part else None,  # Ruta del PDF guardado
                     'info_cliente': info_cliente,
                     'cliente_existe': cliente_existe,
                     'id_cliente': id_cliente,
                     'productos': productos_validados,
                     'advertencias': advertencias,
                     'estado_validacion': estado_validacion,
-                    'seleccionado': estado_validacion != 'error'  # Auto-deseleccionar si hay errores
+                    'seleccionado': estado_validacion not in ['error', 'cargado']  # Auto-deseleccionar si hay errores o ya está cargado
                 }
                 
                 resultado['pedidos'].append(pedido_info)
@@ -870,6 +918,12 @@ def procesar_pedidos_seleccionados(
                     if numero_sap:
                         nuevo_pedido.numero_pedido_sap = numero_sap
                         print(f"DEBUG: Asignado número SAP {numero_sap} al pedido {codigo_b2b}")
+                    
+                    # Si tiene ruta de PDF, agregarla
+                    ruta_pdf = pedido_info.get('ruta_pdf')
+                    if ruta_pdf:
+                        nuevo_pedido.ruta_pdf = ruta_pdf
+                        print(f"DEBUG: Asignada ruta PDF {ruta_pdf} al pedido {codigo_b2b}")
                     
                     db.add(nuevo_pedido)
                     db.flush()

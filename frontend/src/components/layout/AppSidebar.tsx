@@ -141,7 +141,7 @@ export function AppSidebar({ sidebarOpen, toggleSidebar }: { sidebarOpen: boolea
                                         leftSection={<item.icon size="1.2rem" />}
                                         className={classes.link}
                                         active={isMenuActive}
-                                        onClick={(e) => e.preventDefault()}
+                                        onClick={(e) => e?.preventDefault()}
                                     />
                                 </Popover.Target>
                                 <Popover.Dropdown p={4}>
