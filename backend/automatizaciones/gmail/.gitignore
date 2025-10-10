@@ -1,0 +1,8 @@
+# Ignorar archivos de credenciales de Google
+credentials.json
+token.json
+
+# Ignorar archivos temporales
+*.pyc
+__pycache__/
+

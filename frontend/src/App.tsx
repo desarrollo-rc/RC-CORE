@@ -35,6 +35,7 @@ import { ClientesPage } from './features/clientes/pages/ClientesPage';
 import { PedidosPage } from './features/pedidos/pages/PedidosPage';
 import { PedidoCreatePage } from './features/pedidos/pages/PedidoCreatePage';
 import { PedidoDetailPage } from './features/pedidos/pages/PedidoDetailPage';
+import { GmailReviewPage } from './features/pedidos/pages/GmailReviewPage';
 import { InstalacionesPage } from './features/instalaciones/pages/InstalacionesPage';
 import { InstalacionDetailPage } from './features/instalaciones/pages/InstalacionDetailPage';
 import { CasosPage } from './features/casos/pages/CasosPage';
@@ -94,7 +95,8 @@ function App() {
           <Route path="/vendedores" element={<VendedoresPage />} />
           <Route path="/clientes" element={<ClientesPage />} />
           <Route path="/pedidos" element={<PedidosPage />} />
-          <Route path="/pedidos/crear" element={<PedidoCreatePage />} /> 
+          <Route path="/pedidos/crear" element={<PedidoCreatePage />} />
+          <Route path="/pedidos/gmail/revisar" element={<GmailReviewPage />} />
           <Route path="/pedidos/:id" element={<PedidoDetailPage />} />
           <Route path="/instalaciones" element={<InstalacionesPage />} />
           <Route path="/instalaciones/:id" element={<InstalacionDetailPage />} />

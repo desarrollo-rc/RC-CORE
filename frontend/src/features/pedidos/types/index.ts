@@ -79,6 +79,7 @@ export interface Pedido {
 export interface PedidoList {
     id_pedido: number;
     codigo_pedido_origen: string | null;
+    numero_pedido_sap: string | null;
     cliente_nombre: string;
     fecha_creacion: string;
     monto_total: string;

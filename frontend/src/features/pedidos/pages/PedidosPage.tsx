@@ -1,11 +1,13 @@
 // frontend/src/features/pedidos/pages/PedidosPage.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select, NumberInput } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select, NumberInput, Affix, ActionIcon, rem } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { fetchAllClientes } from '../../clientes/services/clienteService';
 import { getVendedores } from '../../vendedores/services/vendedorService';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconMail } from '@tabler/icons-react';
 import { PedidosTable } from '../components/PedidosTable';
+import { GmailExtractionModal } from '../components/GmailExtractionModal';
 import { getPedidos, exportPedidosCutoff } from '../services/pedidoService';
 import type { PedidoList, PedidoFilters, PaginatedPedidosResponse } from '../types';
 
@@ -21,6 +23,7 @@ export function PedidosPage() {
     const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
     const [exportDate, setExportDate] = useState<string>('');
     const [cutoffHour, setCutoffHour] = useState<number>(12);
+    const [gmailModalOpened, { open: openGmailModal, close: closeGmailModal }] = useDisclosure(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -65,6 +68,7 @@ export function PedidosPage() {
     const handlePageChange = (newPage: number) => {
         setFilters(currentFilters => ({ ...currentFilters, page: newPage }));
     };
+
 
     const renderContent = () => {
         if (loading) return <Center h={400}><Loader /></Center>;
@@ -187,6 +191,23 @@ export function PedidosPage() {
             </Group>
 
             {renderContent()}
+
+            <GmailExtractionModal
+                opened={gmailModalOpened}
+                onClose={closeGmailModal}
+            />
+
+            <Affix position={{ bottom: rem(20), right: rem(20) }}>
+                <ActionIcon 
+                    color="blue" 
+                    size={60} 
+                    radius="xl" 
+                    onClick={openGmailModal}
+                    title="Extraer pedidos desde Gmail"
+                >
+                    <IconMail style={{ width: '70%', height: '70%' }} stroke={1.5} />
+                </ActionIcon>
+            </Affix>
         </Box>
     );
 }

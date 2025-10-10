@@ -33,6 +33,11 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                         {pedido.estado_logistico.nombre_estado}
                     </Badge>
                 )}
+                {pedido.numero_pedido_sap && (
+                    <Badge color="green" size="lg" variant="light">
+                        SAP: {pedido.numero_pedido_sap}
+                    </Badge>
+                )}
             </Group>
         </Paper>
     );

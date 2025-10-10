@@ -27,7 +27,16 @@ interface PedidosTableProps {
 export function PedidosTable({ records, onView }: PedidosTableProps) {
     const rows = records.map((record) => (
         <Table.Tr key={record.id_pedido}>
-            <Table.Td>{record.codigo_pedido_origen || record.id_pedido}</Table.Td>
+            <Table.Td>
+                <Group gap="xs">
+                    <Text>{record.numero_pedido_sap || record.codigo_pedido_origen || record.id_pedido}</Text>
+                    {record.numero_pedido_sap && record.codigo_pedido_origen && (
+                        <Badge color="blue" size="sm" variant="light">
+                            B2B: {record.codigo_pedido_origen}
+                        </Badge>
+                    )}
+                </Group>
+            </Table.Td>
             <Table.Td>{record.cliente_nombre}</Table.Td>
             <Table.Td>{formatDateTime(record.fecha_creacion)}</Table.Td>
             <Table.Td>

@@ -268,3 +268,143 @@ def update_pedido_cantidades(pedido_id):
         return jsonify(err.messages), 422
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@pedidos_bp.route('/gmail/extraer', methods=['POST'])
+@jwt_required()
+@permission_required('pedidos:crear')
+def extraer_pedidos_gmail():
+    """
+    Extrae pedidos B2B desde Gmail en un rango de fechas.
+    Body JSON:
+    - fecha_desde: YYYY-MM-DD (opcional, por defecto últimas 24 horas)
+    - fecha_hasta: YYYY-MM-DD (opcional)
+    """
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+    
+    fecha_desde = json_data.get('fecha_desde')
+    fecha_hasta = json_data.get('fecha_hasta')
+    
+    try:
+        # Importar el extractor
+        from automatizaciones.gmail.extractor_pedidos_b2b import procesar_pedidos_b2b
+        from app.extensions import db
+        
+        # Ejecutar el extractor con la sesión de base de datos
+        resultado = procesar_pedidos_b2b(
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            db=db.session
+        )
+        
+        return jsonify(resultado), 200 if resultado['exito'] else 400
+        
+    except FileNotFoundError as e:
+        return jsonify({
+            "exito": False,
+            "mensaje": str(e),
+            "errores": []
+        }), 400
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "exito": False,
+            "mensaje": f"Error inesperado: {str(e)}",
+            "errores": []
+        }), 500
+
+
+@pedidos_bp.route('/gmail/preview', methods=['POST'])
+@jwt_required()
+@permission_required('pedidos:crear')
+def preview_pedidos_gmail():
+    """
+    Extrae y valida pedidos B2B desde Gmail sin crearlos en la base de datos.
+    Retorna la información detallada para que el usuario pueda revisarla antes de cargarla.
+    Body JSON:
+    - fecha_desde: YYYY-MM-DD (opcional, por defecto últimas 24 horas)
+    - fecha_hasta: YYYY-MM-DD (opcional)
+    """
+    json_data = request.get_json()
+    if not json_data:
+        json_data = {}
+    
+    fecha_desde = json_data.get('fecha_desde')
+    fecha_hasta = json_data.get('fecha_hasta')
+    
+    try:
+        from automatizaciones.gmail.extractor_pedidos_b2b import extraer_pedidos_preview
+        from app.extensions import db
+        
+        # Ejecutar el preview con la sesión de base de datos para validaciones
+        resultado = extraer_pedidos_preview(
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            db=db.session
+        )
+        
+        return jsonify(resultado), 200 if resultado['exito'] else 400
+        
+    except FileNotFoundError as e:
+        return jsonify({
+            "exito": False,
+            "mensaje": str(e),
+            "pedidos": [],
+            "errores": []
+        }), 400
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "exito": False,
+            "mensaje": f"Error inesperado: {str(e)}",
+            "pedidos": [],
+            "errores": []
+        }), 500
+
+
+@pedidos_bp.route('/gmail/procesar', methods=['POST'])
+@jwt_required()
+@permission_required('pedidos:crear')
+def procesar_pedidos_gmail():
+    """
+    Procesa y crea pedidos seleccionados por el usuario desde la vista de revisión.
+    Body JSON:
+    - pedidos: Lista de pedidos a procesar (con toda la información extraída)
+    - crear_clientes: boolean (opcional, default True)
+    - crear_productos: boolean (opcional, default True)
+    """
+    json_data = request.get_json()
+    if not json_data or 'pedidos' not in json_data:
+        return jsonify({"error": "Petición inválida. Se requiere 'pedidos' en el body."}), 400
+    
+    pedidos_data = json_data.get('pedidos', [])
+    crear_clientes = json_data.get('crear_clientes', True)
+    crear_productos = json_data.get('crear_productos', True)
+    
+    if not pedidos_data:
+        return jsonify({"error": "No se proporcionaron pedidos para procesar."}), 400
+    
+    try:
+        from automatizaciones.gmail.extractor_pedidos_b2b import procesar_pedidos_seleccionados
+        from app.extensions import db
+        
+        # Procesar los pedidos seleccionados
+        resultado = procesar_pedidos_seleccionados(
+            pedidos_data=pedidos_data,
+            db=db.session,
+            crear_clientes=crear_clientes,
+            crear_productos=crear_productos
+        )
+        
+        return jsonify(resultado), 200 if resultado['exito'] else 400
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "exito": False,
+            "mensaje": f"Error inesperado: {str(e)}",
+            "pedidos_creados": [],
+            "errores": []
+        }), 500

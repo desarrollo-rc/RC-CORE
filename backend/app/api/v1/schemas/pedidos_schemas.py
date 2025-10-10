@@ -109,6 +109,7 @@ class PedidoListResponseSchema(Schema):
     """Schema simplificado para listas de pedidos."""
     id_pedido = fields.Int()
     codigo_pedido_origen = fields.Str()
+    numero_pedido_sap = fields.Str()
     numero_factura_sap = fields.Str()
     cliente_nombre = fields.Str(attribute="cliente.nombre_cliente")
     fecha_creacion = fields.DateTime()
