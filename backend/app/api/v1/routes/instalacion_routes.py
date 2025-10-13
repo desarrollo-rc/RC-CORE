@@ -50,6 +50,33 @@ def create_instalacion_completa():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+@instalaciones_bp.route('/completa-multiple', methods=['POST'])
+@jwt_required()
+@permission_required('instalaciones:crear')
+def create_instalacion_completa_multiple():
+    """
+    Crea instalaciones completas con caso automático.
+    Para cliente nuevo con múltiples usuarios, crea una instalación por usuario.
+    Retorna información completa sobre todas las instalaciones creadas.
+    """
+    try:
+        data = request.json
+        resultado = InstalacionService.create_instalacion_completa_multiple(data)
+        
+        # Serializar el resultado
+        from app.api.v1.schemas.caso_schemas import caso_schema
+        from app.api.v1.schemas.instalacion_schemas import instalaciones_schema
+        
+        return jsonify({
+            'casos': caso_schema.dump(resultado['casos'], many=True),
+            'instalaciones': instalaciones_schema.dump(resultado['instalaciones']),
+            'total_instalaciones': resultado['total_instalaciones']
+        }), 201
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 @instalaciones_bp.route('/<int:id>', methods=['PUT'])
 @jwt_required()
 @permission_required('instalaciones:editar')
@@ -67,7 +94,9 @@ def update_instalacion(id):
 def aprobar_instalacion(id):
     """Aprueba una instalación pendiente"""
     try:
-        instalacion = InstalacionService.aprobar_instalacion(id)
+        data = request.json or {}
+        fecha_aprobacion_personalizada = data.get('fecha_aprobacion_personalizada')
+        instalacion = InstalacionService.aprobar_instalacion(id, fecha_aprobacion_personalizada)
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -92,7 +121,8 @@ def agendar_instalacion_route(id):
     try:
         data = request.json or {}
         fecha_visita = data.get('fecha_visita')
-        instalacion = InstalacionService.agendar_instalacion(id, fecha_visita)
+        fecha_agendamiento_personalizada = data.get('fecha_agendamiento_personalizada')
+        instalacion = InstalacionService.agendar_instalacion(id, fecha_visita, fecha_agendamiento_personalizada)
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -135,7 +165,8 @@ def instalar_equipo(id):
         if not equipo_id:
             return jsonify({"error": "Se requiere equipo_id"}), 400
         
-        instalacion = InstalacionService.instalar_equipo(id, equipo_id)
+        fecha_instalacion_personalizada = data.get('fecha_instalacion_personalizada')
+        instalacion = InstalacionService.instalar_equipo(id, equipo_id, fecha_instalacion_personalizada)
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -148,8 +179,9 @@ def finalizar_instalacion(id):
     try:
         data = request.json or {}
         capacitacion_realizada = data.get('capacitacion_realizada', True)
+        fecha_finalizacion_personalizada = data.get('fecha_finalizacion_personalizada')
         
-        instalacion = InstalacionService.finalizar_instalacion(id, capacitacion_realizada)
+        instalacion = InstalacionService.finalizar_instalacion(id, capacitacion_realizada, fecha_finalizacion_personalizada)
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -162,6 +194,10 @@ def crear_equipo_instalacion(id):
     try:
         from app.api.v1.services.equipo_service import EquipoService
         from app.api.v1.schemas.equipo_schemas import equipo_schema, create_equipo_schema
+        from app.models.soporte.instalaciones import EstadoInstalacion
+        from datetime import datetime
+        from app.extensions import db
+        import pytz
         
         instalacion = InstalacionService.get_instalacion_by_id(id)
         
@@ -174,6 +210,20 @@ def crear_equipo_instalacion(id):
         
         validated_data = create_equipo_schema.load(data)
         nuevo_equipo = EquipoService.create_equipo(validated_data)
+        
+        # Para instalaciones de cambio de equipo, actualizar automáticamente el estado
+        es_cambio_equipo = (
+            instalacion.caso.titulo and 
+            ('cambio de equipo' in instalacion.caso.titulo.lower() or 
+             'cambio de equipo' in instalacion.caso.titulo or
+             'CAMBIO DE EQUIPO' in instalacion.caso.titulo)
+        )
+        
+        if es_cambio_equipo and instalacion.estado == EstadoInstalacion.PENDIENTE_INSTALACION:
+            # Actualizar estado a "Usuario Creado" (sin establecer fecha para cambio de equipo)
+            instalacion.estado = EstadoInstalacion.USUARIO_CREADO
+            # No establecer fecha_creacion_usuario para cambio de equipo (debe permanecer null)
+            db.session.commit()
         
         return jsonify(equipo_schema.dump(nuevo_equipo)), 201
     except Exception as e:

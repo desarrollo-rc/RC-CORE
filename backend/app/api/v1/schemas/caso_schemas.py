@@ -1,14 +1,33 @@
 # backend/app/api/v1/schemas/caso_schemas.py
 from marshmallow import Schema, fields, validate
 
+class ClienteSchema(Schema):
+    id_cliente = fields.Int(dump_only=True)
+    nombre_cliente = fields.Str(dump_only=True)
+    codigo_cliente = fields.Str(dump_only=True)
+
 class CasoSchema(Schema):
     id_caso = fields.Int(dump_only=True)
     titulo = fields.Str(required=True)
     descripcion = fields.Str(required=True)
-    estado = fields.Str(required=True)
-    prioridad = fields.Str(required=True)
+    estado = fields.Method("get_estado_value", dump_only=True)
+    prioridad = fields.Method("get_prioridad_value", dump_only=True)
     fecha_creacion = fields.DateTime(dump_only=True)
     fecha_modificacion = fields.DateTime(dump_only=True)
+    id_cliente = fields.Int(dump_only=True)
+    cliente = fields.Nested(ClienteSchema, dump_only=True)
+    
+    def get_estado_value(self, obj):
+        """Extrae el valor del enum EstadoCaso"""
+        if hasattr(obj, 'estado') and obj.estado:
+            return obj.estado.value if hasattr(obj.estado, 'value') else str(obj.estado)
+        return None
+    
+    def get_prioridad_value(self, obj):
+        """Extrae el valor del enum PrioridadCaso"""
+        if hasattr(obj, 'prioridad') and obj.prioridad:
+            return obj.prioridad.value if hasattr(obj.prioridad, 'value') else str(obj.prioridad)
+        return None
 
 class CreateCasoSchema(Schema):
     titulo = fields.Str(required=True, validate=validate.Length(min=1, max=255))

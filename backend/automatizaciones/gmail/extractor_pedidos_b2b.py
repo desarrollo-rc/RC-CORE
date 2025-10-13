@@ -337,6 +337,11 @@ def registrar_pedido_en_sistema(
         if not id_cliente:
             return False, f"Cliente con RUT {datos_pedido['info_cliente'].get('rut')} no encontrado en el sistema", None
         
+        # Obtener el vendedor del cliente para heredarlo al pedido
+        from app.models.entidades import MaestroClientes
+        cliente = db.query(MaestroClientes).filter_by(id_cliente=id_cliente).first()
+        id_vendedor_cliente = cliente.id_vendedor if cliente else None
+        
         # Obtener estados iniciales
         from app.models.negocio.pedidos import EstadoPedido, EstadoAprobacionCredito
         estado_nuevo = db.query(EstadoPedido).filter(EstadoPedido.codigo_estado == 'NUEVO').first()
@@ -356,6 +361,7 @@ def registrar_pedido_en_sistema(
             codigo_pedido_origen=datos_pedido['codigo_b2b'],
             id_cliente=id_cliente,
             id_canal_venta=canal_b2b.id_canal,
+            id_vendedor=id_vendedor_cliente,  # Heredar vendedor del cliente
             id_estado_general=estado_nuevo.id_estado,
             id_estado_credito=estado_credito_pendiente.id_estado,
             monto_neto=0,  # Se calculará después
@@ -856,6 +862,11 @@ def procesar_pedidos_seleccionados(
                     })
                     continue
                 
+                # Obtener el vendedor del cliente para heredarlo al pedido
+                from app.models.entidades import MaestroClientes
+                cliente = db.query(MaestroClientes).filter_by(id_cliente=id_cliente).first()
+                id_vendedor_cliente = cliente.id_vendedor if cliente else None
+                
                 # 2. Verificar si el pedido ya existe
                 if pedido_ya_existe(codigo_b2b, db):
                     resultado['errores'].append({
@@ -904,6 +915,7 @@ def procesar_pedidos_seleccionados(
                         codigo_pedido_origen=codigo_b2b,
                         id_cliente=id_cliente,
                         id_canal_venta=canal_b2b.id_canal,
+                        id_vendedor=id_vendedor_cliente,  # Heredar vendedor del cliente
                         id_estado_general=estado_general.id_estado,
                         id_estado_credito=estado_credito.id_estado,
                         monto_neto=0,  # Se calculará después

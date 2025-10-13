@@ -18,15 +18,42 @@ const extractEnumValue = (value: string | null): CategoriaTipoCaso | null => {
     return value as CategoriaTipoCaso;
 };
 
-const CATEGORIAS: { value: CategoriaTipoCaso; label: string }[] = [
-    { value: 'INSTALACION_CLIENTE_NUEVO', label: '🆕 Instalación Cliente Nuevo' },
-    { value: 'INSTALACION_USUARIO_NUEVO', label: '👤 Instalación Usuario Nuevo' },
-    { value: 'INSTALACION_USUARIO_ADICIONAL', label: '➕ Instalación Usuario Adicional' },
-    { value: 'INSTALACION_CAMBIO_EQUIPO', label: '🔄 Instalación Cambio de Equipo' },
-    { value: 'SOPORTE_TECNICO', label: '🔧 Soporte Técnico' },
-    { value: 'CONSULTA', label: '💬 Consulta' },
-    { value: 'BLOQUEO', label: '🔒 Bloqueo' },
-    { value: 'OTRO', label: '📋 Otro' },
+const CATEGORIAS: { value: CategoriaTipoCaso; label: string; description: string }[] = [
+    { 
+        value: 'INSTALACION_CLIENTE_NUEVO', 
+        label: '🆕 Instalación Cliente Nuevo',
+        description: 'Cliente que nunca ha tenido B2B y se le creará 1 o más usuarios'
+    },
+    { 
+        value: 'INSTALACION_USUARIO_ADICIONAL', 
+        label: '👤 Usuario Adicional',
+        description: 'Nuevo usuario para un cliente que ya tiene B2B configurado'
+    },
+    { 
+        value: 'INSTALACION_CAMBIO_EQUIPO', 
+        label: '🔄 Cambio de Equipo',
+        description: 'Usuario existente cambia de equipo, instalación de impresora, cambio de MAC, etc.'
+    },
+    { 
+        value: 'SOPORTE_TECNICO', 
+        label: '🔧 Soporte Técnico',
+        description: 'Asistencia técnica para problemas del sistema B2B'
+    },
+    { 
+        value: 'CONSULTA', 
+        label: '💬 Consulta',
+        description: 'Preguntas sobre funcionalidades o procesos'
+    },
+    { 
+        value: 'BLOQUEO', 
+        label: '🔒 Bloqueo',
+        description: 'Desbloqueo de usuario o cuenta'
+    },
+    { 
+        value: 'OTRO', 
+        label: '📋 Otro',
+        description: 'Caso que no se ajusta a las categorías anteriores'
+    },
 ];
 
 interface TipoCasoFormProps {
@@ -124,7 +151,11 @@ export function TipoCasoForm({ tipoCaso, onSuccess }: TipoCasoFormProps) {
                     label="Categoría de Uso"
                     placeholder="Seleccione una categoría (opcional)"
                     description="Para instalaciones, seleccione la categoría correspondiente para creación automática"
-                    data={CATEGORIAS}
+                    data={CATEGORIAS.map(cat => ({
+                        value: cat.value,
+                        label: cat.label,
+                        description: cat.description
+                    }))}
                     clearable
                     searchable
                     value={form.values.categoria_uso}

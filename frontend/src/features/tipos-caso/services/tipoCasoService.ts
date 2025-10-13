@@ -38,3 +38,8 @@ export const desactivarTipoCaso = async (id: number): Promise<TipoCaso> => {
     return response.data;
 };
 
+export const getTipoCasoByCategoria = async (categoria: string): Promise<TipoCaso | null> => {
+    const response = await apiClient.get<TipoCaso | null>(`/tipos-caso/categoria/${categoria}`);
+    return response.data;
+};
+

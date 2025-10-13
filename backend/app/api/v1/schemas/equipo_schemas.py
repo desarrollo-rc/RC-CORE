@@ -1,5 +1,6 @@
 # backend/app/api/v1/schemas/equipo_schemas.py
 from marshmallow import Schema, fields, validate
+from .usuario_b2b_schemas import UsuarioB2BSchema
 
 class EquipoSchema(Schema):
     id_equipo = fields.Int(dump_only=True)
@@ -9,8 +10,16 @@ class EquipoSchema(Schema):
     procesador = fields.Str(required=True, validate=validate.Length(min=1))
     placa_madre = fields.Str(required=True, validate=validate.Length(min=1))
     disco_duro = fields.Str(required=True, validate=validate.Length(min=1))
-    estado_alta = fields.Str(dump_only=True)
-    estado = fields.Bool(dump_only=True)
+    estado_alta = fields.Method("get_estado_alta", dump_only=True)
+    activo = fields.Bool(attribute="estado", dump_only=True)
+    fecha_creacion = fields.DateTime(dump_only=True)
+    fecha_modificacion = fields.DateTime(dump_only=True, allow_none=True)
+    usuario_b2b = fields.Nested(UsuarioB2BSchema, dump_only=True)
+    
+    def get_estado_alta(self, obj):
+        if hasattr(obj, 'estado_alta'):
+            return obj.estado_alta.value if hasattr(obj.estado_alta, 'value') else str(obj.estado_alta)
+        return None
 
 class CreateEquipoSchema(Schema):
     id_usuario_b2b = fields.Int(required=True)

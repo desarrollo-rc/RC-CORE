@@ -59,8 +59,16 @@ export interface CrearInstalacionCompletaPayload {
     es_cliente_nuevo: boolean;
     es_primer_usuario: boolean;
     es_cambio_equipo: boolean;
+    es_usuario_adicional?: boolean; // Para usuarios adicionales
+    numero_usuarios?: number; // Para cliente nuevo, cantidad de usuarios a crear
     observaciones?: string;
     fecha_solicitud?: string; // Fecha y hora de solicitud personalizada
+    datos_usuario_adicional?: {
+        nombre_completo: string;
+        usuario: string;
+        email: string;
+        password: string;
+    };
 }
 
 export interface ActualizarInstalacion {
@@ -72,7 +80,7 @@ export interface ActualizarInstalacion {
 
 // Payloads para acciones específicas
 export interface AprobarInstalacionPayload {
-    fecha_aprobacion: string;
+    fecha_aprobacion_personalizada?: string; // Fecha ISO personalizada para aprobación
     observaciones?: string;
 }
 
@@ -84,16 +92,31 @@ export interface CrearUsuarioB2BPayload {
     id_usuario_b2b?: number; // Solo si existe_en_sistema=true
     existe_en_sistema?: boolean;
     existe_en_corp?: boolean;
+    fecha_creacion_personalizada?: string; // Fecha ISO personalizada para creación de usuario
+}
+
+export interface AgendarInstalacionPayload {
+    fecha_visita?: string;
+    fecha_agendamiento_personalizada?: string; // Fecha ISO personalizada para agendamiento
 }
 
 export interface RealizarInstalacionPayload {
-    fecha_instalacion: string;
+    fecha_instalacion?: string;
+    fecha_instalacion_personalizada?: string; // Fecha ISO personalizada para instalación
     observaciones?: string;
 }
 
 export interface FinalizarInstalacionPayload {
-    fecha_finalizacion: string;
+    fecha_finalizacion?: string;
+    fecha_finalizacion_personalizada?: string; // Fecha ISO personalizada para finalización
     fecha_capacitacion?: string;
     requiere_capacitacion: boolean;
     observaciones?: string;
+}
+
+// Respuesta para creación múltiple de instalaciones
+export interface CrearInstalacionCompletaResponse {
+    casos: any[];
+    instalaciones: Instalacion[];
+    total_instalaciones: number;
 }

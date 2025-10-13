@@ -6,11 +6,11 @@ from app.extensions import db
 class EquipoService:
     @staticmethod
     def get_all_equipos():
-        return Equipo.query.all()
+        return Equipo.query.options(db.joinedload(Equipo.usuario_b2b)).all()
 
     @staticmethod
     def get_equipo_by_id(equipo_id):
-        equipo = Equipo.query.get(equipo_id)
+        equipo = Equipo.query.options(db.joinedload(Equipo.usuario_b2b)).get(equipo_id)
         if not equipo:
             raise RelatedResourceNotFoundError(f"Equipo con ID {equipo_id} no encontrado.")
         return equipo
@@ -20,6 +20,7 @@ class EquipoService:
         # Validar que el usuario B2B exista
         from app.api.v1.services.usuario_b2b_service import UsuarioB2BService
         from app.models.entidades.equipos import EstadoAltaEquipo
+        from datetime import datetime
         usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(data['id_usuario_b2b'])
         
         nuevo_equipo = Equipo(
@@ -32,6 +33,15 @@ class EquipoService:
             estado_alta=EstadoAltaEquipo.PENDIENTE,
             estado=False
         )
+        
+        # Establecer fecha de creación personalizada si se proporciona
+        if data.get('fecha_creacion_personalizada'):
+            fecha_creacion = data['fecha_creacion_personalizada']
+            if isinstance(fecha_creacion, str):
+                nuevo_equipo.fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
+            else:
+                nuevo_equipo.fecha_creacion = fecha_creacion
+        
         db.session.add(nuevo_equipo)
         db.session.commit()
         return nuevo_equipo

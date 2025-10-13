@@ -1,10 +1,13 @@
 // frontend/src/features/equipos/components/EquipoForm.tsx
+import { useEffect } from 'react';
 import { useForm } from '@mantine/form';
 import { TextInput, Button, Select, Stack, NumberInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { crearEquipo, actualizarEquipo } from '../services/equipoService';
+import { getUsuariosB2B } from '../../usuarios-b2b/services/usuarioB2BService';
 import type { Equipo, CrearEquipoPayload, EstadoAltaEquipo } from '../types';
+import type { UsuarioB2B } from '../../usuarios-b2b/types';
 
 interface EquipoFormProps {
     equipo?: Equipo;
@@ -17,9 +20,32 @@ const ESTADOS: { value: EstadoAltaEquipo; label: string }[] = [
     { value: 'RECHAZADO', label: 'Rechazado' },
 ];
 
+// Función para normalizar el estado alta que viene del backend
+const normalizarEstadoAlta = (estado: any): EstadoAltaEquipo => {
+    if (!estado) return 'PENDIENTE';
+    
+    const estadoStr = String(estado).toUpperCase();
+    if (estadoStr.includes('APROBADO')) return 'APROBADO';
+    if (estadoStr.includes('RECHAZADO')) return 'RECHAZADO';
+    if (estadoStr.includes('PENDIENTE')) return 'PENDIENTE';
+    
+    return 'PENDIENTE'; // Valor por defecto
+};
+
 export function EquipoForm({ equipo, onSuccess }: EquipoFormProps) {
     const queryClient = useQueryClient();
     const isEditing = !!equipo;
+
+    // Obtener usuarios B2B para el select
+    const { data: usuariosB2B = [] } = useQuery<UsuarioB2B[]>({
+        queryKey: ['usuarios-b2b'],
+        queryFn: getUsuariosB2B,
+        enabled: !isEditing, // Solo cargar cuando no estamos editando
+    });
+
+    // Debug: ver qué valor está llegando
+    console.log('Equipo recibido:', equipo);
+    console.log('Estado alta recibido:', equipo?.estado_alta);
 
     const form = useForm({
         initialValues: {
@@ -29,7 +55,7 @@ export function EquipoForm({ equipo, onSuccess }: EquipoFormProps) {
             procesador: equipo?.procesador || '',
             placa_madre: equipo?.placa_madre || '',
             disco_duro: equipo?.disco_duro || '',
-            estado_alta: equipo?.estado_alta || 'PENDIENTE',
+            estado_alta: normalizarEstadoAlta(equipo?.estado_alta),
         },
         validate: {
             id_usuario_b2b: (value) => (value === 0 ? 'Debe ingresar un ID de usuario B2B' : null),
@@ -40,6 +66,21 @@ export function EquipoForm({ equipo, onSuccess }: EquipoFormProps) {
             disco_duro: (value) => (value.trim().length < 2 ? 'Disco duro requerido' : null),
         },
     });
+
+    // Actualizar el formulario cuando cambie el equipo
+    useEffect(() => {
+        if (equipo) {
+            form.setValues({
+                id_usuario_b2b: equipo.id_usuario_b2b || 0,
+                nombre_equipo: equipo.nombre_equipo || '',
+                mac_address: equipo.mac_address || '',
+                procesador: equipo.procesador || '',
+                placa_madre: equipo.placa_madre || '',
+                disco_duro: equipo.disco_duro || '',
+                estado_alta: normalizarEstadoAlta(equipo.estado_alta),
+            });
+        }
+    }, [equipo]);
 
     const mutation = useMutation({
         mutationFn: (values: typeof form.values) => {
@@ -92,11 +133,17 @@ export function EquipoForm({ equipo, onSuccess }: EquipoFormProps) {
         <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack gap="md">
                 {!isEditing && (
-                    <NumberInput
-                        label="ID Usuario B2B"
-                        placeholder="Ingrese el ID del usuario B2B"
+                    <Select
+                        label="Usuario B2B"
+                        placeholder="Seleccione un usuario B2B"
                         withAsterisk
-                        description="El usuario B2B debe estar creado previamente"
+                        description="Seleccione el usuario B2B para este equipo"
+                        data={usuariosB2B.map(usuario => ({
+                            value: usuario.id_usuario_b2b.toString(),
+                            label: `${usuario.usuario} - ${usuario.nombre_completo}`
+                        }))}
+                        searchable
+                        nothingFoundMessage="No se encontraron usuarios B2B"
                         {...form.getInputProps('id_usuario_b2b')}
                     />
                 )}

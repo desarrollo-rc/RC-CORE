@@ -2,14 +2,49 @@
 from app.models.soporte.instalaciones import Instalacion, EstadoInstalacion
 from app.models.soporte.casos import Caso, EstadoCaso, PrioridadCaso
 from app.models.soporte.tipos_caso import TipoCaso, CategoriaTipoCaso
+from app.models.entidades.usuarios_b2b import UsuarioB2B
 from app.api.v1.services.caso_service import CasoService  # Usamos el servicio
 from app.api.v1.services.usuario_b2b_service import UsuarioB2BService # Usamos el servicio
 from app.api.v1.services.tipo_caso_service import TipoCasoService
 from app.extensions import db
 from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 from flask_jwt_extended import get_jwt_identity
+from datetime import datetime, timedelta
+import pytz
 
 class InstalacionService:
+    @staticmethod
+    def _obtener_fecha_chile():
+        """Obtiene la fecha y hora actual en zona horaria de Chile (UTC-3)"""
+        chile_tz = pytz.timezone('America/Santiago')
+        return datetime.now(chile_tz).replace(tzinfo=None)
+    
+    @staticmethod
+    def _calcular_fecha_cambio_estado(instalacion, minutos_desplazamiento=0):
+        """
+        Calcula la fecha para un cambio de estado basándose en la fecha de solicitud.
+        Si hay fecha_solicitud personalizada, la usa como base.
+        Si no, usa la fecha actual.
+        
+        Args:
+            instalacion: Objeto Instalacion
+            minutos_desplazamiento: Minutos a agregar a la fecha base (para secuenciar eventos)
+        
+        Returns:
+            datetime: Fecha calculada para el cambio de estado
+        """
+        if instalacion.fecha_solicitud:
+            # Usar la fecha de solicitud como base
+            fecha_base = instalacion.fecha_solicitud
+            # Si es un string, convertir a datetime
+            if isinstance(fecha_base, str):
+                fecha_base = datetime.fromisoformat(fecha_base.replace('Z', '+00:00'))
+            # Agregar el desplazamiento en minutos
+            return fecha_base + timedelta(minutes=minutos_desplazamiento)
+        else:
+            # Si no hay fecha de solicitud personalizada, usar fecha actual
+            return datetime.utcnow()
+
     @staticmethod
     def get_all_instalaciones():
         return Instalacion.query.all()
@@ -61,16 +96,30 @@ class InstalacionService:
         return instalacion
     
     @staticmethod
-    def aprobar_instalacion(instalacion_id):
-        """Aprueba una instalación pendiente"""
-        from datetime import datetime
+    def aprobar_instalacion(instalacion_id, fecha_aprobacion_personalizada=None):
+        """
+        Aprueba una instalación pendiente.
+        Si fecha_aprobacion_personalizada es proporcionada, la usa.
+        Si no, calcula la fecha basándose en fecha_solicitud + 5 minutos.
+        """
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
         
         if not instalacion.puede_ser_aprobada():
             raise BusinessRuleError("La instalación no puede ser aprobada en su estado actual")
         
         instalacion.estado = EstadoInstalacion.PENDIENTE_INSTALACION
-        instalacion.fecha_aprobacion = datetime.utcnow()
+        
+        # Determinar la fecha de aprobación
+        if fecha_aprobacion_personalizada:
+            # Usar la fecha proporcionada
+            if isinstance(fecha_aprobacion_personalizada, str):
+                instalacion.fecha_aprobacion = datetime.fromisoformat(fecha_aprobacion_personalizada.replace('Z', '+00:00'))
+            else:
+                instalacion.fecha_aprobacion = fecha_aprobacion_personalizada
+        else:
+            # Usar fecha y hora actual para seguimiento real
+            instalacion.fecha_aprobacion = InstalacionService._obtener_fecha_chile()
+        
         db.session.commit()
         return instalacion
     
@@ -84,10 +133,10 @@ class InstalacionService:
             'email': str,
             'password': str (opcional, se genera si no viene),
             'existe_en_sistema': bool,
-            'existe_en_corp': bool
+            'existe_en_corp': bool,
+            'fecha_creacion_personalizada': str (opcional, fecha ISO para creación de usuario)
         }
         """
-        from datetime import datetime
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
         
         if not instalacion.puede_crear_usuario():
@@ -95,6 +144,16 @@ class InstalacionService:
         
         existe_en_sistema = data.get('existe_en_sistema', False)
         existe_en_corp = data.get('existe_en_corp', False)
+        
+        # Calcular fecha de creación de usuario
+        if data.get('fecha_creacion_personalizada'):
+            # Usar la fecha proporcionada
+            fecha_creacion = data['fecha_creacion_personalizada']
+            if isinstance(fecha_creacion, str):
+                fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
+        else:
+            # Usar fecha y hora actual para seguimiento real
+            fecha_creacion = InstalacionService._obtener_fecha_chile()
         
         # Escenario 1: Usuario existe en sistema
         if existe_en_sistema:
@@ -105,7 +164,7 @@ class InstalacionService:
             
             instalacion.id_usuario_b2b = usuario_existente.id_usuario_b2b
             instalacion.estado = EstadoInstalacion.USUARIO_CREADO
-            instalacion.fecha_creacion_usuario = datetime.utcnow()
+            instalacion.fecha_creacion_usuario = fecha_creacion
         else:
             # Crear nuevo usuario
             from app.models.entidades.usuarios_b2b import UsuarioB2B
@@ -118,14 +177,14 @@ class InstalacionService:
             )
             
             # Generar password si no viene
-            password = data.get('password') or f"{data['usuario']}.,{datetime.utcnow().year}.*"
+            password = data.get('password') or f"{data['usuario']}.,{fecha_creacion.year}.*"
             nuevo_usuario.set_password(password)
             
             db.session.add(nuevo_usuario)
             db.session.flush()
             
             instalacion.id_usuario_b2b = nuevo_usuario.id_usuario_b2b
-            instalacion.fecha_creacion_usuario = datetime.utcnow()
+            instalacion.fecha_creacion_usuario = fecha_creacion
             
             # Escenario 2 y 3: Llamar automatización si NO existe en Corp
             if not existe_en_corp:
@@ -219,25 +278,43 @@ class InstalacionService:
         }
     
     @staticmethod
-    def agendar_instalacion(instalacion_id, fecha_visita):
-        """Agenda una fecha para la instalación (opcional)"""
-        from datetime import datetime
-        
+    def agendar_instalacion(instalacion_id, fecha_visita, fecha_agendamiento_personalizada=None):
+        """
+        Agenda una fecha para la instalación.
+        Si fecha_agendamiento_personalizada es proporcionada, la usa.
+        Si no, calcula la fecha basándose en fecha_solicitud + 15 minutos.
+        """
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
         
         if not instalacion.puede_agendar():
             raise BusinessRuleError("La instalación no puede ser agendada en su estado actual")
         
         instalacion.estado = EstadoInstalacion.AGENDADA
+        
+        # Determinar la fecha de agendamiento
+        if fecha_agendamiento_personalizada:
+            # Usar la fecha proporcionada
+            if isinstance(fecha_agendamiento_personalizada, str):
+                fecha_agendamiento = datetime.fromisoformat(fecha_agendamiento_personalizada.replace('Z', '+00:00'))
+            else:
+                fecha_agendamiento = fecha_agendamiento_personalizada
+        else:
+            # Usar fecha y hora actual para seguimiento real
+            fecha_agendamiento = InstalacionService._obtener_fecha_chile()
+        
         # Guardar fecha_visita si se desea (falta agregar campo al modelo)
+        instalacion.fecha_agendamiento = fecha_agendamiento
         
         db.session.commit()
         return instalacion
     
     @staticmethod
-    def instalar_equipo(instalacion_id, equipo_id):
-        """Asocia el equipo activado a la instalación y marca como instalada"""
-        from datetime import datetime
+    def instalar_equipo(instalacion_id, equipo_id, fecha_instalacion_personalizada=None):
+        """
+        Asocia el equipo activado a la instalación y marca como instalada.
+        Si fecha_instalacion_personalizada es proporcionada, la usa.
+        Si no, calcula la fecha basándose en fecha_solicitud + 20 minutos.
+        """
         from app.models.entidades.equipos import Equipo
         
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
@@ -253,24 +330,49 @@ class InstalacionService:
             raise BusinessRuleError("El equipo no pertenece al usuario de la instalación")
         
         instalacion.id_equipo = equipo_id
-        instalacion.fecha_instalacion = datetime.utcnow()
-        # NO cambiar estado aquí, se mantiene en USUARIO_CREADO o AGENDADA
+        
+        # Determinar la fecha de instalación
+        if fecha_instalacion_personalizada:
+            # Usar la fecha proporcionada
+            if isinstance(fecha_instalacion_personalizada, str):
+                instalacion.fecha_instalacion = datetime.fromisoformat(fecha_instalacion_personalizada.replace('Z', '+00:00'))
+            else:
+                instalacion.fecha_instalacion = fecha_instalacion_personalizada
+        else:
+            # Usar fecha y hora actual para seguimiento real
+            instalacion.fecha_instalacion = InstalacionService._obtener_fecha_chile()
+        
+        # Para instalaciones de cambio de equipo, mantener en USUARIO_CREADO para permitir finalizar
+        # Para otros tipos, mantener el estado actual
         
         db.session.commit()
         return instalacion
     
     @staticmethod
-    def finalizar_instalacion(instalacion_id, capacitacion_realizada=True):
-        """Finaliza la instalación"""
-        from datetime import datetime
-        
+    def finalizar_instalacion(instalacion_id, capacitacion_realizada=True, fecha_finalizacion_personalizada=None):
+        """
+        Finaliza la instalación.
+        Si fecha_finalizacion_personalizada es proporcionada, la usa.
+        Si no, calcula la fecha basándose en fecha_solicitud + 25 minutos.
+        """
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
         
         if not instalacion.puede_ser_finalizada():
             raise BusinessRuleError("La instalación no puede ser finalizada en su estado actual")
         
+        # Determinar la fecha de finalización
+        if fecha_finalizacion_personalizada:
+            # Usar la fecha proporcionada
+            if isinstance(fecha_finalizacion_personalizada, str):
+                fecha_finalizacion = datetime.fromisoformat(fecha_finalizacion_personalizada.replace('Z', '+00:00'))
+            else:
+                fecha_finalizacion = fecha_finalizacion_personalizada
+        else:
+            # Usar fecha y hora actual para seguimiento real
+            fecha_finalizacion = InstalacionService._obtener_fecha_chile()
+        
         if capacitacion_realizada:
-            instalacion.fecha_capacitacion = datetime.utcnow()
+            instalacion.fecha_capacitacion = fecha_finalizacion
             observacion = "Instalación finalizada. Capacitación realizada."
         else:
             observacion = "Instalación finalizada. La capacitación no fue requerida."
@@ -281,11 +383,17 @@ class InstalacionService:
             instalacion.observaciones = observacion
         
         instalacion.estado = EstadoInstalacion.COMPLETADA
-        instalacion.fecha_finalizacion = datetime.utcnow()
+        instalacion.fecha_finalizacion = fecha_finalizacion
         
         # Activar equipo definitivamente
         if instalacion.equipo:
             instalacion.equipo.estado = True
+        
+        # Cerrar automáticamente el caso asociado si existe
+        if instalacion.caso:
+            from app.models.soporte.casos import EstadoCaso
+            instalacion.caso.estado = EstadoCaso.CERRADO
+            instalacion.caso.fecha_cierre = fecha_finalizacion
         
         db.session.commit()
         return instalacion
@@ -301,6 +409,7 @@ class InstalacionService:
         - es_cliente_nuevo: bool - Si es primera instalación del cliente
         - es_primer_usuario: bool - Si es el primer usuario B2B del cliente
         - es_cambio_equipo: bool - Si es una reinstalación por cambio de equipo
+        - numero_usuarios: int opcional - Cantidad de usuarios a crear para cliente nuevo
         - observaciones: str opcional
         """
         id_cliente = data.get('id_cliente')
@@ -308,7 +417,10 @@ class InstalacionService:
         es_cliente_nuevo = data.get('es_cliente_nuevo', False)
         es_primer_usuario = data.get('es_primer_usuario', True)
         es_cambio_equipo = data.get('es_cambio_equipo', False)
+        es_usuario_adicional = data.get('es_usuario_adicional', False)
+        numero_usuarios = data.get('numero_usuarios', 1)
         observaciones = data.get('observaciones', '')
+        datos_usuario_adicional = data.get('datos_usuario_adicional')
         
         # Validar usuario B2B si se proporciona
         if id_usuario_b2b:
@@ -316,15 +428,34 @@ class InstalacionService:
             if usuario_b2b.id_cliente != id_cliente:
                 raise BusinessRuleError("El usuario B2B no pertenece al cliente seleccionado.")
         
+        # Crear usuario B2B automáticamente si es usuario adicional
+        if es_usuario_adicional and datos_usuario_adicional:
+            nuevo_usuario = UsuarioB2B(
+                nombre_completo=datos_usuario_adicional['nombre_completo'],
+                usuario=datos_usuario_adicional['usuario'],
+                email=datos_usuario_adicional['email'],
+                id_cliente=id_cliente
+            )
+            nuevo_usuario.set_password(datos_usuario_adicional['password'])
+            db.session.add(nuevo_usuario)
+            db.session.flush()  # Para obtener el ID del usuario
+            id_usuario_b2b = nuevo_usuario.id_usuario_b2b
+        
         # Determinar la categoría y nombre del caso según la configuración
         if es_cambio_equipo:
             categoria = CategoriaTipoCaso.INSTALACION_CAMBIO_EQUIPO
             nombre_caso = "Instalación por cambio de equipo"
         elif es_cliente_nuevo:
             categoria = CategoriaTipoCaso.INSTALACION_CLIENTE_NUEVO
-            nombre_caso = "Instalación nuevo cliente B2B"
+            if numero_usuarios > 1:
+                nombre_caso = f"Instalación nuevo cliente B2B - {numero_usuarios} usuarios"
+            else:
+                nombre_caso = "Instalación nuevo cliente B2B"
+        elif es_usuario_adicional:
+            categoria = CategoriaTipoCaso.INSTALACION_USUARIO_ADICIONAL
+            nombre_caso = "Instalación usuario adicional B2B"
         else:
-            # Si no es cliente nuevo ni cambio de equipo, siempre es usuario adicional
+            # Fallback para compatibilidad
             categoria = CategoriaTipoCaso.INSTALACION_USUARIO_ADICIONAL
             nombre_caso = "Instalación usuario adicional B2B"
         
@@ -339,10 +470,17 @@ class InstalacionService:
         # Obtener el usuario actual (quien crea)
         current_user_id = get_jwt_identity()
         
+        # Crear la descripción del caso
+        descripcion_caso = nombre_caso
+        if es_cliente_nuevo and numero_usuarios > 1:
+            descripcion_caso += f" - Se crearán {numero_usuarios} usuarios B2B para el cliente"
+        if observaciones:
+            descripcion_caso += f". {observaciones}"
+        
         # Crear el caso automáticamente
         nuevo_caso = Caso(
             titulo=nombre_caso,
-            descripcion=f"{nombre_caso}. {observaciones if observaciones else ''}".strip(),
+            descripcion=descripcion_caso,
             estado=EstadoCaso.ABIERTO,
             prioridad=PrioridadCaso.MEDIA,
             id_cliente=id_cliente,
@@ -352,24 +490,222 @@ class InstalacionService:
         db.session.add(nuevo_caso)
         db.session.flush()  # Para obtener el ID del caso
         
-        # Determinar el estado inicial según si es cliente nuevo
+        # Determinar el estado inicial según el tipo de instalación
         if es_cliente_nuevo:
             # Cliente nuevo requiere aprobación de gerencia
             estado_inicial = EstadoInstalacion.PENDIENTE_APROBACION
+        elif es_usuario_adicional:
+            # Usuario adicional: se crea automáticamente y se aprueba
+            estado_inicial = EstadoInstalacion.USUARIO_CREADO
+        elif es_cambio_equipo:
+            # Cambio de equipo: usuario ya existe y está asignado, va directo a Usuario Creado
+            estado_inicial = EstadoInstalacion.USUARIO_CREADO
         else:
-            # Cliente existente (usuario adicional o cambio equipo) va directo a instalación
+            # Otros casos van a instalación pendiente
             estado_inicial = EstadoInstalacion.PENDIENTE_INSTALACION
         
-        # Crear la instalación
+        # Crear las instalaciones
         fecha_solicitud = data.get('fecha_solicitud')
-        nueva_instalacion = Instalacion(
-            id_caso=nuevo_caso.id_caso,
-            id_usuario_b2b=id_usuario_b2b,
-            observaciones=observaciones,
-            estado=estado_inicial,
-            fecha_solicitud=fecha_solicitud if fecha_solicitud else None
-        )
-        db.session.add(nueva_instalacion)
+        instalaciones_creadas = []
+        
+        if es_cliente_nuevo and numero_usuarios > 1:
+            # Para cliente nuevo con múltiples usuarios, crear una instalación por usuario
+            for i in range(numero_usuarios):
+                observaciones_usuario = observaciones
+                if numero_usuarios > 1:
+                    observaciones_usuario = f"Usuario {i + 1} de {numero_usuarios}. {observaciones}".strip()
+                
+                nueva_instalacion = Instalacion(
+                    id_caso=nuevo_caso.id_caso,
+                    id_usuario_b2b=None,  # Se asignará cuando se cree el usuario
+                    observaciones=observaciones_usuario,
+                    estado=estado_inicial,
+                    fecha_solicitud=fecha_solicitud if fecha_solicitud else None
+                )
+                db.session.add(nueva_instalacion)
+                instalaciones_creadas.append(nueva_instalacion)
+        else:
+            # Para otros casos, crear una sola instalación
+            nueva_instalacion = Instalacion(
+                id_caso=nuevo_caso.id_caso,
+                id_usuario_b2b=id_usuario_b2b,
+                observaciones=observaciones,
+                estado=estado_inicial,
+                fecha_solicitud=fecha_solicitud if fecha_solicitud else None
+            )
+            db.session.add(nueva_instalacion)
+            instalaciones_creadas.append(nueva_instalacion)
+        
+        # Para usuario adicional, establecer fecha de creación de usuario igual a la fecha de solicitud
+        if es_usuario_adicional:
+            for instalacion in instalaciones_creadas:
+                # La aprobación no es requerida para usuario adicional
+                # El usuario se crea automáticamente cuando se crea la solicitud
+                instalacion.fecha_creacion_usuario = instalacion.fecha_solicitud
+        
         db.session.commit()
         
-        return nueva_instalacion
+        # Retornar la primera instalación para compatibilidad, pero se crearon múltiples
+        return instalaciones_creadas[0] if instalaciones_creadas else None
+    
+    @staticmethod
+    def create_instalacion_completa_multiple(data):
+        """
+        Versión mejorada que retorna todas las instalaciones creadas.
+        Útil para mostrar al usuario cuántas solicitudes se crearon.
+        """
+        id_cliente = data.get('id_cliente')
+        id_usuario_b2b = data.get('id_usuario_b2b')
+        es_cliente_nuevo = data.get('es_cliente_nuevo', False)
+        es_primer_usuario = data.get('es_primer_usuario', True)
+        es_cambio_equipo = data.get('es_cambio_equipo', False)
+        es_usuario_adicional = data.get('es_usuario_adicional', False)
+        numero_usuarios = data.get('numero_usuarios', 1)
+        observaciones = data.get('observaciones', '')
+        datos_usuario_adicional = data.get('datos_usuario_adicional')
+        
+        # Validar usuario B2B si se proporciona
+        if id_usuario_b2b:
+            usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(id_usuario_b2b)
+            if usuario_b2b.id_cliente != id_cliente:
+                raise BusinessRuleError("El usuario B2B no pertenece al cliente seleccionado.")
+        
+        # Crear usuario B2B automáticamente si es usuario adicional
+        if es_usuario_adicional and datos_usuario_adicional:
+            nuevo_usuario = UsuarioB2B(
+                nombre_completo=datos_usuario_adicional['nombre_completo'],
+                usuario=datos_usuario_adicional['usuario'],
+                email=datos_usuario_adicional['email'],
+                id_cliente=id_cliente
+            )
+            nuevo_usuario.set_password(datos_usuario_adicional['password'])
+            db.session.add(nuevo_usuario)
+            db.session.flush()  # Para obtener el ID del usuario
+            id_usuario_b2b = nuevo_usuario.id_usuario_b2b
+        
+        # Determinar la categoría y nombre del caso según la configuración
+        if es_cambio_equipo:
+            categoria = CategoriaTipoCaso.INSTALACION_CAMBIO_EQUIPO
+            nombre_caso = "Instalación por cambio de equipo"
+        elif es_cliente_nuevo:
+            categoria = CategoriaTipoCaso.INSTALACION_CLIENTE_NUEVO
+            if numero_usuarios > 1:
+                nombre_caso = f"Instalación nuevo cliente B2B - {numero_usuarios} usuarios"
+            else:
+                nombre_caso = "Instalación nuevo cliente B2B"
+        elif es_usuario_adicional:
+            categoria = CategoriaTipoCaso.INSTALACION_USUARIO_ADICIONAL
+            nombre_caso = "Instalación usuario adicional B2B"
+        else:
+            # Fallback para compatibilidad
+            categoria = CategoriaTipoCaso.INSTALACION_USUARIO_ADICIONAL
+            nombre_caso = "Instalación usuario adicional B2B"
+        
+        # Buscar el tipo de caso por categoría
+        tipo_caso = TipoCaso.get_by_categoria(categoria)
+        if not tipo_caso:
+            raise BusinessRuleError(
+                f"No existe un tipo de caso configurado con la categoría '{categoria.value}'. "
+                "Por favor, cree un tipo de caso en 'Soporte → Tipos de Caso' y asígnele esta categoría."
+            )
+        
+        # Obtener el usuario actual (quien crea)
+        current_user_id = get_jwt_identity()
+        
+        # Crear la descripción del caso
+        descripcion_caso = nombre_caso
+        if es_cliente_nuevo and numero_usuarios > 1:
+            descripcion_caso += f" - Se crearán {numero_usuarios} usuarios B2B para el cliente"
+        if observaciones:
+            descripcion_caso += f". {observaciones}"
+        
+        # Crear el caso automáticamente
+        nuevo_caso = Caso(
+            titulo=nombre_caso,
+            descripcion=descripcion_caso,
+            estado=EstadoCaso.ABIERTO,
+            prioridad=PrioridadCaso.MEDIA,
+            id_cliente=id_cliente,
+            id_usuario_creacion=current_user_id,
+            id_tipo_caso=tipo_caso.id_tipo_caso
+        )
+        db.session.add(nuevo_caso)
+        db.session.flush()  # Para obtener el ID del caso
+        
+        # Determinar el estado inicial según el tipo de instalación
+        if es_cliente_nuevo:
+            # Cliente nuevo requiere aprobación de gerencia
+            estado_inicial = EstadoInstalacion.PENDIENTE_APROBACION
+        elif es_usuario_adicional:
+            # Usuario adicional: se crea automáticamente y se aprueba
+            estado_inicial = EstadoInstalacion.USUARIO_CREADO
+        elif es_cambio_equipo:
+            # Cambio de equipo: usuario ya existe y está asignado, va directo a Usuario Creado
+            estado_inicial = EstadoInstalacion.USUARIO_CREADO
+        else:
+            # Otros casos van a instalación pendiente
+            estado_inicial = EstadoInstalacion.PENDIENTE_INSTALACION
+        
+        # Crear las instalaciones
+        fecha_solicitud = data.get('fecha_solicitud')
+        instalaciones_creadas = []
+        casos_creados = []
+        
+        if es_cliente_nuevo and numero_usuarios > 1:
+            # Para cliente nuevo con múltiples usuarios, crear un caso e instalación por usuario
+            for i in range(numero_usuarios):
+                observaciones_usuario = observaciones
+                if numero_usuarios > 1:
+                    observaciones_usuario = f"Usuario {i + 1} de {numero_usuarios}. {observaciones}".strip()
+                
+                # Crear un caso individual para cada usuario
+                caso_individual = Caso(
+                    titulo=f"Instalación nuevo cliente B2B - Usuario {i + 1}",
+                    descripcion=f"Instalación para usuario {i + 1} de {numero_usuarios} del nuevo cliente B2B. {observaciones_usuario}",
+                    estado=EstadoCaso.ABIERTO,
+                    prioridad=PrioridadCaso.MEDIA,
+                    id_cliente=id_cliente,
+                    id_usuario_creacion=current_user_id,
+                    id_tipo_caso=tipo_caso.id_tipo_caso
+                )
+                db.session.add(caso_individual)
+                db.session.flush()  # Para obtener el ID del caso
+                casos_creados.append(caso_individual)
+                
+                nueva_instalacion = Instalacion(
+                    id_caso=caso_individual.id_caso,
+                    id_usuario_b2b=None,  # Se asignará cuando se cree el usuario
+                    observaciones=observaciones_usuario,
+                    estado=estado_inicial,
+                    fecha_solicitud=fecha_solicitud if fecha_solicitud else None
+                )
+                db.session.add(nueva_instalacion)
+                instalaciones_creadas.append(nueva_instalacion)
+        else:
+            # Para otros casos, crear una sola instalación
+            casos_creados.append(nuevo_caso)
+            nueva_instalacion = Instalacion(
+                id_caso=nuevo_caso.id_caso,
+                id_usuario_b2b=id_usuario_b2b,
+                observaciones=observaciones,
+                estado=estado_inicial,
+                fecha_solicitud=fecha_solicitud if fecha_solicitud else None
+            )
+            db.session.add(nueva_instalacion)
+            instalaciones_creadas.append(nueva_instalacion)
+        
+        # Para usuario adicional, establecer fecha de creación de usuario igual a la fecha de solicitud
+        if es_usuario_adicional:
+            for instalacion in instalaciones_creadas:
+                # La aprobación no es requerida para usuario adicional
+                # El usuario se crea automáticamente cuando se crea la solicitud
+                instalacion.fecha_creacion_usuario = instalacion.fecha_solicitud
+        
+        db.session.commit()
+        
+        # Retornar información completa sobre lo que se creó
+        return {
+            'casos': casos_creados,  # Cambiado de 'caso' a 'casos' para múltiples
+            'instalaciones': instalaciones_creadas,
+            'total_instalaciones': len(instalaciones_creadas)
+        }

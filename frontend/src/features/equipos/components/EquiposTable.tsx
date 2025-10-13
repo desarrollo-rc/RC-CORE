@@ -129,9 +129,11 @@ export function EquiposTable() {
             <Table.Td>#{equipo.id_equipo}</Table.Td>
             <Table.Td>{equipo.nombre_equipo}</Table.Td>
             <Table.Td>{equipo.mac_address}</Table.Td>
-            <Table.Td>{equipo.procesador}</Table.Td>
             <Table.Td>
-                {equipo.usuario_b2b?.nombre_completo || `Usuario #${equipo.id_usuario_b2b}`}
+                {equipo.usuario_b2b?.usuario || `Usuario #${equipo.id_usuario_b2b}`}
+            </Table.Td>
+            <Table.Td>
+                {equipo.usuario_b2b?.nombre_completo || 'N/A'}
             </Table.Td>
             <Table.Td>
                 <Badge color={getEstadoAltaColor(equipo.estado_alta)} variant="light">
@@ -177,8 +179,8 @@ export function EquiposTable() {
                             <Table.Th>ID</Table.Th>
                             <Table.Th>Nombre</Table.Th>
                             <Table.Th>MAC Address</Table.Th>
-                            <Table.Th>Procesador</Table.Th>
                             <Table.Th>Usuario B2B</Table.Th>
+                            <Table.Th>Nombre Usuario</Table.Th>
                             <Table.Th>Estado Alta</Table.Th>
                             <Table.Th>Estado</Table.Th>
                             <Table.Th>Acciones</Table.Th>

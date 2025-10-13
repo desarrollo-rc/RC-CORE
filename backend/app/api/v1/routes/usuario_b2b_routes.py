@@ -68,3 +68,23 @@ def activate_usuario_b2b(usuario_b2b_id):
         return jsonify(usuarios_b2b_schema.dump(usuario_b2b)), 200
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
+
+@usuarios_b2b_bp.route('/cliente/<int:cliente_id>', methods=['GET'])
+@jwt_required()
+@permission_required('usuarios_b2b:listar')
+def get_usuarios_b2b_by_cliente(cliente_id):
+    try:
+        usuarios_b2b = UsuarioB2BService.get_usuarios_b2b_by_cliente(cliente_id)
+        return jsonify(usuarios_b2b_schema_list.dump(usuarios_b2b)), 200
+    except BusinessRuleError as e:
+        return jsonify({"error": str(e)}), e.status_code
+
+@usuarios_b2b_bp.route('/cliente/<int:cliente_id>/sugerir-usuario', methods=['GET'])
+@jwt_required()
+@permission_required('usuarios_b2b:listar')
+def sugerir_nombre_usuario(cliente_id):
+    try:
+        nombre_sugerido = UsuarioB2BService.sugerir_nombre_usuario(cliente_id)
+        return jsonify({"nombre_sugerido": nombre_sugerido}), 200
+    except BusinessRuleError as e:
+        return jsonify({"error": str(e)}), e.status_code

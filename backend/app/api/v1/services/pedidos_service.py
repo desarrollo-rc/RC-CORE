@@ -47,6 +47,7 @@ class PedidoService:
         """
         return Pedido.query.options(
             joinedload(Pedido.cliente),
+            joinedload(Pedido.vendedor).joinedload(Vendedor.usuario),
             joinedload(Pedido.detalles).joinedload(PedidoDetalle.producto),
             joinedload(Pedido.historial_estados).joinedload(HistorialEstadoPedido.usuario_responsable),
             joinedload(Pedido.estado_general),

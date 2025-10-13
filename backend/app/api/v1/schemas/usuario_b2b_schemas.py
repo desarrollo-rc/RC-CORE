@@ -16,6 +16,7 @@ class CreateUsuarioB2BSchema(Schema):
     nombre_completo = fields.Str(required=True, validate=validate.Length(min=1, max=150))
     usuario = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     email = fields.Email(required=True)
+    password = fields.Str(required=True, validate=validate.Length(min=6, max=255))
     id_cliente = fields.Int(required=True)
 
 class UpdateUsuarioB2BSchema(Schema):

@@ -25,6 +25,7 @@ export interface CrearUsuarioB2BPayload {
     nombre_completo: string;
     usuario: string;
     email: string;
+    password: string;
     id_cliente: number;
 }
 

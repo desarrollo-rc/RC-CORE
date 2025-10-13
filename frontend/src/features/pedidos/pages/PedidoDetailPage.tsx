@@ -69,7 +69,7 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                             </Tooltip>
                         )}
                     </Group>
-                    <Text c="dimmed">{pedido.cliente.nombre_cliente}</Text>
+                    <Text c="dimmed">{pedido.cliente.nombre_cliente} - {pedido.cliente.codigo_cliente}</Text>
                 </Box>
                 <Box ta="right">
                     <Text size="lg" fw={700}>{`$${Math.round(Number(pedido.monto_total)).toLocaleString('es-CL')}`}</Text>
@@ -91,6 +91,11 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                 {pedido.numero_pedido_sap && (
                     <Badge color="green" size="lg" variant="light">
                         SAP: {pedido.numero_pedido_sap}
+                    </Badge>
+                )}
+                {pedido.vendedor && (
+                    <Badge color="teal" size="lg" variant="light">
+                        Vendedor: {pedido.vendedor.usuario.nombre_completo}
                     </Badge>
                 )}
             </Group>

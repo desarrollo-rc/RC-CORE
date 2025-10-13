@@ -77,21 +77,33 @@ function InstalacionInfo({ instalacion }: { instalacion: Instalacion }) {
 // ===== COMPONENTE TIMELINE =====
 
 function InstalacionTimeline({ instalacion }: { instalacion: Instalacion }) {
-    const eventos: Array<{ fecha: string | null; titulo: string; completado: boolean }> = [
+    // Determinar si es una instalación de cambio de equipo
+    const esCambioEquipo = instalacion.caso?.titulo?.includes('cambio de equipo') || 
+                          instalacion.caso?.titulo?.includes('Cambio de equipo') ||
+                          instalacion.caso?.titulo?.includes('CAMBIO DE EQUIPO');
+    
+    // Determinar si es una instalación de usuario adicional
+    const esUsuarioAdicional = instalacion.caso?.titulo?.includes('usuario adicional') || 
+                              instalacion.caso?.titulo?.includes('Usuario adicional') ||
+                              instalacion.caso?.titulo?.includes('USUARIO_ADICIONAL');
+    
+    const eventos: Array<{ fecha: string | null; titulo: string; completado: boolean; noRequerido?: boolean }> = [
         {
             fecha: instalacion.fecha_solicitud,
             titulo: 'Solicitud Creada',
             completado: true,
         },
         {
-            fecha: instalacion.fecha_aprobacion,
+            fecha: (esCambioEquipo || esUsuarioAdicional) ? null : instalacion.fecha_aprobacion, // Para cambio de equipo y usuario adicional, no mostrar fecha
             titulo: 'Aprobación',
-            completado: !!instalacion.fecha_aprobacion,
+            completado: (esCambioEquipo || esUsuarioAdicional) ? true : !!instalacion.fecha_aprobacion, // Para cambio de equipo y usuario adicional, siempre completada
+            noRequerido: (esCambioEquipo || esUsuarioAdicional), // Marcar como no requerida para cambio de equipo y usuario adicional
         },
         {
-            fecha: instalacion.fecha_creacion_usuario,
-            titulo: 'Usuario B2B Creado',
-            completado: !!instalacion.fecha_creacion_usuario,
+            fecha: esCambioEquipo ? null : instalacion.fecha_creacion_usuario, // Para cambio de equipo no mostrar fecha, para usuario adicional mostrar fecha
+            titulo: esCambioEquipo ? 'Usuario B2B Asignado' : 'Usuario B2B Creado',
+            completado: (esCambioEquipo || esUsuarioAdicional) ? true : !!instalacion.fecha_creacion_usuario, // Para cambio de equipo y usuario adicional, siempre completada
+            noRequerido: esCambioEquipo, // Solo para cambio de equipo marcar como no requerida
         },
         {
             fecha: instalacion.fecha_instalacion,
@@ -142,6 +154,10 @@ function InstalacionTimeline({ instalacion }: { instalacion: Instalacion }) {
                         {evento.fecha ? (
                             <Text c="dimmed" size="sm">
                                 {new Date(evento.fecha).toLocaleString('es-CL')}
+                            </Text>
+                        ) : evento.noRequerido ? (
+                            <Text c="dimmed" size="sm" fs="italic">
+                                No requerida
                             </Text>
                         ) : evento.completado && evento.titulo === 'Capacitación' ? (
                             <Text c="dimmed" size="sm" fs="italic">

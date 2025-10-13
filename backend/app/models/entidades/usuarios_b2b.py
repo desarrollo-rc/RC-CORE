@@ -11,7 +11,7 @@ class UsuarioB2B(db.Model, MixinAuditoria):
     id_usuario_b2b = db.Column(db.Integer, primary_key=True)
     nombre_completo = db.Column(db.String(150), nullable=False)
     usuario = db.Column(db.String(100), unique=True, nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(100), nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     
     id_cliente = db.Column(db.Integer, db.ForeignKey('entidades.maestro_clientes.id_cliente'), nullable=False)

@@ -21,7 +21,7 @@ class InstalacionSchema(Schema):
     
     caso = fields.Nested("CasoSchema", dump_only=True, only=("id_caso", "titulo"))
     usuario_b2b = fields.Nested("UsuarioB2BSchema", dump_only=True, only=("id_usuario_b2b", "nombre_completo", "usuario", "email", "id_cliente"))
-    equipo = fields.Nested("EquipoSchema", dump_only=True, only=("id_equipo", "nombre_equipo", "mac_address", "procesador", "placa_madre", "disco_duro", "estado", "estado_alta"))
+    equipo = fields.Nested("EquipoSchema", dump_only=True, only=("id_equipo", "nombre_equipo", "mac_address", "procesador", "placa_madre", "disco_duro", "activo", "estado_alta"))
 
 class CreateInstalacionSchema(Schema):
     id_caso = fields.Int(required=True)

@@ -1,20 +1,19 @@
 // frontend/src/features/instalaciones/components/InstalacionActionPanel.tsx
 import { useState } from 'react';
-import { Paper, Title, Button, Group, Modal, Textarea, Switch, Box, Text, TextInput, Radio, Stack, Loader, Alert, Badge, Divider } from '@mantine/core';
+import { Paper, Title, Button, Group, Modal, Textarea, Switch, Box, Text, TextInput, Radio, Stack, Loader, Alert, Badge, Divider, Checkbox } from '@mantine/core';
 import { DateInput, TimeInput } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { showNotification } from '@mantine/notifications';
-import type { Instalacion, AprobarInstalacionPayload, RealizarInstalacionPayload, FinalizarInstalacionPayload } from '../types';
+import type { Instalacion } from '../types';
 import { 
     aprobarInstalacion, 
     rechazarInstalacion, 
     marcarUsuarioCreado,
     agendarInstalacion,
-    marcarInstalada,
     finalizarInstalacion,
     sincronizarEquipos,
     crearEquipoInstalacion,
@@ -28,7 +27,7 @@ const aprobarSchema = z.object({
     fecha_aprobacion: z.coerce.date(),
     observaciones: z.string().optional(),
 });
-type AprobarFormValues = z.infer<typeof aprobarSchema>;
+// type AprobarFormValues = z.infer<typeof aprobarSchema>;
 
 const rechazarSchema = z.object({
     observaciones: z.string().min(10, 'La observación debe tener al menos 10 caracteres'),
@@ -77,7 +76,7 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
     // ===== MUTATIONS =====
 
     const aprobarMutation = useMutation({
-        mutationFn: () => aprobarInstalacion(instalacion.id_instalacion),
+        mutationFn: (data?: { fecha_aprobacion_personalizada?: string }) => aprobarInstalacion(instalacion.id_instalacion, data),
         onSuccess: (updated) => {
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
@@ -111,8 +110,8 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
     });
 
     const agendarMutation = useMutation({
-        mutationFn: (data: AgendarFormValues) =>
-            agendarInstalacion(instalacion.id_instalacion, data.fecha_visita.toISOString(), data.observaciones),
+        mutationFn: (data: AgendarFormValues & { fecha_agendamiento_personalizada?: string }) =>
+            agendarInstalacion(instalacion.id_instalacion, data.fecha_visita?.toISOString(), data.fecha_agendamiento_personalizada, data.observaciones),
         onSuccess: (updated) => {
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
@@ -123,11 +122,12 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
     });
 
     const instalarMutation = useMutation({
-        mutationFn: (data: InstalarFormValues) =>
-            marcarInstalada(instalacion.id_instalacion, {
-                fecha_instalacion: data.fecha_instalacion.toISOString(),
-                observaciones: data.observaciones,
-            }),
+        mutationFn: (data: InstalarFormValues & { fecha_instalacion_personalizada?: string }) => {
+            // Para instalación necesitamos un equipo_id, por ahora usamos 1 como placeholder
+            // En el futuro esto debería venir del formulario o del estado
+            const equipoId = 1; // TODO: Obtener del formulario o estado
+            return instalarEquipo(instalacion.id_instalacion, equipoId, data.fecha_instalacion_personalizada);
+        },
         onSuccess: (updated) => {
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
@@ -138,8 +138,8 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
     });
 
     const finalizarMutation = useMutation({
-        mutationFn: (capacitacion_realizada: boolean) =>
-            finalizarInstalacion(instalacion.id_instalacion, capacitacion_realizada),
+        mutationFn: (data: { capacitacion_realizada: boolean; fecha_finalizacion_personalizada?: string }) =>
+            finalizarInstalacion(instalacion.id_instalacion, data.capacitacion_realizada, data.fecha_finalizacion_personalizada),
         onSuccess: (updated) => {
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
@@ -167,6 +167,11 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
             return <Text c="green">✅ Instalación completada exitosamente.</Text>;
         }
 
+        // Determinar si es una instalación de cambio de equipo
+        const esCambioEquipo = instalacion.caso?.titulo?.includes('cambio de equipo') || 
+                              instalacion.caso?.titulo?.includes('Cambio de equipo') ||
+                              instalacion.caso?.titulo?.includes('CAMBIO DE EQUIPO');
+
         switch (estado) {
             case 'Pendiente Aprobación':
                 return (
@@ -181,6 +186,15 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
                 );
 
             case 'Pendiente Instalación':
+                // Si es cambio de equipo y ya tiene usuario asignado, ir directo a gestión de equipo
+                if (esCambioEquipo && instalacion.id_usuario_b2b) {
+                    return (
+                        <Button onClick={() => handleOpenModal('equipo')}>
+                            Gestionar Equipo e Instalar
+                        </Button>
+                    );
+                }
+                // Si no es cambio de equipo o no tiene usuario, mostrar crear usuario
                 return (
                     <Button onClick={() => handleOpenModal('usuario')}>
                         Crear Usuario B2B
@@ -277,12 +291,82 @@ function getModalTitle(type: string | null): string {
 // ===== COMPONENTES DE FORMULARIOS =====
 
 function AprobarForm({ mutation, close }: { mutation: any; close: () => void }) {
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
+
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const handleSubmit = () => {
+        const data = usarFechaPersonalizada && fechaPersonalizada 
+            ? { fecha_aprobacion_personalizada: fechaPersonalizada }
+            : undefined;
+        mutation.mutate(data);
+    };
+
     return (
         <Box>
             <Text mb="md">¿Está seguro de aprobar esta instalación?</Text>
+            
+            <Checkbox
+                label="Usar fecha y hora personalizada para la aprobación"
+                checked={usarFechaPersonalizada}
+                onChange={(event) => {
+                    setUsarFechaPersonalizada(event.currentTarget.checked);
+                    if (event.currentTarget.checked) {
+                        setFechaPersonalizada(createLocalISOString(new Date()));
+                    }
+                }}
+                mb="md"
+            />
+
+            {usarFechaPersonalizada && (
+                <Box>
+                    <TextInput
+                        label="Fecha"
+                        type="date"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[0] : ''}
+                        onChange={(e) => {
+                            const fecha = e.currentTarget.value;
+                            if (fecha && fechaPersonalizada) {
+                                const [yyyy, mm, dd] = fecha.split('-').map(Number);
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="sm"
+                    />
+                    <TextInput
+                        label="Hora"
+                        type="time"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[1]?.substring(0, 5) : ''}
+                        onChange={(e) => {
+                            const time = e.currentTarget.value;
+                            if (time && fechaPersonalizada) {
+                                const [hh, mm] = time.split(':');
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="md"
+                    />
+                </Box>
+            )}
+
             <Group justify="flex-end" mt="lg">
                 <Button variant="default" onClick={close}>Cancelar</Button>
-                <Button color="green" loading={mutation.isPending} onClick={() => mutation.mutate()}>Aprobar</Button>
+                <Button color="green" loading={mutation.isPending} onClick={handleSubmit}>Aprobar</Button>
             </Group>
         </Box>
     );
@@ -312,6 +396,9 @@ function RechazarForm({ mutation, close }: { mutation: any; close: () => void })
 }
 
 function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => void }) {
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
+
     const { register, handleSubmit, formState: { errors }, watch } = useForm<CrearUsuarioFormValues>({
         resolver: zodResolver(crearUsuarioSchema),
         defaultValues: { 
@@ -326,8 +413,27 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
 
     const existeEnSistema = watch('existe_en_sistema');
 
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const onSubmit = (data: CrearUsuarioFormValues) => {
+        const payload: any = { ...data };
+        if (usarFechaPersonalizada && fechaPersonalizada) {
+            payload.fecha_creacion_personalizada = fechaPersonalizada;
+        }
+        mutation.mutate(payload);
+    };
+
     return (
-        <form onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+        <form onSubmit={handleSubmit(onSubmit)}>
             <Text size="sm" c="dimmed" mb="md">
                 Complete los datos del usuario B2B a crear o vincular
             </Text>
@@ -381,6 +487,56 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
                 </Text>
             )}
 
+            <Divider my="md" />
+
+            <Checkbox
+                label="Usar fecha y hora personalizada para la creación del usuario"
+                checked={usarFechaPersonalizada}
+                onChange={(event) => {
+                    setUsarFechaPersonalizada(event.currentTarget.checked);
+                    if (event.currentTarget.checked) {
+                        setFechaPersonalizada(createLocalISOString(new Date()));
+                    }
+                }}
+                mb="md"
+            />
+
+            {usarFechaPersonalizada && (
+                <Box>
+                    <TextInput
+                        label="Fecha"
+                        type="date"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[0] : ''}
+                        onChange={(e) => {
+                            const fecha = e.currentTarget.value;
+                            if (fecha && fechaPersonalizada) {
+                                const [yyyy, mm, dd] = fecha.split('-').map(Number);
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="sm"
+                    />
+                    <TextInput
+                        label="Hora"
+                        type="time"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[1]?.substring(0, 5) : ''}
+                        onChange={(e) => {
+                            const time = e.currentTarget.value;
+                            if (time && fechaPersonalizada) {
+                                const [hh, mm] = time.split(':');
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="md"
+                    />
+                </Box>
+            )}
+
             <Group justify="flex-end" mt="lg">
                 <Button variant="default" onClick={close}>Cancelar</Button>
                 <Button type="submit" loading={mutation.isPending} disabled={existeEnSistema}>
@@ -392,18 +548,91 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
 }
 
 function AgendarForm({ mutation, close }: { mutation: any; close: () => void }) {
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
+
     const { control, register, handleSubmit } = useForm<AgendarFormValues>({
-        resolver: zodResolver(agendarSchema),
+        resolver: zodResolver(agendarSchema) as any,
         defaultValues: { fecha_visita: new Date() },
     });
 
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const onSubmit = (data: AgendarFormValues) => {
+        const payload: any = { ...data };
+        if (usarFechaPersonalizada && fechaPersonalizada) {
+            payload.fecha_agendamiento_personalizada = fechaPersonalizada;
+        }
+        mutation.mutate(payload);
+    };
+
     return (
-        <form onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+        <form onSubmit={handleSubmit(onSubmit)}>
             <Text size="sm" c="dimmed" mb="md">
                 Programe una fecha y hora para realizar la instalación en el cliente.
             </Text>
             <FechaHoraController control={control} name="fecha_visita" label="Fecha de Visita Programada" />
             <Textarea label="Observaciones (opcional)" {...register('observaciones')} mt="md" minRows={3} />
+            
+            <Divider my="md" />
+
+            <Checkbox
+                label="Usar fecha y hora personalizada para el agendamiento"
+                checked={usarFechaPersonalizada}
+                onChange={(event) => {
+                    setUsarFechaPersonalizada(event.currentTarget.checked);
+                    if (event.currentTarget.checked) {
+                        setFechaPersonalizada(createLocalISOString(new Date()));
+                    }
+                }}
+                mb="md"
+            />
+
+            {usarFechaPersonalizada && (
+                <Box>
+                    <TextInput
+                        label="Fecha de Agendamiento"
+                        type="date"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[0] : ''}
+                        onChange={(e) => {
+                            const fecha = e.currentTarget.value;
+                            if (fecha && fechaPersonalizada) {
+                                const [yyyy, mm, dd] = fecha.split('-').map(Number);
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="sm"
+                    />
+                    <TextInput
+                        label="Hora de Agendamiento"
+                        type="time"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[1]?.substring(0, 5) : ''}
+                        onChange={(e) => {
+                            const time = e.currentTarget.value;
+                            if (time && fechaPersonalizada) {
+                                const [hh, mm] = time.split(':');
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="md"
+                    />
+                </Box>
+            )}
+
             <Group justify="flex-end" mt="lg">
                 <Button variant="default" onClick={close}>Cancelar</Button>
                 <Button type="submit" loading={mutation.isPending}>Agendar</Button>
@@ -413,15 +642,88 @@ function AgendarForm({ mutation, close }: { mutation: any; close: () => void }) 
 }
 
 function InstalarForm({ mutation, close }: { mutation: any; close: () => void }) {
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
+
     const { control, register, handleSubmit } = useForm<InstalarFormValues>({
-        resolver: zodResolver(instalarSchema),
+        resolver: zodResolver(instalarSchema) as any,
         defaultValues: { fecha_instalacion: new Date() },
     });
 
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const onSubmit = (data: InstalarFormValues) => {
+        const payload: any = { ...data };
+        if (usarFechaPersonalizada && fechaPersonalizada) {
+            payload.fecha_instalacion_personalizada = fechaPersonalizada;
+        }
+        mutation.mutate(payload);
+    };
+
     return (
-        <form onSubmit={handleSubmit((data) => mutation.mutate(data))}>
+        <form onSubmit={handleSubmit(onSubmit)}>
             <FechaHoraController control={control} name="fecha_instalacion" label="Fecha de Instalación" />
             <Textarea label="Observaciones (opcional)" {...register('observaciones')} mt="md" minRows={3} />
+            
+            <Divider my="md" />
+
+            <Checkbox
+                label="Usar fecha y hora personalizada para la instalación"
+                checked={usarFechaPersonalizada}
+                onChange={(event) => {
+                    setUsarFechaPersonalizada(event.currentTarget.checked);
+                    if (event.currentTarget.checked) {
+                        setFechaPersonalizada(createLocalISOString(new Date()));
+                    }
+                }}
+                mb="md"
+            />
+
+            {usarFechaPersonalizada && (
+                <Box>
+                    <TextInput
+                        label="Fecha de Instalación"
+                        type="date"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[0] : ''}
+                        onChange={(e) => {
+                            const fecha = e.currentTarget.value;
+                            if (fecha && fechaPersonalizada) {
+                                const [yyyy, mm, dd] = fecha.split('-').map(Number);
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="sm"
+                    />
+                    <TextInput
+                        label="Hora de Instalación"
+                        type="time"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[1]?.substring(0, 5) : ''}
+                        onChange={(e) => {
+                            const time = e.currentTarget.value;
+                            if (time && fechaPersonalizada) {
+                                const [hh, mm] = time.split(':');
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="md"
+                    />
+                </Box>
+            )}
+
             <Group justify="flex-end" mt="lg">
                 <Button variant="default" onClick={close}>Cancelar</Button>
                 <Button type="submit" loading={mutation.isPending}>Marcar Instalado</Button>
@@ -431,15 +733,37 @@ function InstalarForm({ mutation, close }: { mutation: any; close: () => void })
 }
 
 function FinalizarForm({ mutation, close }: { mutation: any; close: () => void }) {
-    const { register, handleSubmit, watch, setValue } = useForm<FinalizarFormValues>({
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
+
+    const { handleSubmit, watch, setValue } = useForm<FinalizarFormValues>({
         resolver: zodResolver(finalizarSchema),
         defaultValues: { capacitacion_realizada: true },
     });
 
     const capacitacionRealizada = watch('capacitacion_realizada');
 
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
+    const onSubmit = (data: FinalizarFormValues) => {
+        const payload: any = { capacitacion_realizada: data.capacitacion_realizada };
+        if (usarFechaPersonalizada && fechaPersonalizada) {
+            payload.fecha_finalizacion_personalizada = fechaPersonalizada;
+        }
+        mutation.mutate(payload);
+    };
+
     return (
-        <form onSubmit={handleSubmit((data) => mutation.mutate(data.capacitacion_realizada))}>
+        <form onSubmit={handleSubmit(onSubmit)}>
             <Text size="md" mb="md">
                 ¿Se realizó la capacitación correspondiente al cliente?
             </Text>
@@ -461,6 +785,56 @@ function FinalizarForm({ mutation, close }: { mutation: any; close: () => void }
                 </Stack>
             </Radio.Group>
             
+            <Divider my="md" />
+
+            <Checkbox
+                label="Usar fecha y hora personalizada para la finalización"
+                checked={usarFechaPersonalizada}
+                onChange={(event) => {
+                    setUsarFechaPersonalizada(event.currentTarget.checked);
+                    if (event.currentTarget.checked) {
+                        setFechaPersonalizada(createLocalISOString(new Date()));
+                    }
+                }}
+                mb="md"
+            />
+
+            {usarFechaPersonalizada && (
+                <Box>
+                    <TextInput
+                        label="Fecha de Finalización"
+                        type="date"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[0] : ''}
+                        onChange={(e) => {
+                            const fecha = e.currentTarget.value;
+                            if (fecha && fechaPersonalizada) {
+                                const [yyyy, mm, dd] = fecha.split('-').map(Number);
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="sm"
+                    />
+                    <TextInput
+                        label="Hora de Finalización"
+                        type="time"
+                        value={fechaPersonalizada ? fechaPersonalizada.split('T')[1]?.substring(0, 5) : ''}
+                        onChange={(e) => {
+                            const time = e.currentTarget.value;
+                            if (time && fechaPersonalizada) {
+                                const [hh, mm] = time.split(':');
+                                const currentDate = new Date(fechaPersonalizada);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                setFechaPersonalizada(createLocalISOString(newDate));
+                            }
+                        }}
+                        mb="md"
+                    />
+                </Box>
+            )}
+            
             <Group justify="flex-end" mt="xl">
                 <Button variant="default" onClick={close}>Cancelar</Button>
                 <Button type="submit" color="blue" loading={mutation.isPending}>
@@ -478,9 +852,11 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
     const [loading, setLoading] = useState(false);
     const [selectedEquipo, setSelectedEquipo] = useState<number | null>(null);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
+    const [fechaPersonalizada, setFechaPersonalizada] = useState('');
     const queryClient = useQueryClient();
 
-    const { register, handleSubmit, formState: { errors } } = useForm({
+    const { register, handleSubmit } = useForm({
         defaultValues: {
             nombre_equipo: '',
             mac_address: '',
@@ -503,10 +879,25 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
         }
     };
 
+    const createLocalISOString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
     const handleCrearEquipo = async (data: any) => {
         setLoading(true);
         try {
-            const nuevoEquipo = await crearEquipoInstalacion(instalacion.id_instalacion, data);
+            const payload = { ...data };
+            if (usarFechaPersonalizada && fechaPersonalizada) {
+                payload.fecha_creacion_personalizada = fechaPersonalizada;
+            }
+            const nuevoEquipo = await crearEquipoInstalacion(instalacion.id_instalacion, payload);
             showNotification({ title: 'Éxito', message: 'Equipo creado exitosamente', color: 'green' });
             setEquipos([...equipos, nuevoEquipo]);
             setShowCreateForm(false);
@@ -559,6 +950,46 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
                         <TextInput label="Procesador" placeholder="Intel Core i5-9400" {...register('procesador', { required: true })} mb="xs" />
                         <TextInput label="Placa Madre" placeholder="ASUS PRIME B365M-A" {...register('placa_madre', { required: true })} mb="xs" />
                         <TextInput label="Disco Duro" placeholder="Kingston 240GB SSD" {...register('disco_duro', { required: true })} mb="xs" />
+                        
+                        <Switch
+                            label="Usar fecha de creación personalizada"
+                            description="Para equipos que se crearon anteriormente"
+                            checked={usarFechaPersonalizada}
+                            onChange={(e) => setUsarFechaPersonalizada(e.currentTarget.checked)}
+                            mb="sm"
+                        />
+
+                        {usarFechaPersonalizada && (
+                            <Group grow>
+                                <TextInput
+                                    type="date"
+                                    label="Fecha de Creación"
+                                    value={fechaPersonalizada ? new Date(fechaPersonalizada).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => {
+                                        const dateStr = e.currentTarget.value;
+                                        if (dateStr) {
+                                            const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+                                            const newDate = new Date(yyyy, (mm || 1) - 1, dd || 1, new Date().getHours(), new Date().getMinutes(), 0, 0);
+                                            setFechaPersonalizada(createLocalISOString(newDate));
+                                        }
+                                    }}
+                                    required
+                                />
+                                <TimeInput
+                                    label="Hora de Creación"
+                                    value={fechaPersonalizada ? new Date(fechaPersonalizada).toTimeString().slice(0, 5) : ''}
+                                    onChange={(e) => {
+                                        const [hh, mm] = e.currentTarget.value.split(':');
+                                        const currentDate = fechaPersonalizada ? new Date(fechaPersonalizada) : new Date();
+                                        const newDate = new Date(currentDate);
+                                        newDate.setHours(parseInt(hh || '0', 10), parseInt(mm || '0', 10), 0, 0);
+                                        setFechaPersonalizada(createLocalISOString(newDate));
+                                    }}
+                                    required
+                                />
+                            </Group>
+                        )}
+
                         <Button type="submit" fullWidth mt="sm" loading={loading}>Crear Equipo</Button>
                     </form>
                 </Paper>
@@ -656,7 +1087,7 @@ function FechaHoraController({ control, name, label }: { control: any; name: str
 
                 return (
                     <Group grow mt="md">
-                        <DateInput value={currentDate} onChange={handleDatePartChange} label={label} required />
+                        <DateInput value={currentDate} onChange={handleDatePartChange as any} label={label} required />
                         <TimeInput value={timeValue} onChange={handleTimePartChange} label="Hora" required />
                     </Group>
                 );

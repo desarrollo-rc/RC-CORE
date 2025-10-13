@@ -37,3 +37,15 @@ export const desactivarUsuarioB2B = async (id: number): Promise<UsuarioB2B> => {
     return response.data;
 };
 
+// ===== Servicios para Instalaciones =====
+
+export const getUsuariosB2BByCliente = async (clienteId: number): Promise<UsuarioB2B[]> => {
+    const response = await apiClient.get<UsuarioB2B[]>(`/usuarios-b2b/cliente/${clienteId}`);
+    return response.data;
+};
+
+export const sugerirNombreUsuario = async (clienteId: number): Promise<{ nombre_sugerido: string }> => {
+    const response = await apiClient.get<{ nombre_sugerido: string }>(`/usuarios-b2b/cliente/${clienteId}/sugerir-usuario`);
+    return response.data;
+};
+

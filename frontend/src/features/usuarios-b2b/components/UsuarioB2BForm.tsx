@@ -1,6 +1,6 @@
 // frontend/src/features/usuarios-b2b/components/UsuarioB2BForm.tsx
 import { useForm } from '@mantine/form';
-import { TextInput, Button, Stack } from '@mantine/core';
+import { TextInput, Button, Stack, PasswordInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ClienteSelect } from '../../clientes/components/ClienteSelect';
@@ -21,12 +21,19 @@ export function UsuarioB2BForm({ usuario, onSuccess }: UsuarioB2BFormProps) {
             nombre_completo: usuario?.nombre_completo || '',
             usuario: usuario?.usuario || '',
             email: usuario?.email || '',
+            password: '',
             id_cliente: usuario?.id_cliente || 0,
         },
         validate: {
             nombre_completo: (value) => (value.trim().length < 3 ? 'El nombre debe tener al menos 3 caracteres' : null),
             usuario: (value) => (value.trim().length < 3 ? 'El usuario debe tener al menos 3 caracteres' : null),
             email: (value) => (/^\S+@\S+\.\S+$/.test(value) ? null : 'Email inválido'),
+            password: (value, values) => {
+                if (!isEditing && (!value || value.trim().length < 6)) {
+                    return 'La contraseña debe tener al menos 6 caracteres';
+                }
+                return null;
+            },
             id_cliente: (value) => (value === 0 ? 'Debe seleccionar un cliente' : null),
         },
     });
@@ -45,6 +52,7 @@ export function UsuarioB2BForm({ usuario, onSuccess }: UsuarioB2BFormProps) {
                     nombre_completo: values.nombre_completo,
                     usuario: values.usuario,
                     email: values.email,
+                    password: values.password,
                     id_cliente: values.id_cliente,
                 };
                 return crearUsuarioB2B(payload);
@@ -98,6 +106,16 @@ export function UsuarioB2BForm({ usuario, onSuccess }: UsuarioB2BFormProps) {
                     withAsterisk
                     {...form.getInputProps('email')}
                 />
+
+                {!isEditing && (
+                    <PasswordInput
+                        label="Contraseña"
+                        placeholder="Mínimo 6 caracteres"
+                        withAsterisk
+                        description="Contraseña inicial para el usuario B2B"
+                        {...form.getInputProps('password')}
+                    />
+                )}
 
                 {!isEditing && (
                     <ClienteSelect

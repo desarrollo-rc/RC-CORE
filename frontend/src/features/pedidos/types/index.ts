@@ -19,6 +19,16 @@ export interface ClienteSimple {
     nombre_cliente: string;
 }
 
+export interface VendedorSimple {
+    id_vendedor: number;
+    codigo_vendedor_sap: string;
+    activo: boolean;
+    usuario: {
+        id_usuario: number;
+        nombre_completo: string;
+    };
+}
+
 export interface ProductoDetalle {
     producto_sku: string;
     producto_nombre: string;
@@ -56,6 +66,7 @@ export interface Pedido {
     ruta_pdf: string | null;
 
     cliente: ClienteSimple;
+    vendedor: VendedorSimple | null;
 
     estado_general: Estado;
     estado_credito: Estado;

@@ -2,6 +2,7 @@
 from marshmallow import Schema, fields, validate, ValidationError, validates, validates_schema
 from .usuario_schemas import UsuarioSimpleSchema
 from .cliente_schemas import ClienteResponseSchema
+from .vendedor_schemas import VendedorSchema
 from ....models.negocio.pedidos import EstadoAprobacionCredito, EstadoLogistico, EstadoPedido
 from ....extensions import db
 
@@ -91,6 +92,7 @@ class PedidoResponseSchema(Schema):
     ruta_pdf = fields.Str()
     
     cliente = fields.Nested(lambda: ClienteResponseSchema(only=("id_cliente", "codigo_cliente", "nombre_cliente")))
+    vendedor = fields.Nested(VendedorSchema, allow_none=True)
     
     estado_general = fields.Nested(EstadoPedidoSchema)
     estado_credito = fields.Nested(EstadoAprobacionCreditoSchema)
