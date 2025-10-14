@@ -282,6 +282,61 @@ def pedido_ya_existe(codigo_b2b: str, db: Session) -> bool:
     return pedido is not None
 
 
+def obtener_informacion_pedido_existente(codigo_b2b: str, db: Session) -> Optional[Dict]:
+    """Obtiene información del pedido existente para comparar con el nuevo."""
+    from app.models.negocio.pedidos import Pedido
+    pedido = db.query(Pedido).filter(Pedido.codigo_pedido_origen == codigo_b2b).first()
+    if not pedido:
+        return None
+    
+    return {
+        'id_pedido': pedido.id_pedido,
+        'codigo_pedido_origen': pedido.codigo_pedido_origen,
+        'numero_pedido_sap': pedido.numero_pedido_sap,
+        'id_cliente': pedido.id_cliente,
+        'monto_total': float(pedido.monto_total) if pedido.monto_total else 0,
+        'fecha_creacion': pedido.fecha_creacion.isoformat() if pedido.fecha_creacion else None
+    }
+
+
+def generar_codigo_b2b_alternativo(codigo_b2b_original: str, db: Session) -> str:
+    """Genera un código B2B alternativo agregando (*) al final si ya existe."""
+    codigo_alternativo = f"{codigo_b2b_original}*"
+    
+    # Verificar si el código con (*) también existe
+    contador = 1
+    while pedido_ya_existe(codigo_alternativo, db):
+        codigo_alternativo = f"{codigo_b2b_original}*{contador}"
+        contador += 1
+        # Protección contra bucle infinito
+        if contador > 99:
+            break
+    
+    return codigo_alternativo
+
+
+def son_pedidos_diferentes(pedido_existente: Dict, nuevo_pedido: Dict) -> bool:
+    """Compara dos pedidos para determinar si son realmente diferentes."""
+    # Comparar número SAP
+    sap_existente = pedido_existente.get('numero_pedido_sap')
+    sap_nuevo = nuevo_pedido.get('numero_pedido_sap')
+    
+    if sap_existente and sap_nuevo and sap_existente != sap_nuevo:
+        return True
+    
+    # Comparar cliente
+    if pedido_existente.get('id_cliente') != nuevo_pedido.get('id_cliente'):
+        return True
+    
+    # Comparar monto total (con tolerancia de 0.01)
+    monto_existente = pedido_existente.get('monto_total', 0)
+    monto_nuevo = nuevo_pedido.get('monto_total', 0)
+    if abs(monto_existente - monto_nuevo) > 0.01:
+        return True
+    
+    return False
+
+
 def obtener_o_crear_cliente(info_cliente: Dict, db: Session) -> Optional[int]:
     """Verifica si el cliente existe por RUT, si no, retorna None (se debe crear manualmente)."""
     from app.models.entidades.maestro_clientes import MaestroClientes
@@ -640,12 +695,37 @@ def extraer_pedidos_preview(
                 advertencias = []
                 estado_validacion = 'valido'  # 'valido', 'advertencia', 'error'
                 
-                # Verificar si el pedido ya existe
+                # Verificar si el pedido ya existe y analizar si es diferente
                 pedido_existe = False
+                pedido_duplicado_diferente = False
+                codigo_b2b_alternativo = codigo_b2b_actual
+                
                 if db and pedido_ya_existe(codigo_b2b_actual, db):
-                    advertencias.append('El pedido ya existe en el sistema')
-                    pedido_existe = True
-                    estado_validacion = 'cargado'  # Cambiar de 'error' a 'cargado'
+                    # Obtener información del pedido existente
+                    pedido_existente_info = obtener_informacion_pedido_existente(codigo_b2b_actual, db)
+                    
+                    if pedido_existente_info:
+                        # Crear información del nuevo pedido para comparar
+                        nuevo_pedido_info = {
+                            'numero_pedido_sap': numero_sap,
+                            'id_cliente': None,  # Se determinará después
+                            'monto_total': sum(prod.get('cantidad', 0) * prod.get('valor_unitario', 0) for prod in productos_extraidos)
+                        }
+                        
+                        # Verificar si son pedidos diferentes
+                        if son_pedidos_diferentes(pedido_existente_info, nuevo_pedido_info):
+                            pedido_duplicado_diferente = True
+                            codigo_b2b_alternativo = generar_codigo_b2b_alternativo(codigo_b2b_actual, db)
+                            advertencias.append(f'Pedido duplicado detectado. Se creará con código alternativo: {codigo_b2b_alternativo}')
+                            estado_validacion = 'advertencia'
+                        else:
+                            pedido_existe = True
+                            advertencias.append('El pedido ya existe en el sistema (idéntico)')
+                            estado_validacion = 'cargado'
+                    else:
+                        pedido_existe = True
+                        advertencias.append('El pedido ya existe en el sistema')
+                        estado_validacion = 'cargado'
                 
                 # Verificar si el cliente existe
                 cliente_existe = False
@@ -693,6 +773,8 @@ def extraer_pedidos_preview(
                 # Agregar pedido al resultado
                 pedido_info = {
                     'codigo_b2b': codigo_b2b_actual,
+                    'codigo_b2b_alternativo': codigo_b2b_alternativo,
+                    'es_duplicado_diferente': pedido_duplicado_diferente,
                     'fecha_pedido': fecha_correo.isoformat(),  # Usar fecha del correo
                     'aprobacion_automatica': esta_aprobado,  # Si está confirmado
                     'numero_pedido_sap': numero_sap if esta_aprobado else None,  # Solo si está aprobado
@@ -867,14 +949,22 @@ def procesar_pedidos_seleccionados(
                 cliente = db.query(MaestroClientes).filter_by(id_cliente=id_cliente).first()
                 id_vendedor_cliente = cliente.id_vendedor if cliente else None
                 
-                # 2. Verificar si el pedido ya existe
-                if pedido_ya_existe(codigo_b2b, db):
-                    resultado['errores'].append({
-                        'codigo_b2b': codigo_b2b,
-                        'tipo': 'pedido',
-                        'mensaje': 'El pedido ya existe en el sistema'
-                    })
-                    continue
+                # 2. Determinar el código B2B a usar (original o alternativo)
+                codigo_b2b_final = codigo_b2b
+                
+                # Si es un duplicado diferente, usar el código alternativo
+                if pedido_info.get('es_duplicado_diferente', False):
+                    codigo_b2b_final = pedido_info.get('codigo_b2b_alternativo', codigo_b2b)
+                    print(f"DEBUG: Usando código alternativo {codigo_b2b_final} para pedido duplicado {codigo_b2b}")
+                else:
+                    # Verificar si el pedido ya existe (para casos normales)
+                    if pedido_ya_existe(codigo_b2b, db):
+                        resultado['errores'].append({
+                            'codigo_b2b': codigo_b2b,
+                            'tipo': 'pedido',
+                            'mensaje': 'El pedido ya existe en el sistema'
+                        })
+                        continue
                 
                 # 3. Obtener estados y canal necesarios
                 from app.models.negocio.pedidos import EstadoPedido, EstadoAprobacionCredito
@@ -912,7 +1002,7 @@ def procesar_pedidos_seleccionados(
                 # 4. Crear el pedido
                 try:
                     nuevo_pedido = Pedido(
-                        codigo_pedido_origen=codigo_b2b,
+                        codigo_pedido_origen=codigo_b2b_final,
                         id_cliente=id_cliente,
                         id_canal_venta=canal_b2b.id_canal,
                         id_vendedor=id_vendedor_cliente,  # Heredar vendedor del cliente
@@ -1158,15 +1248,22 @@ def procesar_pedidos_seleccionados(
                 
                 db.flush()
                 
-                mensaje = f"Pedido {codigo_b2b} creado exitosamente con {productos_agregados} productos"
+                # Construir mensaje de éxito
+                if codigo_b2b_final != codigo_b2b:
+                    mensaje = f"Pedido {codigo_b2b} creado exitosamente como {codigo_b2b_final} (código alternativo) con {productos_agregados} productos"
+                else:
+                    mensaje = f"Pedido {codigo_b2b} creado exitosamente con {productos_agregados} productos"
+                
                 if productos_omitidos:
                     mensaje += f". Productos omitidos: {', '.join(productos_omitidos[:3])}{'...' if len(productos_omitidos) > 3 else ''}"
                 
                 resultado['pedidos_creados'].append({
                     'codigo_b2b': codigo_b2b,
+                    'codigo_b2b_final': codigo_b2b_final,
                     'id_pedido': nuevo_pedido.id_pedido,
                     'mensaje': mensaje,
-                    'productos_count': productos_agregados
+                    'productos_count': productos_agregados,
+                    'es_duplicado_diferente': pedido_info.get('es_duplicado_diferente', False)
                 })
                 
                 # Commit por cada pedido exitoso

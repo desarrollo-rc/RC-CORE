@@ -217,7 +217,13 @@ export function GmailReviewPage() {
                                     <Text fw={500}>✅ {pedidosCreados} pedido(s) creado(s)</Text>
                                     {resultado.pedidos_creados?.map((p: any) => (
                                         <Text key={p.codigo_b2b} size="sm" c="dimmed">
-                                            • {p.codigo_b2b}: {p.productos_count} productos
+                                            • {p.codigo_b2b}
+                                            {p.es_duplicado_diferente && p.codigo_b2b_final && (
+                                                <Text component="span" c="orange" fw={500}>
+                                                    {' '}→ {p.codigo_b2b_final}
+                                                </Text>
+                                            )}
+                                            : {p.productos_count} productos
                                         </Text>
                                     ))}
                                 </Alert>
@@ -419,6 +425,11 @@ export function GmailReviewPage() {
                                 <div>
                                     <Group gap="xs">
                                         <Text fw={600}>{pedido.codigo_b2b}</Text>
+                                        {pedido.es_duplicado_diferente && pedido.codigo_b2b_alternativo && (
+                                            <Badge color="orange" size="sm" variant="light">
+                                                → {pedido.codigo_b2b_alternativo}
+                                            </Badge>
+                                        )}
                                         {getEstadoBadge(pedido.estado_validacion)}
                                         {!pedido.cliente_existe && (
                                             <Badge color="orange" size="sm">Cliente Nuevo</Badge>

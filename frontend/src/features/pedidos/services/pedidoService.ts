@@ -81,6 +81,8 @@ export interface ProductoPreview {
 
 export interface PedidoPreview {
     codigo_b2b: string;
+    codigo_b2b_alternativo?: string;
+    es_duplicado_diferente?: boolean;
     fecha_pedido: string;
     aprobacion_automatica?: boolean;
     numero_pedido_sap?: string | null;
@@ -116,9 +118,11 @@ export interface GmailProcessResult {
     mensaje: string;
     pedidos_creados: Array<{
         codigo_b2b: string;
+        codigo_b2b_final?: string;
         id_pedido: number;
         mensaje: string;
         productos_count: number;
+        es_duplicado_diferente?: boolean;
     }>;
     clientes_creados: Array<{
         rut: string;
