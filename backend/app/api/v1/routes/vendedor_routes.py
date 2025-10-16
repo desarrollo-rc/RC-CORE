@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app.api.v1.schemas.vendedor_schemas import VendedorSchema, VendedorUpdateSchema
 from app.api.v1.services.vendedor_service import VendedorService
+from app.api.v1.services.notificacion_service import notificacion_service
 from app.api.v1.utils.errors import BusinessRuleError
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required
@@ -78,3 +79,28 @@ def activate_vendedor(vendedor_id):
         return schema_response.dump(vendedor), 200
     except NotFound:
         return jsonify({"error": f"Vendedor con ID {vendedor_id} no encontrado."}), 404
+
+@vendedores_bp.route('/<int:vendedor_id>/enviar_whatsapp', methods=['POST'])
+def enviar_whatsapp_a_vendedor(vendedor_id):
+    """
+    Endpoint para enviar un mensaje de WhatsApp a un vendedor específico.
+    """
+    data = request.get_json()
+    if not data or 'mensaje' not in data:
+        return jsonify({"error": "El campo 'mensaje' es requerido en el cuerpo de la solicitud"}), 400
+
+    mensaje_a_enviar = data['mensaje']
+    
+    # Delegamos la lógica al VendedorService
+    resultado = VendedorService.enviar_whatsapp_vendedor(vendedor_id, mensaje_a_enviar)
+    
+    if resultado.get('success'):
+        return jsonify({
+            "mensaje": f"Solicitud de envío de WhatsApp a vendedor {vendedor_id} procesada.",
+            "detalles_api": resultado.get('data')
+        }), 200
+    else:
+        return jsonify({
+            "error": "Fallo al procesar la solicitud de envío de WhatsApp.",
+            "detalles": resultado.get('error')
+        }), 500

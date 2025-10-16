@@ -2,6 +2,7 @@
 from app.extensions import db
 from app.models.entidades.usuarios import Usuario
 from app.models.negocio.vendedores import Vendedor
+from app.api.v1.services.notificacion_service import notificacion_service
 from app.api.v1.utils.errors import ResourceConflictError, RelatedResourceNotFoundError
 
 class VendedorService:
@@ -63,3 +64,30 @@ class VendedorService:
         vendedor.activo = True
         db.session.commit()
         return vendedor
+
+    @staticmethod
+    def enviar_whatsapp_vendedor(vendedor_id, mensaje):
+        vendedor = Vendedor.query.get(vendedor_id)
+        if not vendedor:
+            return {"success": False, "error": "Vendedor no encontrado"}
+        
+        if not vendedor.usuario:
+            return {"success": False, "error": "El vendedor no tiene un usuario asociado"}
+
+        # Ahora buscamos el teléfono en el objeto Usuario
+        telefono_usuario = vendedor.usuario.telefono
+        if not telefono_usuario:
+            return {"success": False, "error": "El usuario asociado al vendedor no tiene un número de teléfono registrado"}
+
+
+        # La API de Meta requiere el número sin símbolos, solo el código de país y el número.
+        # Ej: '+56 9 1234 5678' -> '56912345678'
+        numero_limpio = ''.join(filter(str.isdigit, telefono_usuario))
+
+        # Llamamos a nuestro servicio central de notificaciones
+        resultado_envio = notificacion_service.enviar_whatsapp(
+            to_number=numero_limpio,
+            message_body=mensaje
+        )
+        
+        return resultado_envio

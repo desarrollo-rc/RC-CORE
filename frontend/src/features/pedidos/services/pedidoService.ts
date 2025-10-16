@@ -174,3 +174,47 @@ export const procesarPedidosGmail = async (
     });
     return response.data;
 };
+
+export const generarInformeCorte = async (
+    fecha: string,
+    hora: number
+): Promise<Blob> => {
+    const response = await apiClient.get('/pedidos/informes/corte', {
+        params: { fecha, hora },
+        responseType: 'blob'
+    });
+    return response.data;
+};
+
+export const generarInformeMensual = async (
+    mes: string,
+    año: string
+): Promise<Blob> => {
+    const response = await apiClient.get('/pedidos/informes/mensual', {
+        params: { mes, ano: año },
+        responseType: 'blob'
+    });
+    return response.data;
+};
+
+export const generarInformeCorteExcel = async (
+    fecha: string,
+    hora: number
+): Promise<Blob> => {
+    const response = await apiClient.get('/pedidos/informes/corte/excel', {
+        params: { fecha, hora },
+        responseType: 'blob'
+    });
+    return response.data;
+};
+
+export const generarInformeMensualExcel = async (
+    mes: string,
+    año: string
+): Promise<Blob> => {
+    const response = await apiClient.get('/pedidos/informes/mensual/excel', {
+        params: { mes, ano: año },
+        responseType: 'blob'
+    });
+    return response.data;
+};

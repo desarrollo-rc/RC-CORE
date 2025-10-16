@@ -283,19 +283,46 @@ def pedido_ya_existe(codigo_b2b: str, db: Session) -> bool:
 
 
 def obtener_informacion_pedido_existente(codigo_b2b: str, db: Session) -> Optional[Dict]:
-    """Obtiene información del pedido existente para comparar con el nuevo."""
-    from app.models.negocio.pedidos import Pedido
+    """Obtiene información del pedido existente para comparar con el nuevo.
+    Incluye un hash estable de productos del detalle para comparación robusta.
+    """
+    from app.models.negocio.pedidos import Pedido, PedidoDetalle
+    from app.models.productos.maestro_productos import MaestroProductos
+
     pedido = db.query(Pedido).filter(Pedido.codigo_pedido_origen == codigo_b2b).first()
     if not pedido:
         return None
-    
+
+    # Construir hash de productos a partir de los detalles
+    detalles = (
+        db.query(PedidoDetalle, MaestroProductos)
+        .join(MaestroProductos, MaestroProductos.id_producto == PedidoDetalle.id_producto)
+        .filter(PedidoDetalle.id_pedido == pedido.id_pedido)
+        .all()
+    )
+
+    partes = []
+    total_detalle = 0.0
+    for det, prod in detalles:
+        sku = (getattr(prod, 'sku', '') or '').strip().upper()
+        cantidad_float = float(det.cantidad or 0)
+        # Canonicalizar cantidad como entero (evita '3' vs '3.0')
+        cantidad_str = str(int(round(cantidad_float)))
+        precio = float(det.precio_unitario or 0)
+        # Para comparación robusta ignoramos precio en el hash (solo SKU y cantidad)
+        partes.append(f"{sku}|{cantidad_str}")
+        total_detalle += cantidad_float * precio
+    partes.sort()
+    hash_productos = '|'.join(partes) if partes else None
+
     return {
         'id_pedido': pedido.id_pedido,
         'codigo_pedido_origen': pedido.codigo_pedido_origen,
         'numero_pedido_sap': pedido.numero_pedido_sap,
         'id_cliente': pedido.id_cliente,
-        'monto_total': float(pedido.monto_total) if pedido.monto_total else 0,
-        'fecha_creacion': pedido.fecha_creacion.isoformat() if pedido.fecha_creacion else None
+        'monto_total': float(pedido.monto_total) if pedido.monto_total else float(total_detalle),
+        'fecha_creacion': pedido.fecha_creacion.isoformat() if pedido.fecha_creacion else None,
+        'hash_productos': hash_productos,
     }
 
 
@@ -316,25 +343,71 @@ def generar_codigo_b2b_alternativo(codigo_b2b_original: str, db: Session) -> str
 
 
 def son_pedidos_diferentes(pedido_existente: Dict, nuevo_pedido: Dict) -> bool:
-    """Compara dos pedidos para determinar si son realmente diferentes."""
+    """Compara dos pedidos para determinar si son realmente diferentes.
+    Prioriza comparación por SAP, hash de productos y luego id_cliente.
+    """
     # Comparar número SAP
     sap_existente = pedido_existente.get('numero_pedido_sap')
     sap_nuevo = nuevo_pedido.get('numero_pedido_sap')
-    
     if sap_existente and sap_nuevo and sap_existente != sap_nuevo:
         return True
-    
-    # Comparar cliente
-    if pedido_existente.get('id_cliente') != nuevo_pedido.get('id_cliente'):
+
+    # Comparar composición de productos si está disponible (hash estable)
+    hash_existente = pedido_existente.get('hash_productos')
+    hash_nuevo = nuevo_pedido.get('hash_productos')
+    if hash_existente is not None and hash_nuevo is not None:
+        if hash_existente != hash_nuevo:
+            return True
+
+    # Comparar cliente (solo si ambos presentes)
+    if (pedido_existente.get('id_cliente') is not None and
+        nuevo_pedido.get('id_cliente') is not None and
+        pedido_existente.get('id_cliente') != nuevo_pedido.get('id_cliente')):
         return True
-    
-    # Comparar monto total (con tolerancia de 0.01)
+
+    # Comparar monto total (con tolerancia). Aceptar equivalencia neto vs bruto (IVA 19%)
+    monto_existente = float(pedido_existente.get('monto_total', 0) or 0)
+    monto_nuevo = float(nuevo_pedido.get('monto_total', 0) or 0)
+    if abs(monto_existente - monto_nuevo) <= 1.0:
+        return False
+    # Considerar equivalencia si uno incluye IVA y el otro no (19%)
+    iva = 0.19
+    bruto_desde_neto = monto_nuevo * (1 + iva)
+    neto_desde_bruto = monto_nuevo / (1 + iva) if (1 + iva) != 0 else monto_nuevo
+    if abs(monto_existente - bruto_desde_neto) <= 1.0:
+        return False
+    if abs(monto_existente - neto_desde_bruto) <= 1.0:
+        return False
+    # Si ninguna equivalencia calza, considerar diferente
+    return True
+
+    return False
+
+# Diagnóstico detallado de diferencias para depuración/preview
+def diagnosticar_diferencias(pedido_existente: Dict, nuevo_pedido: Dict) -> List[str]:
+    razones: List[str] = []
+    sap_existente = pedido_existente.get('numero_pedido_sap')
+    sap_nuevo = nuevo_pedido.get('numero_pedido_sap')
+    if sap_existente or sap_nuevo:
+        if sap_existente != sap_nuevo:
+            razones.append(f"SAP distinto: existente={sap_existente or 'None'} vs nuevo={sap_nuevo or 'None'}")
+
+    hash_existente = pedido_existente.get('hash_productos')
+    hash_nuevo = nuevo_pedido.get('hash_productos')
+    if hash_existente is not None and hash_nuevo is not None and hash_existente != hash_nuevo:
+        razones.append('Composición de productos distinta (hash)')
+
+    id_cli_existente = pedido_existente.get('id_cliente')
+    id_cli_nuevo = nuevo_pedido.get('id_cliente')
+    if id_cli_existente is not None and id_cli_nuevo is not None and id_cli_existente != id_cli_nuevo:
+        razones.append(f"Cliente distinto: existente={id_cli_existente} vs nuevo={id_cli_nuevo}")
+
     monto_existente = pedido_existente.get('monto_total', 0)
     monto_nuevo = nuevo_pedido.get('monto_total', 0)
-    if abs(monto_existente - monto_nuevo) > 0.01:
-        return True
-    
-    return False
+    if abs((monto_existente or 0) - (monto_nuevo or 0)) > 1.0:
+        razones.append(f"Total distinto: existente={monto_existente} vs nuevo={monto_nuevo}")
+
+    return razones
 
 
 def obtener_o_crear_cliente(info_cliente: Dict, db: Session) -> Optional[int]:
@@ -694,28 +767,62 @@ def extraer_pedidos_preview(
                 # Validaciones
                 advertencias = []
                 estado_validacion = 'valido'  # 'valido', 'advertencia', 'error'
-                
-                # Verificar si el pedido ya existe y analizar si es diferente
+
+                # 1) Resolver cliente primero para comparación correcta
+                cliente_existe = False
+                id_cliente = None
+                if db:
+                    id_cliente = obtener_o_crear_cliente(info_cliente, db)
+                    cliente_existe = id_cliente is not None
+                    if not cliente_existe:
+                        advertencias.append(f"Cliente con RUT {info_cliente.get('rut', 'N/A')} no encontrado en el sistema")
+                        if estado_validacion == 'valido':
+                            estado_validacion = 'advertencia'
+
+                # 2) Calcular hash estable de productos (SKU, cantidad, valor)
+                def _hash_productos(items):
+                    try:
+                        # Para evitar falsos positivos por diferencias de precio, ignoramos el valor unitario
+                        # Canonicalizamos SKU y cantidad (entero)
+                        partes = []
+                        for p in items:
+                            sku = str(p.get('sku', '')).strip().upper()
+                            cantidad_float = float(p.get('cantidad', 0) or 0)
+                            cantidad_str = str(int(round(cantidad_float)))
+                            partes.append(f"{sku}|{cantidad_str}")
+                        partes.sort()
+                        return '|'.join(partes)
+                    except Exception as e:
+                        print(f"ERROR en _hash_productos: {e}")
+                        return None
+                hash_productos_preview = _hash_productos(productos_extraidos)
+
+                # 3) Verificar si el pedido ya existe y analizar si es diferente usando datos resueltos
                 pedido_existe = False
                 pedido_duplicado_diferente = False
                 codigo_b2b_alternativo = codigo_b2b_actual
-                
+
                 if db and pedido_ya_existe(codigo_b2b_actual, db):
                     # Obtener información del pedido existente
                     pedido_existente_info = obtener_informacion_pedido_existente(codigo_b2b_actual, db)
-                    
+
                     if pedido_existente_info:
-                        # Crear información del nuevo pedido para comparar
+                        # Crear información del nuevo pedido para comparar (con cliente e hash ya resueltos)
                         nuevo_pedido_info = {
                             'numero_pedido_sap': numero_sap,
-                            'id_cliente': None,  # Se determinará después
-                            'monto_total': sum(prod.get('cantidad', 0) * prod.get('valor_unitario', 0) for prod in productos_extraidos)
+                            'id_cliente': id_cliente,
+                            'monto_total': sum(prod.get('cantidad', 0) * prod.get('valor_unitario', 0) for prod in productos_extraidos),
+                            'hash_productos': hash_productos_preview
                         }
-                        
+
                         # Verificar si son pedidos diferentes
                         if son_pedidos_diferentes(pedido_existente_info, nuevo_pedido_info):
                             pedido_duplicado_diferente = True
                             codigo_b2b_alternativo = generar_codigo_b2b_alternativo(codigo_b2b_actual, db)
+                            # Agregar diagnóstico detallado
+                            razones = diagnosticar_diferencias(pedido_existente_info, nuevo_pedido_info)
+                            if razones:
+                                advertencias.append('Diferencias detectadas: ' + '; '.join(razones))
                             advertencias.append(f'Pedido duplicado detectado. Se creará con código alternativo: {codigo_b2b_alternativo}')
                             estado_validacion = 'advertencia'
                         else:
@@ -726,17 +833,6 @@ def extraer_pedidos_preview(
                         pedido_existe = True
                         advertencias.append('El pedido ya existe en el sistema')
                         estado_validacion = 'cargado'
-                
-                # Verificar si el cliente existe
-                cliente_existe = False
-                id_cliente = None
-                if db:
-                    id_cliente = obtener_o_crear_cliente(info_cliente, db)
-                    cliente_existe = id_cliente is not None
-                    if not cliente_existe:
-                        advertencias.append(f"Cliente con RUT {info_cliente.get('rut', 'N/A')} no encontrado en el sistema")
-                        if estado_validacion == 'valido':
-                            estado_validacion = 'advertencia'
                 
                 # Verificar productos
                 productos_validados = []
@@ -1454,4 +1550,5 @@ if __name__ == '__main__':
     # Esto permite ejecutar el script directamente para una prueba
     resultado = procesar_pedidos_b2b()
     print(resultado)
+
 

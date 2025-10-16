@@ -2,7 +2,6 @@
 from flask import Flask, jsonify
 from sqlalchemy import text
 from config import Config
-from app.extensions import db, migrate
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 
@@ -11,15 +10,15 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     app.url_map.strict_slashes = False
-    
-    CORS(app)
+
+    from .extensions import db, migrate, ma, jwt, cors
 
     # Inicialización Extensiones
     db.init_app(app)
     migrate.init_app(app, db)
-
-    # Inicialización JWT
-    jwt = JWTManager(app)
+    ma.init_app(app)
+    jwt.init_app(app)
+    cors.init_app(app, resources={r"/api/*": {"origins": "*"}}) # Esta es la forma correcta.
 
     # Modelos
     with app.app_context():

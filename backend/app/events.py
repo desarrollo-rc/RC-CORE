@@ -4,7 +4,7 @@ from sqlalchemy.orm.attributes import get_history
 from flask import g
 from app.models.analitica.historial_cambios import HistorialCambios
 from app.models.entidades.maestro_clientes import MaestroClientes
-from app import db
+from .extensions import db
 
 def before_flush(session, flush_context, instances):
     """

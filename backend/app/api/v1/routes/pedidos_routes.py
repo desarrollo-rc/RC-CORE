@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, Response
 from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema, PedidoUpdateCantidadesSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
+from app.api.v1.services.informes_service import InformesService
 from app.api.v1.utils.errors import BusinessRuleError, RelatedResourceNotFoundError
 from app.api.v1.utils.decorators import permission_required
 from datetime import datetime
@@ -414,4 +415,141 @@ def procesar_pedidos_gmail():
             "mensaje": f"Error inesperado: {str(e)}",
             "pedidos_creados": [],
             "errores": []
+        }), 500
+
+
+@pedidos_bp.route('/informes/corte', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:consultar')
+def generar_informe_corte():
+    """
+    Genera un informe de corte por fecha y hora específica.
+    Query params:
+    - fecha: YYYY-MM-DD
+    - hora: 0-23
+    """
+    fecha = request.args.get('fecha')
+    hora = request.args.get('hora', type=int)
+    
+    if not fecha or hora is None:
+        return jsonify({"error": "Se requiere fecha y hora"}), 400
+    
+    try:
+        from app.api.v1.services.informes_service import InformesService
+        pdf_data = InformesService.generar_informe_corte(fecha, hora)
+        
+        from flask import Response
+        return Response(
+            pdf_data,
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename=informe_corte_{fecha}_{hora}h.pdf'
+            }
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "error": f"Error al generar informe de corte: {str(e)}"
+        }), 500
+
+
+@pedidos_bp.route('/informes/mensual', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:consultar')
+def generar_informe_mensual():
+    """
+    Genera un informe mensual con estadísticas del mes.
+    Query params:
+    - mes: 1-12
+    - ano: YYYY
+    """
+    mes = request.args.get('mes', type=int)
+    año = request.args.get('ano', type=int)
+    
+    if not mes or not año or mes < 1 or mes > 12:
+        return jsonify({"error": "Se requiere mes (1-12) y año válidos"}), 400
+    
+    try:
+        from app.api.v1.services.informes_service import InformesService
+        pdf_data = InformesService.generar_informe_mensual(mes, año)
+        
+        from flask import Response
+        return Response(
+            pdf_data,
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename=informe_mensual_{año}_{mes:02d}.pdf'
+            }
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "error": f"Error al generar informe mensual: {str(e)}"
+        }), 500
+
+@pedidos_bp.route('/informes/corte/excel', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:consultar')
+def generar_informe_corte_excel():
+    """Genera un informe de corte en formato Excel"""
+    try:
+        fecha = request.args.get('fecha')
+        hora = request.args.get('hora', type=int)
+        
+        if not fecha or hora is None:
+            return jsonify({
+                "error": "Se requiere fecha y hora"
+            }), 400
+        
+        # Generar informe Excel
+        excel_data = InformesService.generar_informe_corte_excel(fecha, hora)
+        
+        return Response(
+            excel_data,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f'attachment; filename=informe_corte_{fecha}_{hora}h.xlsx'
+            }
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "error": f"Error al generar informe de corte Excel: {str(e)}"
+        }), 500
+
+@pedidos_bp.route('/informes/mensual/excel', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:consultar')
+def generar_informe_mensual_excel():
+    """Genera un informe mensual en formato Excel"""
+    try:
+        mes = request.args.get('mes', type=int)
+        año = request.args.get('ano', type=int)  # Frontend envía 'ano'
+        
+        if not mes or not año:
+            return jsonify({
+                "error": "Se requiere mes y año"
+            }), 400
+        
+        # Generar informe Excel
+        excel_data = InformesService.generar_informe_mensual_excel(mes, año)
+        
+        meses_nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        
+        return Response(
+            excel_data,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f'attachment; filename=informe_mensual_{año}_{meses_nombres[mes]}.xlsx'
+            }
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "error": f"Error al generar informe mensual Excel: {str(e)}"
         }), 500

@@ -32,3 +32,9 @@ export const activateVendedor = async (id: number): Promise<Vendedor> => {
     const response = await apiClient.put<Vendedor>(`/vendedores/${id}/activate`);
     return response.data;
 };
+
+export const enviarWhatsappVendedor = async (vendedorId: number, mensaje: string): Promise<any> => {
+    // Esta URL debe coincidir exactamente con la ruta que definimos en el backend
+    const { data } = await apiClient.post(`/vendedores/${vendedorId}/enviar_whatsapp`, { mensaje });
+    return data;
+};

@@ -1,14 +1,15 @@
 // frontend/src/features/pedidos/pages/PedidosPage.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select, NumberInput, Affix, ActionIcon, rem } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Pagination, Button, Text, TextInput, Select, Affix, ActionIcon, rem } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { fetchAllClientes } from '../../clientes/services/clienteService';
 import { getVendedores } from '../../vendedores/services/vendedorService';
 import { IconPlus, IconMail } from '@tabler/icons-react';
 import { PedidosTable } from '../components/PedidosTable';
 import { GmailExtractionModal } from '../components/GmailExtractionModal';
-import { getPedidos, exportPedidosCutoff } from '../services/pedidoService';
+import { InformesModal } from '../components/InformesModal';
+import { getPedidos } from '../services/pedidoService';
 import type { PedidoList, PedidoFilters, PaginatedPedidosResponse } from '../types';
 
 const PAGE_SIZE = 15;
@@ -21,9 +22,8 @@ export function PedidosPage() {
     const [filters, setFilters] = useState<PedidoFilters>({ page: 1, per_page: PAGE_SIZE });
     const [clienteOptions, setClienteOptions] = useState<{ value: string; label: string }[]>([]);
     const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
-    const [exportDate, setExportDate] = useState<string>('');
-    const [cutoffHour, setCutoffHour] = useState<number>(12);
     const [gmailModalOpened, { open: openGmailModal, close: closeGmailModal }] = useDisclosure(false);
+    const [informesModalOpened, { open: openInformesModal, close: closeInformesModal }] = useDisclosure(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -155,38 +155,13 @@ export function PedidosPage() {
                 />
             </Group>
 
-            <Group mt="md" align="end">
-                <TextInput
-                    type="date"
-                    label="Fecha objetivo informe"
-                    value={exportDate}
-                    onChange={(e: any) => setExportDate(e.currentTarget.value)}
-                    style={{ maxWidth: 220 }}
-                />
-                <NumberInput
-                    label="Hora de corte"
-                    min={0}
-                    max={23}
-                    value={cutoffHour}
-                    onChange={(v) => setCutoffHour(Number(v) || 0)}
-                    style={{ maxWidth: 180 }}
-                />
+            <Group mb="md" justify="flex-end">
                 <Button
                     variant="outline"
-                    onClick={async () => {
-                        if (!exportDate) return;
-                        const blob = await exportPedidosCutoff(exportDate, cutoffHour);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `pedidos_${exportDate}_cutoff_${cutoffHour}.csv`;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        URL.revokeObjectURL(url);
-                    }}
+                    leftSection={<IconPlus size={16} />}
+                    onClick={openInformesModal}
                 >
-                    Descargar informe (corte)
+                    Informes
                 </Button>
             </Group>
 
@@ -195,6 +170,11 @@ export function PedidosPage() {
             <GmailExtractionModal
                 opened={gmailModalOpened}
                 onClose={closeGmailModal}
+            />
+
+            <InformesModal
+                opened={informesModalOpened}
+                onClose={closeInformesModal}
             />
 
             <Affix position={{ bottom: rem(20), right: rem(20) }}>
