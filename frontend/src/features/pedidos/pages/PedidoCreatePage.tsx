@@ -1,6 +1,5 @@
 // frontend/src/features/pedidos/pages/PedidoCreatePage.tsx
 import { useForm, useFieldArray, Controller, type SubmitHandler } from 'react-hook-form';
-import { TimeInput } from '@mantine/dates';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate } from 'react-router-dom';
@@ -223,7 +222,8 @@ export function PedidoCreatePage() {
                                         onChange={handleDateChange}
                                         required
                                     />
-                                    <TimeInput
+                                    <TextInput
+                                        type="time"
                                         label="Hora de Creación"
                                         value={timeValue}
                                         onChange={handleTimeChange}

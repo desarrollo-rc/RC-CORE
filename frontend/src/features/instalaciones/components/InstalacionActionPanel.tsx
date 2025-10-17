@@ -1,7 +1,6 @@
 // frontend/src/features/instalaciones/components/InstalacionActionPanel.tsx
 import { useState } from 'react';
 import { Paper, Title, Button, Group, Modal, Textarea, Switch, Box, Text, TextInput, Radio, Stack, Loader, Alert, Badge, Divider, Checkbox } from '@mantine/core';
-import { DateInput, TimeInput } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -975,7 +974,8 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
                                     }}
                                     required
                                 />
-                                <TimeInput
+                                <TextInput
+                                    type="time"
                                     label="Hora de Creación"
                                     value={fechaPersonalizada ? new Date(fechaPersonalizada).toTimeString().slice(0, 5) : ''}
                                     onChange={(e) => {
@@ -1059,26 +1059,23 @@ function FechaHoraController({ control, name, label }: { control: any; name: str
             render={({ field }) => {
                 const currentDate = field.value instanceof Date && !isNaN(field.value.getTime()) ? field.value : new Date();
                 
-                const handleDatePartChange = (valueFromInput: Date | null) => {
-                    if (!valueFromInput) return;
-                    const datePart = new Date(valueFromInput);
-                    if (datePart && !isNaN(datePart.getTime())) {
-                        const newFullDate = new Date(
-                            datePart.getFullYear(),
-                            datePart.getMonth(),
-                            datePart.getDate(),
-                            currentDate.getHours(),
-                            currentDate.getMinutes()
-                        );
-                        field.onChange(newFullDate);
-                    }
+                // Formato YYYY-MM-DD para el input date
+                const dateValue = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                
+                const handleDatePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const dateStr = e.currentTarget.value; // YYYY-MM-DD
+                    if (!dateStr) return;
+                    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+                    // Crear fecha local sin problemas de zona horaria
+                    const newFullDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                    field.onChange(newFullDate);
                 };
 
                 const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     const [hours, minutes] = e.currentTarget.value.split(':');
                     if (!isNaN(parseInt(hours, 10)) && !isNaN(parseInt(minutes, 10))) {
                         const newFullDate = new Date(currentDate);
-                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
                         field.onChange(newFullDate);
                     }
                 };
@@ -1087,8 +1084,20 @@ function FechaHoraController({ control, name, label }: { control: any; name: str
 
                 return (
                     <Group grow mt="md">
-                        <DateInput value={currentDate} onChange={handleDatePartChange as any} label={label} required />
-                        <TimeInput value={timeValue} onChange={handleTimePartChange} label="Hora" required />
+                        <TextInput 
+                            type="date" 
+                            value={dateValue} 
+                            onChange={handleDatePartChange} 
+                            label={label} 
+                            required 
+                        />
+                        <TextInput 
+                            type="time" 
+                            value={timeValue} 
+                            onChange={handleTimePartChange} 
+                            label="Hora" 
+                            required 
+                        />
                     </Group>
                 );
             }}

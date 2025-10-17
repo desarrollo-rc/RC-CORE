@@ -1,7 +1,6 @@
 // frontend/src/features/pedidos/components/PedidoActionPanel.tsx
 import { useState } from 'react';
 import { Paper, Title, Button, Group, Modal, Select, Textarea, TextInput, Switch, Tooltip, Box } from '@mantine/core';
-import { DateInput, TimeInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks';
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -395,28 +394,46 @@ function FechaHoraController({ control, name }: { control: any, name: string }) 
             control={control}
             render={({ field }) => {
                 const currentDate = field.value instanceof Date && !isNaN(field.value.getTime()) ? field.value : new Date();
-                const handleDatePartChange = (valueFromInput: Date | string | null) => {
-                    if (!valueFromInput) return;
-                    const datePart = new Date(valueFromInput);
-                    if (datePart && !isNaN(datePart.getTime())) {
-                        const newFullDate = new Date(datePart.getFullYear(), datePart.getMonth(), datePart.getDate(), currentDate.getHours(), currentDate.getMinutes());
-                        field.onChange(newFullDate);
-                    }
+                
+                // Formato YYYY-MM-DD para el input date
+                const dateValue = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                
+                const handleDatePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const dateStr = e.currentTarget.value; // YYYY-MM-DD
+                    if (!dateStr) return;
+                    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+                    // Crear fecha local sin problemas de zona horaria
+                    const newFullDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                    field.onChange(newFullDate);
                 };
+                
                 const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     const [hours, minutes] = e.currentTarget.value.split(':');
                     if (!isNaN(parseInt(hours,10)) && !isNaN(parseInt(minutes,10))) {
                         const newFullDate = new Date(currentDate);
-                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
                         field.onChange(newFullDate);
                     }
                 };
+                
                 const timeValue = `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
 
                 return (
                     <Group grow mt="md">
-                        <DateInput value={currentDate} onChange={handleDatePartChange} label="Fecha del Evento" required />
-                        <TimeInput value={timeValue} onChange={handleTimePartChange} label="Hora del Evento" required />
+                        <TextInput 
+                            type="date" 
+                            value={dateValue} 
+                            onChange={handleDatePartChange} 
+                            label="Fecha del Evento" 
+                            required 
+                        />
+                        <TextInput 
+                            type="time" 
+                            value={timeValue} 
+                            onChange={handleTimePartChange} 
+                            label="Hora del Evento" 
+                            required 
+                        />
                     </Group>
                 );
             }}

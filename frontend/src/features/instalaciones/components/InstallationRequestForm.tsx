@@ -1,7 +1,6 @@
 import React from 'react';
 import { useForm } from '@mantine/form';
 import { Button, Box, Textarea, Stack, Switch, Alert, Group, TextInput, NumberInput, Select, PasswordInput } from '@mantine/core';
-import { TimeInput } from '@mantine/dates';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -391,7 +390,8 @@ function FechaHoraController({ form }: { form: any }) {
         onChange={handleDateChange}
         required
       />
-      <TimeInput
+      <TextInput
+        type="time"
         label="Hora de Solicitud"
         value={timeValue}
         onChange={handleTimeChange}
