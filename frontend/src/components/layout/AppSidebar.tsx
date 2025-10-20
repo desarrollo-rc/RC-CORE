@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Box, NavLink as MantineNavLink, Title, Button, Collapse, Popover } from '@mantine/core';
-import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory, IconShoppingCart, IconTool, IconAlertCircle } from '@tabler/icons-react';
+import { IconSettings, IconChevronRight, IconChevronDown, IconArrowBarToLeft, IconArrowBarToRight, IconBuildingStore, IconHierarchy2, IconTags, IconRuler, IconUsers, IconKey, IconTag, IconBox, IconDashboard, IconMap, IconCar, IconTruck, IconCube, IconUser, IconBriefcase, IconResize, IconBuilding, IconCreditCard, IconList, IconBuildingFactory, IconShoppingCart, IconTool, IconAlertCircle, IconSearch } from '@tabler/icons-react';
 import classes from './AppSidebar.module.css';
 
 const menuItems = [
@@ -74,6 +74,7 @@ const menuItems = [
         id: 'admin',
         subItems: [
             { icon: IconBuildingStore, label: 'Áreas', to: '/areas' },
+            { icon: IconSearch, label: 'Consultas', to: '/admin/consultas' },
             { icon: IconUsers, label: 'Usuarios', to: '/usuarios' },
             { icon: IconKey, label: 'Permisos', to: '/permisos' },  
             { icon: IconTag, label: 'Roles', to: '/roles' },

@@ -1,6 +1,6 @@
 // frontend/src/features/pedidos/services/pedidoService.ts
 import apiClient from '../../../api/axios';
-import type { Pedido, PedidoPayload, PedidoFilters, PaginatedPedidosResponse, PedidoUpdateEstadoPayload } from '../types';
+import type { Pedido, PedidoPayload, PedidoFilters, PaginatedPedidosResponse, PedidoUpdateEstadoPayload, EstadoOption } from '../types';
 
 export const getPedidos = async (filters: PedidoFilters): Promise<PaginatedPedidosResponse> => {
     const response = await apiClient.get<PaginatedPedidosResponse>('/pedidos', { params: filters });
@@ -216,5 +216,22 @@ export const generarInformeMensualExcel = async (
         params: { mes, ano: año },
         responseType: 'blob'
     });
+    return response.data;
+};
+
+// --- Servicios para obtener listas de estados ---
+
+export const getEstadosGenerales = async (): Promise<EstadoOption[]> => {
+    const response = await apiClient.get<EstadoOption[]>('/pedidos/estados/generales');
+    return response.data;
+};
+
+export const getEstadosCredito = async (): Promise<EstadoOption[]> => {
+    const response = await apiClient.get<EstadoOption[]>('/pedidos/estados/credito');
+    return response.data;
+};
+
+export const getEstadosLogisticos = async (): Promise<EstadoOption[]> => {
+    const response = await apiClient.get<EstadoOption[]>('/pedidos/estados/logisticos');
     return response.data;
 };

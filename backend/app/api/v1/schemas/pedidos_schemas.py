@@ -118,6 +118,9 @@ class PedidoListResponseSchema(Schema):
     fecha_creacion = fields.DateTime()
     monto_total = fields.Decimal(as_string=True, places=2)
     estado_general = fields.Nested(EstadoPedidoSchema)
+    tipo = fields.Str()
+    sku_count = fields.Int()
+    total_unidades = fields.Int()
 
 class PedidoUpdateEstadoSchema(Schema):
     id_estado_general = fields.Int()

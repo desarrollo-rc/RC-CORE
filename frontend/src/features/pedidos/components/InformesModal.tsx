@@ -345,7 +345,7 @@ export function InformesModal({ opened, onClose }: InformesModalProps) {
                         {tipoInforme === 'corte' ? (
                             <Stack gap="md">
                                 <Alert icon={<IconClock size={16} />} color="blue" variant="light">
-                                    El informe de corte incluirá todos los pedidos hasta la fecha y hora especificada.
+                                    El informe de corte incluirá todos los pedidos desde el último día laboral a la hora de corte hasta la fecha y hora especificada. Si es lunes, incluirá desde el viernes al horario de corte.
                                 </Alert>
                                 
                                 <TextInput

@@ -67,6 +67,26 @@ class Pedido(db.Model, MixinAuditoria):
     historial_estados = db.relationship('HistorialEstadoPedido', back_populates='pedido', cascade="all, delete-orphan")
 
     @property
+    def sku_count(self):
+        """Cantidad de SKU únicos en el pedido."""
+        return len(set(d.id_producto for d in self.detalles))
+
+    @property
+    def total_unidades(self):
+        """Total de unidades en el pedido."""
+        return sum(d.cantidad for d in self.detalles)
+
+    @property
+    def tipo(self):
+        """
+        Clasifica el pedido como RIFLEO o MAYORISTA.
+        RIFLEO: hasta 6 SKU y máximo 1 unidad por SKU
+        MAYORISTA: cualquier otro caso
+        """
+        es_rifleo = self.sku_count <= 6 and all(d.cantidad <= 1 for d in self.detalles)
+        return "RIFLEO" if es_rifleo else "MAYORISTA"
+
+    @property
     def puede_despachar(self):
         return self.numero_factura_sap is not None or self.factura_manual is not None
         

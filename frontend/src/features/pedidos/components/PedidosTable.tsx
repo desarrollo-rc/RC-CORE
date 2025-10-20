@@ -25,37 +25,47 @@ interface PedidosTableProps {
 }
 
 export function PedidosTable({ records, onView }: PedidosTableProps) {
-    const rows = records.map((record) => (
-        <Table.Tr key={record.id_pedido}>
-            <Table.Td>
-                <Group gap="xs">
-                    <Text>{record.numero_pedido_sap || record.codigo_pedido_origen || record.id_pedido}</Text>
-                    {record.numero_pedido_sap && record.codigo_pedido_origen && (
-                        <Badge color="blue" size="sm" variant="light">
-                            B2B: {record.codigo_pedido_origen}
-                        </Badge>
-                    )}
-                </Group>
-            </Table.Td>
-            <Table.Td>{record.cliente_nombre}</Table.Td>
-            <Table.Td>{formatDateTime(record.fecha_creacion)}</Table.Td>
-            <Table.Td>
-                <Badge color={record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue'}>
-                    {record.estado_general?.nombre_estado || 'N/A'}
-                </Badge>
-            </Table.Td>
-            <Table.Td style={{ textAlign: 'right' }}>{formatCLP(record.monto_total)}</Table.Td>
-            <Table.Td>
-                <Group gap="xs" justify="flex-end">
-                    <Tooltip label="Ver Detalle del Pedido">
-                        <ActionIcon variant="light" onClick={() => onView(record)}>
-                            <IconEye size={16} />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
-            </Table.Td>
-        </Table.Tr>
-    ));
+    const rows = records.map((record) => {
+        const colorTipo = record.tipo === 'RIFLEO' ? 'blue' : 'red';
+        const letraTipo = record.tipo === 'RIFLEO' ? 'R' : 'M';
+        
+        return (
+            <Table.Tr key={record.id_pedido}>
+                <Table.Td>
+                    <Group gap="xs">
+                        <Text>{record.numero_pedido_sap || record.codigo_pedido_origen || record.id_pedido}</Text>
+                        {record.numero_pedido_sap && record.codigo_pedido_origen && (
+                            <Badge color="blue" size="sm" variant="light">
+                                B2B: {record.codigo_pedido_origen}
+                            </Badge>
+                        )}
+                    </Group>
+                </Table.Td>
+                <Table.Td>{record.cliente_nombre}</Table.Td>
+                <Table.Td>{formatDateTime(record.fecha_creacion)}</Table.Td>
+                <Table.Td>
+                    <Badge color={colorTipo} size="lg" variant="filled" circle>
+                        {letraTipo}
+                    </Badge>
+                </Table.Td>
+                <Table.Td>
+                    <Badge color={record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue'}>
+                        {record.estado_general?.nombre_estado || 'N/A'}
+                    </Badge>
+                </Table.Td>
+                <Table.Td style={{ textAlign: 'right' }}>{formatCLP(record.monto_total)}</Table.Td>
+                <Table.Td>
+                    <Group gap="xs" justify="flex-end">
+                        <Tooltip label="Ver Detalle del Pedido">
+                            <ActionIcon variant="light" onClick={() => onView(record)}>
+                                <IconEye size={16} />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Group>
+                </Table.Td>
+            </Table.Tr>
+        );
+    });
 
     return (
         <Table striped highlightOnHover withTableBorder>
@@ -64,6 +74,7 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
                     <Table.Th>N° Pedido</Table.Th>
                     <Table.Th>Cliente</Table.Th>
                     <Table.Th>Fecha Creación</Table.Th>
+                    <Table.Th>Tipo</Table.Th>
                     <Table.Th>Estado</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Monto Total</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Acciones</Table.Th>
@@ -72,7 +83,7 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
             <Table.Tbody>
                 {rows.length > 0 ? rows : (
                     <Table.Tr>
-                        <Table.Td colSpan={6}>
+                        <Table.Td colSpan={7}>
                             <Text c="dimmed" ta="center">No se encontraron pedidos.</Text>
                         </Table.Td>
                     </Table.Tr>

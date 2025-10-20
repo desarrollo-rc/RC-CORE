@@ -27,6 +27,10 @@ class Config:
     # Desactiva una función de SQLAlchemy que no necesitamos y que consume recursos.
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    SQLALCHEMY_BINDS = {
+        'omsrc': os.environ.get('OMSRC_DATABASE_URL') or 'mssql+pyodbc://federico.lorca:34NMyU$.32gH@omsrc.eastus.cloudapp.azure.com:1433/rcenter?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=yes'
+    }
+
     # Clave para firma de JWT
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'una-clave-super-secreta'
 

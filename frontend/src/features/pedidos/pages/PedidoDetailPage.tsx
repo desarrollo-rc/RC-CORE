@@ -11,6 +11,12 @@ import { notifications } from '@mantine/notifications';
 
 // --- Componente para la Cabecera ---
 function PedidoHeader({ pedido }: { pedido: Pedido }) {
+    // Calcular clasificación RIFLEO/MAYORISTA
+    const skuCount = pedido.detalles.length;
+    const esRifleo = skuCount <= 6 && pedido.detalles.every(item => item.cantidad <= 1);
+    const tipoPedido = esRifleo ? 'RIFLEO' : 'MAYORISTA';
+    const colorTipo = esRifleo ? 'blue' : 'orange';
+
     const handleDescargarPDF = async () => {
         if (!pedido.ruta_pdf) return;
 
@@ -56,6 +62,9 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                 <Box>
                     <Group gap="md" align="center">
                         <Title order={2}>Pedido #{pedido.codigo_pedido_origen || pedido.id_pedido}</Title>
+                        <Badge color={colorTipo} size="xl" variant="filled">
+                            {tipoPedido}
+                        </Badge>
                         {pedido.ruta_pdf && (
                             <Tooltip label="Descargar PDF del pedido">
                                 <ActionIcon
@@ -105,6 +114,12 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
 
 // --- Componente para la Tabla de Productos ---
 function PedidoDetalles({ detalles }: { detalles: PedidoDetalleType[] }) {
+    // Calcular clasificación RIFLEO/MAYORISTA
+    const skuCount = detalles.length;
+    const esRifleo = skuCount <= 6 && detalles.every(item => item.cantidad <= 1);
+    const tipoPedido = esRifleo ? 'RIFLEO' : 'MAYORISTA';
+    const colorTipo = esRifleo ? 'blue' : 'orange';
+
     const rows = detalles.map((item) => (
         <Table.Tr key={item.id_producto}>
             <Table.Td>{item.producto?.producto_sku || 'N/A'}</Table.Td>
@@ -117,7 +132,12 @@ function PedidoDetalles({ detalles }: { detalles: PedidoDetalleType[] }) {
 
     return (
         <Paper withBorder p="lg" mb="lg">
-            <Title order={4} mb="md">Productos</Title>
+            <Group justify="space-between" mb="md">
+                <Title order={4}>Productos</Title>
+                <Badge color={colorTipo} size="lg" variant="light">
+                    {tipoPedido}
+                </Badge>
+            </Group>
             <Table striped withTableBorder>
                 <Table.Thead>
                     <Table.Tr>

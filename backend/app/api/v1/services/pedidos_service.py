@@ -16,7 +16,7 @@ class PedidoService:
 
     @staticmethod
     def get_all_pedidos(page, per_page, **filters):
-        query = Pedido.query
+        query = Pedido.query.options(joinedload(Pedido.detalles))
 
         if filters.get('id_cliente'):
             query = query.filter(Pedido.id_cliente == filters['id_cliente'])
@@ -28,6 +28,10 @@ class PedidoService:
             )
         if filters.get('id_estado_general'):
             query = query.filter(Pedido.id_estado_general == filters['id_estado_general'])
+        if filters.get('id_estado_credito'):
+            query = query.filter(Pedido.id_estado_credito == filters['id_estado_credito'])
+        if filters.get('id_estado_logistico'):
+            query = query.filter(Pedido.id_estado_logistico == filters['id_estado_logistico'])
         if filters.get('codigo_b2b'):
             query = query.filter(Pedido.codigo_pedido_origen.ilike(f"%{filters['codigo_b2b']}%"))
         if filters.get('fecha_desde'):

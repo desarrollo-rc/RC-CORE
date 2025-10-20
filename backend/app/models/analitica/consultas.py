@@ -1,13 +1,24 @@
 from app.extensions import db
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
+import enum
+from sqlalchemy import Column, Integer, String, Text, Boolean, Enum as SQLAlchemyEnum
 
+class TipoQuery(enum.Enum):
+    LECTURA = "LECTURA"
+    ESCRITURA = "ESCRITURA"
+    PROCESO = "PROCESO" # Para lógica más compleja que un simple CRUD
+
+class OrigenBdd(enum.Enum):
+    RC_CORE = "RC_CORE"
+    SAPB1 = "SAPB1"
+    OMSRC = "OMSRC"
 
 class Consulta(db.Model):
     __tablename__ = 'consultas'
     __table_args__ = {
         'schema': 'analitica',
-        'comment': 'Catálogo de consultas SQL parametrizadas para reporting (solo SELECT).'
+        'comment': 'Catálogo de consultas SQL y procesos para reporting y automatización.'
     }
 
     id_consulta = db.Column(db.Integer, primary_key=True)
@@ -29,6 +40,9 @@ class Consulta(db.Model):
     fecha_creacion = db.Column(db.DateTime, server_default=func.now(), nullable=False)
     fecha_modificacion = db.Column(db.DateTime, onupdate=func.now())
     activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    tipo = db.Column(SQLAlchemyEnum(TipoQuery), nullable=False, default=TipoQuery.LECTURA, server_default='LECTURA')
+    bdd_source = db.Column(SQLAlchemyEnum(OrigenBdd), nullable=False, default=OrigenBdd.RC_CORE, server_default='RC_CORE')
 
     creador = db.relationship('Usuario')
     ejecuciones = db.relationship('ConsultaEjecucion', back_populates='consulta', cascade='all, delete-orphan')

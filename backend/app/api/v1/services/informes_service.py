@@ -18,17 +18,38 @@ import pandas as pd
 class InformesService:
     
     @staticmethod
+    def _calcular_fecha_inicio_corte(fecha_corte: datetime) -> datetime:
+        """
+        Calcula la fecha de inicio para el informe de corte considerando los fines de semana.
+        Si es lunes, incluye desde el viernes al horario de corte.
+        Si es cualquier otro día laboral, incluye desde el día anterior al horario de corte.
+        """
+        # Obtener el día de la semana (0=Lunes, 6=Domingo)
+        dia_semana = fecha_corte.weekday()
+        
+        # Si es lunes (0), retroceder al viernes (3 días)
+        if dia_semana == 0:
+            dias_retroceso = 3
+        else:
+            # Cualquier otro día laboral, retroceder 1 día
+            dias_retroceso = 1
+        
+        fecha_inicio = fecha_corte - timedelta(days=dias_retroceso)
+        return fecha_inicio
+    
+    @staticmethod
     def generar_informe_corte(fecha: str, hora: int) -> bytes:
         """
         Genera un informe PDF de corte para una fecha y hora específica.
-        Incluye todos los pedidos desde el día anterior a la hora de corte hasta el día seleccionado a la hora de corte.
+        Incluye todos los pedidos desde el último día laboral a la hora de corte hasta el día seleccionado a la hora de corte.
+        Si es lunes, incluye desde el viernes al horario de corte.
         """
         # Parsear fecha
         fecha_obj = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_corte = fecha_obj.replace(hour=hora, minute=0, second=0, microsecond=0)
         
-        # Calcular rango de fechas: desde el día anterior a la hora de corte hasta el día seleccionado a la hora de corte
-        fecha_inicio = fecha_corte - timedelta(days=1)
+        # Calcular rango de fechas considerando fines de semana
+        fecha_inicio = InformesService._calcular_fecha_inicio_corte(fecha_corte)
         fecha_fin = fecha_corte
         
         # Obtener pedidos en el rango de fechas
@@ -99,10 +120,23 @@ class InformesService:
         total_pedidos = len(pedidos)
         monto_total = sum(float(p.monto_total or 0) for p in pedidos)
         
+        # Calcular SKU únicos y cantidad total de unidades
+        sku_unicos = set()
+        total_unidades = 0
+        
+        for pedido in pedidos:
+            detalles = db.session.query(PedidoDetalle).filter_by(id_pedido=pedido.id_pedido).all()
+            for detalle in detalles:
+                if detalle.id_producto:
+                    sku_unicos.add(detalle.id_producto)
+                    total_unidades += int(detalle.cantidad or 0)
+        
         # Métricas principales
         metrics_data = [
             ['MÉTRICA', 'VALOR'],
             ['Total de Pedidos', f"{total_pedidos:,}"],
+            ['SKU Únicos', f"{len(sku_unicos):,}"],
+            ['Total Unidades', f"{total_unidades:,}"],
             ['Monto Total', f"${monto_total:,.0f}"]
         ]
         
@@ -146,7 +180,7 @@ class InformesService:
         
         # Tabla de pedidos en el período
         if pedidos:
-            data = [['#', 'Código B2B', 'Cliente', 'Fecha Creación', 'Estado', 'Monto']]
+            data = [['#', 'Código B2B', 'Cliente', 'Fecha Creación', 'SKU', 'Unidades', 'Estado', 'Monto', 'Tipo']]
             
             for i, pedido in enumerate(pedidos, 1):  # Todos los pedidos en el período
                 cliente_nombre = "N/A"
@@ -155,8 +189,18 @@ class InformesService:
                     if cliente:
                         # Mostrar nombre completo, truncar solo si es muy largo
                         cliente_nombre = cliente.nombre_cliente
-                        if len(cliente_nombre) > 40:
-                            cliente_nombre = cliente_nombre[:37] + "..."
+                        if len(cliente_nombre) > 30:
+                            cliente_nombre = cliente_nombre[:27] + "..."
+                
+                # Calcular SKU y unidades del pedido
+                detalles_pedido = db.session.query(PedidoDetalle).filter_by(id_pedido=pedido.id_pedido).all()
+                sku_pedido = len(set(d.id_producto for d in detalles_pedido if d.id_producto))
+                unidades_pedido = sum(int(d.cantidad or 0) for d in detalles_pedido)
+                
+                # Determinar si es RIFLEO o MAYORISTA
+                # RIFLEO: hasta 6 SKU y máximo 1 unidad por SKU
+                es_rifleo = sku_pedido <= 6 and all(int(d.cantidad or 0) <= 1 for d in detalles_pedido)
+                tipo_pedido = "RIFLEO" if es_rifleo else "MAYORISTA"
                 
                 # Obtener estado real del pedido
                 estado_nombre = "N/A"
@@ -168,11 +212,14 @@ class InformesService:
                     pedido.codigo_pedido_origen or f"#{pedido.id_pedido}",
                     cliente_nombre,
                     pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') if pedido.fecha_creacion else 'N/A',
+                    str(sku_pedido),
+                    str(unidades_pedido),
                     estado_nombre,
-                    f"${float(pedido.monto_total or 0):,.0f}"
+                    f"${float(pedido.monto_total or 0):,.0f}",
+                    tipo_pedido
                 ])
             
-            table = Table(data, colWidths=[0.5*inch, 1.2*inch, 2.8*inch, 1.2*inch, 1*inch, 1*inch])
+            table = Table(data, colWidths=[0.4*inch, 1*inch, 1.8*inch, 1*inch, 0.5*inch, 0.7*inch, 0.9*inch, 0.9*inch, 0.8*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), COLOR_INSTITUCIONAL),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -180,8 +227,11 @@ class InformesService:
                 ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Columna Código
                 ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Columna Cliente
                 ('ALIGN', (3, 1), (3, -1), 'CENTER'),  # Columna Fecha
-                ('ALIGN', (4, 1), (4, -1), 'CENTER'),  # Columna Estado
-                ('ALIGN', (5, 1), (5, -1), 'CENTER'),  # Columna Monto
+                ('ALIGN', (4, 1), (4, -1), 'CENTER'),  # Columna SKU
+                ('ALIGN', (5, 1), (5, -1), 'CENTER'),  # Columna Unidades
+                ('ALIGN', (6, 1), (6, -1), 'CENTER'),  # Columna Estado
+                ('ALIGN', (7, 1), (7, -1), 'CENTER'),  # Columna Monto
+                ('ALIGN', (8, 1), (8, -1), 'CENTER'),  # Columna Tipo
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTNAME', (2, 1), (2, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
@@ -540,13 +590,15 @@ class InformesService:
     def generar_informe_corte_excel(fecha: str, hora: int) -> bytes:
         """
         Genera un informe de corte en formato Excel.
+        Incluye todos los pedidos desde el último día laboral a la hora de corte hasta el día seleccionado a la hora de corte.
+        Si es lunes, incluye desde el viernes al horario de corte.
         """
         # Parsear fecha
         fecha_obj = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_corte = fecha_obj.replace(hour=hora, minute=0, second=0, microsecond=0)
         
-        # Calcular rango de fechas
-        fecha_inicio = fecha_corte - timedelta(days=1)
+        # Calcular rango de fechas considerando fines de semana
+        fecha_inicio = InformesService._calcular_fecha_inicio_corte(fecha_corte)
         fecha_fin = fecha_corte
         
         # Obtener pedidos en el rango de fechas
@@ -554,6 +606,17 @@ class InformesService:
             Pedido.fecha_creacion >= fecha_inicio,
             Pedido.fecha_creacion <= fecha_fin
         ).order_by(Pedido.fecha_creacion.desc()).all()
+        
+        # Calcular SKU únicos y cantidad total de unidades
+        sku_unicos = set()
+        total_unidades = 0
+        
+        for pedido in pedidos:
+            detalles = db.session.query(PedidoDetalle).filter_by(id_pedido=pedido.id_pedido).all()
+            for detalle in detalles:
+                if detalle.id_producto:
+                    sku_unicos.add(detalle.id_producto)
+                    total_unidades += int(detalle.cantidad or 0)
         
         # Preparar datos para Excel
         data = []
@@ -564,6 +627,16 @@ class InformesService:
                 if cliente:
                     cliente_nombre = cliente.nombre_cliente
             
+            # Calcular SKU y unidades del pedido
+            detalles_pedido = db.session.query(PedidoDetalle).filter_by(id_pedido=pedido.id_pedido).all()
+            sku_pedido = len(set(d.id_producto for d in detalles_pedido if d.id_producto))
+            unidades_pedido = sum(int(d.cantidad or 0) for d in detalles_pedido)
+            
+            # Determinar si es RIFLEO o MAYORISTA
+            # RIFLEO: hasta 6 SKU y máximo 1 unidad por SKU
+            es_rifleo = sku_pedido <= 6 and all(int(d.cantidad or 0) <= 1 for d in detalles_pedido)
+            tipo_pedido = "RIFLEO" if es_rifleo else "MAYORISTA"
+            
             estado_nombre = "N/A"
             if hasattr(pedido, 'estado_general') and pedido.estado_general:
                 estado_nombre = pedido.estado_general.nombre_estado
@@ -573,34 +646,47 @@ class InformesService:
                 'Código B2B': pedido.codigo_pedido_origen or f"#{pedido.id_pedido}",
                 'Cliente': cliente_nombre,
                 'Fecha Creación': pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') if pedido.fecha_creacion else 'N/A',
+                'SKU': sku_pedido,
+                'Unidades': unidades_pedido,
                 'Estado': estado_nombre,
-                'Monto': float(pedido.monto_total or 0)
+                'Monto': float(pedido.monto_total or 0),
+                'Tipo': tipo_pedido
             })
         
-        # Crear DataFrame
-        df = pd.DataFrame(data)
-        
-        # Crear archivo Excel en memoria
+        # Crear archivo Excel en memoria con múltiples hojas
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Informe de Corte', index=False)
+            # Hoja 1: Resumen
+            resumen_data = {
+                'Métrica': ['Período Analizado', 'Total de Pedidos', 'SKU Únicos', 'Total Unidades', 'Monto Total'],
+                'Valor': [
+                    f"{fecha_inicio.strftime('%d/%m/%Y %H:%M')} - {fecha_fin.strftime('%d/%m/%Y %H:%M')}",
+                    len(pedidos),
+                    len(sku_unicos),
+                    total_unidades,
+                    f"${sum(float(p.monto_total or 0) for p in pedidos):,.0f}"
+                ]
+            }
+            pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
             
-            # Obtener el workbook y worksheet
-            workbook = writer.book
-            worksheet = writer.sheets['Informe de Corte']
+            # Hoja 2: Lista de Pedidos
+            df = pd.DataFrame(data)
+            df.to_excel(writer, sheet_name='Lista de Pedidos', index=False)
             
-            # Ajustar ancho de columnas
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 50)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
+            # Ajustar ancho de columnas en ambas hojas
+            for sheet_name in ['Resumen', 'Lista de Pedidos']:
+                worksheet = writer.sheets[sheet_name]
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
         
         buffer.seek(0)
         return buffer.getvalue()

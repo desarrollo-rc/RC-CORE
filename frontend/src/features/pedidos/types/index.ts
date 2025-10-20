@@ -98,6 +98,9 @@ export interface PedidoList {
     estado_general: {
         nombre_estado: string;
     };
+    tipo: string;
+    sku_count: number;
+    total_unidades: number;
 }
 
 export interface PaginatedPedidosResponse {
@@ -140,8 +143,16 @@ export type PedidoFilters = {
     per_page?: number;
     cliente_id?: number;
     vendedor_id?: number;
-    estado_id?: number;
+    estado_general_id?: number;
+    estado_credito_id?: number;
+    estado_logistico_id?: number;
     codigo_b2b?: string;
     fecha_desde?: string;
     fecha_hasta?: string;
 };
+
+export interface EstadoOption {
+    id_estado: number;
+    codigo_estado: string;
+    nombre_estado: string;
+}

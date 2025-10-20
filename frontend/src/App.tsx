@@ -42,6 +42,7 @@ import { CasosPage } from './features/casos/pages/CasosPage';
 import { UsuariosB2BPage } from './features/usuarios-b2b/pages/UsuariosB2BPage';
 import { EquiposPage } from './features/equipos/pages/EquiposPage';
 import { TiposCasoPage } from './features/tipos-caso/pages/TiposCasoPage';
+import { ConsultasPage } from './features/consultas/pages/ConsultasPage';
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuth();
@@ -104,6 +105,7 @@ function App() {
           <Route path="/usuarios-b2b" element={<UsuariosB2BPage />} />
           <Route path="/equipos" element={<EquiposPage />} />
           <Route path="/tipos-caso" element={<TiposCasoPage />} />
+          <Route path="/admin/consultas" element={<ConsultasPage/>} />
           {/* Aquí añadiremos las futuras rutas */}
           {/* <Route path="/clientes" element={<ClientListPage />} /> */}
           {/* <Route path="/productos" element={<ProductListPage />} /> */}

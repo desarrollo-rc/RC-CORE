@@ -78,7 +78,9 @@ def get_pedidos():
     filters = {
         'id_cliente': request.args.get('cliente_id', type=int),
         'id_vendedor': request.args.get('vendedor_id', type=int),
-        'id_estado_general': request.args.get('estado_id', type=int),
+        'id_estado_general': request.args.get('estado_general_id', type=int),
+        'id_estado_credito': request.args.get('estado_credito_id', type=int),
+        'id_estado_logistico': request.args.get('estado_logistico_id', type=int),
         'codigo_b2b': codigo_b2b or None,
         'fecha_desde': fecha_desde,
         'fecha_hasta': fecha_hasta
@@ -553,3 +555,47 @@ def generar_informe_mensual_excel():
         return jsonify({
             "error": f"Error al generar informe mensual Excel: {str(e)}"
         }), 500
+
+
+# --- Endpoints para obtener listas de estados ---
+
+@pedidos_bp.route('/estados/generales', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:listar')
+def get_estados_generales():
+    """Retorna la lista de estados generales de pedidos"""
+    from app.models.negocio.pedidos import EstadoPedido
+    estados = EstadoPedido.query.order_by(EstadoPedido.nombre_estado).all()
+    return jsonify([{
+        'id_estado': e.id_estado,
+        'codigo_estado': e.codigo_estado,
+        'nombre_estado': e.nombre_estado
+    } for e in estados]), 200
+
+
+@pedidos_bp.route('/estados/credito', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:listar')
+def get_estados_credito():
+    """Retorna la lista de estados de crédito/cobranza"""
+    from app.models.negocio.pedidos import EstadoAprobacionCredito
+    estados = EstadoAprobacionCredito.query.order_by(EstadoAprobacionCredito.nombre_estado).all()
+    return jsonify([{
+        'id_estado': e.id_estado,
+        'codigo_estado': e.codigo_estado,
+        'nombre_estado': e.nombre_estado
+    } for e in estados]), 200
+
+
+@pedidos_bp.route('/estados/logisticos', methods=['GET'])
+@jwt_required()
+@permission_required('pedidos:listar')
+def get_estados_logisticos():
+    """Retorna la lista de estados logísticos"""
+    from app.models.negocio.pedidos import EstadoLogistico
+    estados = EstadoLogistico.query.order_by(EstadoLogistico.nombre_estado).all()
+    return jsonify([{
+        'id_estado': e.id_estado,
+        'codigo_estado': e.codigo_estado,
+        'nombre_estado': e.nombre_estado
+    } for e in estados]), 200
