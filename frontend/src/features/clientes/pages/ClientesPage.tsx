@@ -1,10 +1,10 @@
 // frontend/src/features/clientes/pages/ClientesPage.tsx
 import { useEffect, useState } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput, Pagination } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput, Pagination, Select, Collapse, Paper } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconFilter, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 
 import { getClientes, createCliente, updateCliente, deactivateCliente, activateCliente } from '../services/clienteService';
 import { getTiposCliente } from '../../tipos-cliente/services/tipoClienteService';
@@ -20,7 +20,7 @@ import { getCategorias } from '../../categorizacion/services/categorizacionServi
 import { ClientesTable } from '../components/ClientesTable';
 import { DetalleClienteModal } from '../components/DetalleClienteModal';
 import { ClienteForm } from '../components/ClienteForm';
-import type { Cliente, ClientePayload, ClienteFormData } from '../types';
+import type { Cliente, ClientePayload, ClienteFormData, ClienteFilters } from '../types';
 import type { TipoCliente } from '../../tipos-cliente/types';
 import type { SegmentoCliente } from '../../segmentos-cliente/types';
 import type { TipoNegocio } from '../../tipos-negocio/types';
@@ -58,8 +58,7 @@ const emptyFormValues: ClienteFormData = {
 
 export function ClientesPage() {
     const [clientes, setClientes] = useState<Cliente[]>([]);
-    const [page, setPage] = useState(1);
-    const [perPage] = useState(15);
+    const [filters, setFilters] = useState<ClienteFilters>({ page: 1, per_page: 15 });
     const [totalPages, setTotalPages] = useState(1);
     const [maestros, setMaestros] = useState<MaestrosData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -67,6 +66,9 @@ export function ClientesPage() {
     const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Cliente | null>(null);
+    const [filtersOpened, { toggle: toggleFilters }] = useDisclosure(true);
+    const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
+    const [segmentoOptions, setSegmentoOptions] = useState<{ value: string; label: string }[]>([]);
 
     const fetchData = async () => {
         try {
@@ -76,7 +78,7 @@ export function ClientesPage() {
                 listasPreciosData, condicionesPagoData, empresasData, vendedoresData,
                 marcasData, categoriasData
             ] = await Promise.all([
-                getClientes({ page, per_page: perPage }), getTiposCliente(), getSegmentosCliente(), getTiposNegocio(),
+                getClientes(filters), getTiposCliente(), getSegmentosCliente(), getTiposNegocio(),
                 getListasPrecios(), getCondicionesPago(), getEmpresas(), getVendedores(),
                 getMarcas(true), getCategorias(true) // Obtenemos todos, activos e inactivos
             ]);
@@ -96,7 +98,27 @@ export function ClientesPage() {
         }
     };
 
-    useEffect(() => { fetchData(); }, [page, perPage]);
+    useEffect(() => { fetchData(); }, [filters]);
+
+    // Cargar opciones para los filtros
+    useEffect(() => {
+        (async () => {
+            try {
+                const [vendedoresResp, segmentosResp] = await Promise.all([
+                    getVendedores(),
+                    getSegmentosCliente(),
+                ]);
+                setVendedorOptions(
+                    (vendedoresResp || []).map(v => ({ value: v.id_vendedor.toString(), label: v.usuario.nombre_completo }))
+                );
+                setSegmentoOptions(
+                    (segmentosResp || []).map(s => ({ value: s.id_segmento_cliente.toString(), label: s.nombre_segmento_cliente }))
+                );
+            } catch (e) {
+                // silencio: filtros siguen funcionando manualmente
+            }
+        })();
+    }, []);
 
     const handleSubmit = async (formValues: ClienteFormData) => {
         if (!maestros) return;
@@ -260,18 +282,105 @@ export function ClientesPage() {
         categorias_afinidad_ids: editingRecord.categorias_afinidad.map(c => c.id_categoria.toString()),
     } : emptyFormValues;
 
+    const handlePageChange = (newPage: number) => {
+        setFilters(currentFilters => ({ ...currentFilters, page: newPage }));
+    };
+
     return (
         <Box>
             <Group justify="space-between" mb="xl">
                 <Title order={2}>Gestión de Clientes</Title>
-                <Button leftSection={<IconPlus size={14} />} onClick={handleOpenModalForCreate}>
-                    Crear Cliente
-                </Button>
+                <Group>
+                    <Button
+                        variant="outline"
+                        leftSection={<IconFilter size={16} />}
+                        rightSection={filtersOpened ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                        onClick={toggleFilters}
+                    >
+                        {filtersOpened ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+                    </Button>
+                    <Button leftSection={<IconPlus size={14} />} onClick={handleOpenModalForCreate}>
+                        Crear Cliente
+                    </Button>
+                </Group>
             </Group>
+            
+            <Collapse in={filtersOpened}>
+                <Paper withBorder p="md" mb="md" style={{ borderColor: '#373a40' }}>
+                    <Text size="sm" fw={600} mb="md" c="dimmed">Filtros de Búsqueda</Text>
+                    
+                    <Group mb="md" grow>
+                        <TextInput
+                            label="Código Cliente"
+                            placeholder="Ej: CLI-001"
+                            value={filters.codigo_cliente || ''}
+                            onChange={(e: any) => {
+                                const val = typeof e === 'string' ? e : e?.currentTarget?.value;
+                                setFilters(f => ({ ...f, page: 1, codigo_cliente: val || undefined }));
+                            }}
+                        />
+                        <TextInput
+                            label="RUT"
+                            placeholder="Ej: 12345678-9"
+                            value={filters.rut_cliente || ''}
+                            onChange={(e: any) => {
+                                const val = typeof e === 'string' ? e : e?.currentTarget?.value;
+                                setFilters(f => ({ ...f, page: 1, rut_cliente: val || undefined }));
+                            }}
+                        />
+                        <TextInput
+                            label="Nombre Cliente"
+                            placeholder="Ej: Empresa ABC"
+                            value={filters.nombre_cliente || ''}
+                            onChange={(e: any) => {
+                                const val = typeof e === 'string' ? e : e?.currentTarget?.value;
+                                setFilters(f => ({ ...f, page: 1, nombre_cliente: val || undefined }));
+                            }}
+                        />
+                    </Group>
+
+                    <Group grow>
+                        <Select
+                            label="Vendedor"
+                            placeholder="Seleccione vendedor"
+                            data={vendedorOptions}
+                            searchable
+                            clearable
+                            value={filters.vendedor_id ? String(filters.vendedor_id) : null}
+                            onChange={(val) => setFilters(f => ({ ...f, page: 1, vendedor_id: val ? Number(val) : undefined }))}
+                        />
+                        <Select
+                            label="Segmento"
+                            placeholder="Seleccione segmento"
+                            data={segmentoOptions}
+                            searchable
+                            clearable
+                            value={filters.segmento_id ? String(filters.segmento_id) : null}
+                            onChange={(val) => setFilters(f => ({ ...f, page: 1, segmento_id: val ? Number(val) : undefined }))}
+                        />
+                        <Select
+                            label="Estado"
+                            placeholder="Seleccione estado"
+                            data={[
+                                { value: 'true', label: 'Activo' },
+                                { value: 'false', label: 'Inactivo' }
+                            ]}
+                            clearable
+                            value={filters.activo !== undefined ? String(filters.activo) : null}
+                            onChange={(val) => setFilters(f => ({ ...f, page: 1, activo: val ? val === 'true' : undefined }))}
+                        />
+                    </Group>
+                </Paper>
+            </Collapse>
+
             {loading ? <Center h={400}><Loader /></Center> : error ? <Alert color="red" title="Error">{error}</Alert> : <>
                 <ClientesTable records={clientes} onView={handleView} onEdit={handleEdit} onDeactivate={handleDeactivate} onActivate={handleActivate} />
                 <Group justify="center" mt="md">
-                    <Pagination total={totalPages} value={page} onChange={setPage} />
+                    <Pagination 
+                        total={totalPages} 
+                        value={filters.page || 1} 
+                        onChange={handlePageChange} 
+                    />
                 </Group>
             </>}
             <DetalleClienteModal opened={viewModalOpened} onClose={closeViewModal} record={viewRecord} />

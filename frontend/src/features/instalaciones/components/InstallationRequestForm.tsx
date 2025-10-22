@@ -28,6 +28,7 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
     fecha_solicitud: string | null;
     usar_fecha_personalizada: boolean;
     // Campos para usuario adicional
+    crear_usuario_ahora: boolean;
     nombre_completo: string;
     usuario: string;
     email: string;
@@ -42,6 +43,7 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
       fecha_solicitud: null,
       usar_fecha_personalizada: false,
       // Campos para usuario adicional
+      crear_usuario_ahora: true,
       nombre_completo: '',
       usuario: '',
       email: '',
@@ -64,21 +66,21 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
         }
         return null;
       },
-      // Validaciones para usuario adicional
+      // Validaciones para usuario adicional (solo si se crea ahora)
       nombre_completo: (value, values) => {
-        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && !value?.trim()) {
+        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && values.crear_usuario_ahora && !value?.trim()) {
           return 'El nombre completo es requerido';
         }
         return null;
       },
       usuario: (value, values) => {
-        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && !value?.trim()) {
+        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && values.crear_usuario_ahora && !value?.trim()) {
           return 'El nombre de usuario es requerido';
         }
         return null;
       },
       email: (value, values) => {
-        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL') {
+        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && values.crear_usuario_ahora) {
           if (!value?.trim()) {
             return 'El email es requerido';
           }
@@ -90,7 +92,7 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
         return null;
       },
       password: (value, values) => {
-        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && (!value || value.length < 6)) {
+        if (values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && values.crear_usuario_ahora && (!value || value.length < 6)) {
           return 'La contraseña debe tener al menos 6 caracteres';
         }
         return null;
@@ -188,8 +190,8 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
       numero_usuarios: values.categoria_tipo_caso === 'INSTALACION_CLIENTE_NUEVO' ? values.numero_usuarios : undefined,
       observaciones: values.observaciones || undefined,
       fecha_solicitud: values.usar_fecha_personalizada && values.fecha_solicitud ? values.fecha_solicitud : undefined,
-      // Datos del usuario adicional
-      datos_usuario_adicional: values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' ? {
+      // Datos del usuario adicional (solo si se crea ahora)
+      datos_usuario_adicional: values.categoria_tipo_caso === 'INSTALACION_USUARIO_ADICIONAL' && values.crear_usuario_ahora ? {
         nombre_completo: values.nombre_completo,
         usuario: values.usuario,
         email: values.email,
@@ -273,44 +275,67 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
 
           {categoriaSeleccionada === 'INSTALACION_USUARIO_ADICIONAL' && (
             <Box>
-              <Alert icon={<IconInfoCircle />} color="green" mb="md">
-                <strong>Usuario Adicional - Proceso Automático</strong>
-                <br />Se creará automáticamente un nuevo usuario B2B y se aprobará la solicitud.
-                <br />Estado final: Pendiente de Instalación
+              <Alert icon={<IconInfoCircle />} color="blue" mb="md">
+                <strong>Usuario Adicional</strong>
+                <br />Puede crear el usuario ahora o después de aprobar la solicitud.
               </Alert>
               
-              <Stack gap="md">
-                <TextInput
-                  label="Nombre Completo"
-                  withAsterisk
-                  placeholder="Ej: Juan Pérez"
-                  {...form.getInputProps('nombre_completo')}
-                />
-                
-                <TextInput
-                  label="Nombre de Usuario"
-                  withAsterisk
-                  placeholder="Nombre de usuario sugerido automáticamente"
-                  description={sugerenciaUsuario ? `Sugerido: ${sugerenciaUsuario.nombre_sugerido}` : 'Se generará automáticamente'}
-                  {...form.getInputProps('usuario')}
-                />
-                
-                <TextInput
-                  label="Email"
-                  withAsterisk
-                  type="email"
-                  placeholder="usuario@empresa.com"
-                  {...form.getInputProps('email')}
-                />
-                
-                <PasswordInput
-                  label="Contraseña"
-                  withAsterisk
-                  placeholder="Mínimo 6 caracteres"
-                  description="La contraseña inicial para el usuario B2B"
-                  {...form.getInputProps('password')}
-                />
-              </Stack>
+              <Switch
+                label="Crear usuario B2B ahora"
+                description="Si está desactivado, se creará el usuario después de la aprobación"
+                {...form.getInputProps('crear_usuario_ahora', { type: 'checkbox' })}
+                mb="md"
+              />
+              
+              {form.values.crear_usuario_ahora && (
+                <Stack gap="md">
+                  <Alert icon={<IconInfoCircle />} color="green" mb="md">
+                    <strong>Proceso Automático</strong>
+                    <br />Se creará automáticamente un nuevo usuario B2B y se aprobará la solicitud.
+                    <br />Estado final: Pendiente de Instalación
+                  </Alert>
+                  
+                  <TextInput
+                    label="Nombre Completo"
+                    withAsterisk
+                    placeholder="Ej: Juan Pérez"
+                    {...form.getInputProps('nombre_completo')}
+                  />
+                  
+                  <TextInput
+                    label="Nombre de Usuario"
+                    withAsterisk
+                    placeholder="Nombre de usuario sugerido automáticamente"
+                    description={sugerenciaUsuario ? `Sugerido: ${sugerenciaUsuario.nombre_sugerido}` : 'Se generará automáticamente'}
+                    {...form.getInputProps('usuario')}
+                  />
+                  
+                  <TextInput
+                    label="Email"
+                    withAsterisk
+                    type="email"
+                    placeholder="usuario@empresa.com"
+                    {...form.getInputProps('email')}
+                  />
+                  
+                  <PasswordInput
+                    label="Contraseña"
+                    withAsterisk
+                    placeholder="Mínimo 6 caracteres"
+                    description="La contraseña inicial para el usuario B2B"
+                    {...form.getInputProps('password')}
+                  />
+                </Stack>
+              )}
+              
+              {!form.values.crear_usuario_ahora && (
+                <Alert icon={<IconInfoCircle />} color="orange" mb="md">
+                  <strong>Proceso Manual</strong>
+                  <br />Se creará solo la solicitud de instalación.
+                  <br />El usuario B2B se creará después usando el panel de acciones.
+                  <br />Estado final: Pendiente de Instalación
+                </Alert>
+              )}
             </Box>
           )}
 
@@ -335,7 +360,9 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
             {categoriaSeleccionada === 'INSTALACION_CLIENTE_NUEVO' && form.values.numero_usuarios > 1 
               ? `Crear ${form.values.numero_usuarios} Solicitudes de Instalación`
               : categoriaSeleccionada === 'INSTALACION_USUARIO_ADICIONAL'
-              ? 'Crear Usuario y Solicitud de Instalación (Automático)'
+              ? form.values.crear_usuario_ahora 
+                ? 'Crear Usuario y Solicitud de Instalación (Automático)'
+                : 'Crear Solicitud de Instalación (Usuario después)'
               : 'Crear Solicitud de Instalación'
             }
           </Button>

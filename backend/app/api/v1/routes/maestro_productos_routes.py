@@ -37,9 +37,17 @@ def get_productos():
 
     page = request.args.get('page', type=int)
     per_page = request.args.get('per_page', type=int)
+    
+    # Filtros de búsqueda
+    sku = request.args.get('sku', None)
+    nombre_producto = request.args.get('nombre_producto', None)
+    id_marca = request.args.get('id_marca', None, type=int)
 
     if page and per_page:
-        paginated = MaestroProductoService.get_productos_paginated(page, per_page, include_inactive)
+        paginated = MaestroProductoService.get_productos_paginated(
+            page, per_page, include_inactive, 
+            sku=sku, nombre_producto=nombre_producto, id_marca=id_marca
+        )
         items = schema_many.dump(paginated.items)
         meta = pagination_schema.dump(paginated)
         return jsonify({

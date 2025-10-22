@@ -38,7 +38,17 @@ class EquipoService:
         if data.get('fecha_creacion_personalizada'):
             fecha_creacion = data['fecha_creacion_personalizada']
             if isinstance(fecha_creacion, str):
-                nuevo_equipo.fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
+                try:
+                    # Manejar diferentes formatos de fecha
+                    if 'T' in fecha_creacion:
+                        # Formato ISO con T
+                        nuevo_equipo.fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
+                    else:
+                        # Formato de fecha simple
+                        nuevo_equipo.fecha_creacion = datetime.fromisoformat(fecha_creacion)
+                except Exception as e:
+                    # Si hay error, usar fecha actual
+                    nuevo_equipo.fecha_creacion = datetime.now()
             else:
                 nuevo_equipo.fecha_creacion = fecha_creacion
         

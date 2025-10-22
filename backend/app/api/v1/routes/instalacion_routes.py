@@ -12,8 +12,68 @@ instalaciones_bp = Blueprint('instalaciones_bp', __name__)
 @jwt_required()
 @permission_required('instalaciones:ver')
 def get_instalaciones():
-    instalaciones = InstalacionService.get_all_instalaciones()
-    return jsonify(instalaciones_schema.dump(instalaciones)), 200
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 15, type=int)
+    
+    # Filtros
+    tipo_caso_id = request.args.get('tipo_caso_id', None, type=int)
+    usuario_b2b_id = request.args.get('usuario_b2b_id', None, type=int)
+    id_cliente = request.args.get('id_cliente', None, type=int)
+    id_vendedor = request.args.get('id_vendedor', None, type=int)
+    fecha_desde = request.args.get('fecha_desde', None)
+    fecha_hasta = request.args.get('fecha_hasta', None)
+    estado = request.args.get('estado', None)
+    
+    # Ordenamiento
+    sort_by = request.args.get('sort_by', 'fecha_solicitud')
+    sort_order = request.args.get('sort_order', 'desc')
+    
+    # Procesar fechas
+    from datetime import datetime, time
+    
+    fecha_desde_parsed = None
+    fecha_hasta_parsed = None
+    
+    if fecha_desde:
+        try:
+            # Para fecha_desde, usar inicio del día (00:00:00)
+            fecha_desde_parsed = datetime.fromisoformat(fecha_desde).replace(hour=0, minute=0, second=0, microsecond=0)
+        except ValueError:
+            pass
+    
+    if fecha_hasta:
+        try:
+            # Para fecha_hasta, usar fin del día (23:59:59)
+            fecha_hasta_parsed = datetime.fromisoformat(fecha_hasta).replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            pass
+    
+    # Obtener instalaciones con filtros y paginación
+    result = InstalacionService.get_instalaciones_paginated(
+        page=page,
+        per_page=per_page,
+        tipo_caso_id=tipo_caso_id,
+        usuario_b2b_id=usuario_b2b_id,
+        id_cliente=id_cliente,
+        id_vendedor=id_vendedor,
+        fecha_desde=fecha_desde_parsed,
+        fecha_hasta=fecha_hasta_parsed,
+        estado=estado,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
+    
+    instalaciones_data = instalaciones_schema.dump(result.items)
+    
+    return jsonify({
+        'instalaciones': instalaciones_data,
+        'pagination': {
+            'page': result.page,
+            'pages': result.pages,
+            'per_page': result.per_page,
+            'total': result.total
+        }
+    }), 200
 
 @instalaciones_bp.route('/<int:id>', methods=['GET'])
 @jwt_required()
@@ -109,6 +169,17 @@ def crear_usuario_instalacion(id):
     try:
         data = request.json
         instalacion = InstalacionService.crear_usuario_instalacion(id, data)
+        return jsonify(instalacion_schema.dump(instalacion)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@instalaciones_bp.route('/<int:id>/continuar-sin-usuario', methods=['PUT'])
+@jwt_required()
+@permission_required('instalaciones:editar')
+def continuar_sin_usuario(id):
+    """Permite continuar con la instalación sin crear usuario B2B"""
+    try:
+        instalacion = InstalacionService.continuar_sin_usuario(id)
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400

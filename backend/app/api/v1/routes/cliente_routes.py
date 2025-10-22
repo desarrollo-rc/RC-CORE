@@ -60,13 +60,41 @@ def create_cliente():
 @permission_required('clientes:listar')
 def get_clientes():
     """
-    Endpoint para listar todos los clientes con paginación.
-    Acepta los parámetros de consulta: ?page=1&per_page=10
+    Endpoint para listar todos los clientes con paginación y filtros.
+    Acepta los parámetros de consulta: 
+    - page, per_page (paginación)
+    - codigo_cliente, rut_cliente, nombre_cliente (búsqueda por texto)
+    - vendedor_id, segmento_id (filtros por ID)
+    - activo (filtro por estado: true/false)
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     
-    paginated_result = ClienteService.get_all_customers(page, per_page)
+    # Filtros de búsqueda por texto
+    codigo_cliente = request.args.get('codigo_cliente', None)
+    rut_cliente = request.args.get('rut_cliente', None)
+    nombre_cliente = request.args.get('nombre_cliente', None)
+    
+    # Filtros por ID
+    vendedor_id = request.args.get('vendedor_id', None, type=int)
+    segmento_id = request.args.get('segmento_id', None, type=int)
+    
+    # Filtro por estado
+    activo_param = request.args.get('activo', None)
+    activo = None
+    if activo_param is not None:
+        activo = activo_param.lower() == 'true'
+    
+    paginated_result = ClienteService.get_all_customers(
+        page=page, 
+        per_page=per_page,
+        codigo_cliente=codigo_cliente,
+        rut_cliente=rut_cliente,
+        nombre_cliente=nombre_cliente,
+        vendedor_id=vendedor_id,
+        segmento_id=segmento_id,
+        activo=activo
+    )
 
     clientes_data = clientes_response_schema.dump(paginated_result.items)
     pagination_data = pagination_schema.dump(paginated_result)

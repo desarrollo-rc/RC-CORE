@@ -28,6 +28,7 @@ class CreateEquipoSchema(Schema):
     procesador = fields.Str(required=True, validate=validate.Length(min=1))
     placa_madre = fields.Str(required=True, validate=validate.Length(min=1))
     disco_duro = fields.Str(required=True, validate=validate.Length(min=1))
+    fecha_creacion_personalizada = fields.Str(required=False, allow_none=True)
 
 class UpdateEquipoSchema(Schema):
     nombre_equipo = fields.Str(required=True, validate=validate.Length(min=1))

@@ -1,10 +1,10 @@
 // frontend/src/features/productos/pages/ProductosPage.tsx
 import { useState, useEffect } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Modal, Affix, ActionIcon, rem, Text, Pagination } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { Box, Title, Group, Alert, Center, Loader, Modal, Affix, ActionIcon, rem, Text, Pagination, Select, Collapse, Paper, TextInput, Button } from '@mantine/core';
+import { useDisclosure, useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { IconPlus } from '@tabler/icons-react';
+import { IconPlus, IconFilter, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { ProductosTable } from '../components/ProductosTable';
 import { ProductoForm } from '../components/ProductoForm';
 import { getProductos, createProducto, updateProducto, deactivateProducto, activateProducto } from '../services/productoService';
@@ -16,7 +16,7 @@ import { getOrigenes } from '../../origenes/services/origenService';
 import { getFabricas } from '../../fabricas/services/fabricaService';
 import { getProveedores } from '../../proveedores/services/proveedorService';
 // Importar todos los tipos necesarios
-import type { Producto, ProductoFormData, ProductoPayload } from '../types';
+import type { Producto, ProductoFormData, ProductoPayload, ProductoFilters } from '../types';
 //import type { ProveedorFormSection } from '../types';
 /* import type { CodigoReferencia } from '../../codigos-referencia/types';
 import type { Marca } from '../../marcas/types';
@@ -34,11 +34,20 @@ export function ProductosPage() {
     const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Producto | null>(null);
+    const [filtersOpened, { toggle: toggleFilters }] = useDisclosure(true);
 
-    const [page, setPage] = useState(1);
-    const [perPage] = useState(15);
+    const [filters, setFilters] = useState<ProductoFilters>({ page: 1, per_page: 15 });
     const [total, setTotal] = useState(0);
     const [pages, setPages] = useState(1);
+    const [marcaOptions, setMarcaOptions] = useState<{ value: string; label: string }[]>([]);
+    
+    // Estados locales para los inputs de texto (sin debounce)
+    const [skuInput, setSkuInput] = useState('');
+    const [nombreInput, setNombreInput] = useState('');
+    
+    // Valores con debounce para los filtros de texto
+    const [debouncedSku] = useDebouncedValue(skuInput, 500);
+    const [debouncedNombre] = useDebouncedValue(nombreInput, 500);
 
     useEffect(() => {
         const fetchMasters = async () => {
@@ -61,11 +70,21 @@ export function ProductosPage() {
         fetchMasters();
     }, []);
 
+    // Sincronizar los valores con debounce a los filtros
+    useEffect(() => {
+        setFilters(current => ({
+            ...current,
+            page: 1,
+            sku: debouncedSku || undefined,
+            nombre_producto: debouncedNombre || undefined
+        }));
+    }, [debouncedSku, debouncedNombre]);
+
     useEffect(() => {
         const fetchProductosList = async () => {
             try {
                 setLoading(true);
-                const { items, pagination } = await getProductos({ page, per_page: perPage });
+                const { items, pagination } = await getProductos(filters);
                 setProductos(items);
                 setTotal(pagination.total);
                 setPages(pagination.pages);
@@ -76,7 +95,21 @@ export function ProductosPage() {
             }
         };
         fetchProductosList();
-    }, [page, perPage]);
+    }, [filters]);
+
+    // Cargar opciones para los filtros
+    useEffect(() => {
+        (async () => {
+            try {
+                const marcasResp = await getMarcas();
+                setMarcaOptions(
+                    (marcasResp || []).map(m => ({ value: m.id_marca.toString(), label: m.nombre_marca }))
+                );
+            } catch (e) {
+                // silencio: filtros siguen funcionando manualmente
+            }
+        })();
+    }, []);
 
     const handleSubmit = async (formValues: ProductoFormData) => {
         setIsSubmitting(true);
@@ -105,7 +138,7 @@ export function ProductosPage() {
             } else {
                 await createProducto(payload);
                 // Refrescar la página actual para reflejar el nuevo registro
-                const { items, pagination } = await getProductos({ page, per_page: perPage });
+                const { items, pagination } = await getProductos(filters);
                 setProductos(items);
                 setTotal(pagination.total);
                 setPages(pagination.pages);
@@ -154,6 +187,10 @@ export function ProductosPage() {
         });
     };
 
+    const handlePageChange = (newPage: number) => {
+        setFilters(currentFilters => ({ ...currentFilters, page: newPage }));
+    };
+
     if (loading) return <Center h={400}><Loader /></Center>;
     if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
@@ -161,10 +198,49 @@ export function ProductosPage() {
         <Box>
             <Group justify="space-between" mb="xl">
                 <Title order={2}>Gestión de Productos (SKUs)</Title>
+                <Button
+                    variant="outline"
+                    leftSection={<IconFilter size={16} />}
+                    rightSection={filtersOpened ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                    onClick={toggleFilters}
+                >
+                    {filtersOpened ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+                </Button>
             </Group>
+            
+            <Collapse in={filtersOpened}>
+                <Paper withBorder p="md" mb="md" style={{ borderColor: '#373a40' }}>
+                    <Text size="sm" fw={600} mb="md" c="dimmed">Filtros de Búsqueda</Text>
+                    
+                    <Group grow>
+                        <TextInput
+                            label="SKU"
+                            placeholder="Ej: ABC123"
+                            value={skuInput}
+                            onChange={(e) => setSkuInput(e.currentTarget.value)}
+                        />
+                        <TextInput
+                            label="Nombre Producto"
+                            placeholder="Ej: Filtro de aceite"
+                            value={nombreInput}
+                            onChange={(e) => setNombreInput(e.currentTarget.value)}
+                        />
+                        <Select
+                            label="Marca"
+                            placeholder="Seleccione marca"
+                            data={marcaOptions}
+                            searchable
+                            clearable
+                            value={filters.id_marca ? String(filters.id_marca) : null}
+                            onChange={(val) => setFilters(f => ({ ...f, page: 1, id_marca: val ? Number(val) : undefined }))}
+                        />
+                    </Group>
+                </Paper>
+            </Collapse>
+
             <ProductosTable records={productos} onEdit={(r) => { setEditingRecord(r); openModal(); }} onDeactivate={handleDeactivate} onActivate={handleActivate} />
             <Group justify="center" mt="md">
-                <Pagination total={pages} value={page} onChange={setPage} withEdges />
+                <Pagination total={pages} value={filters.page || 1} onChange={handlePageChange} withEdges />
                 <Text size="sm" c="dimmed">{total} registros</Text>
             </Group>
             <Modal opened={modalOpened} onClose={closeModal} title={editingRecord ? 'Editar Producto' : 'Crear Producto'} size="xl" centered>
@@ -176,10 +252,10 @@ export function ProductosPage() {
                         nombre_producto: editingRecord.nombre_producto,
                         costo_base: editingRecord.costo_base,
                         es_kit: editingRecord.es_kit,
-                        id_codigo_referencia: editingRecord.codigo_referencia.id_codigo_referencia.toString(),
-                        id_marca: editingRecord.marca.id_marca.toString(),
-                        id_calidad: editingRecord.calidad.id_calidad.toString(),
-                        id_origen: editingRecord.origen.id_origen.toString(),
+                        id_codigo_referencia: editingRecord.codigo_referencia?.id_codigo_referencia.toString() || null,
+                        id_marca: editingRecord.marca?.id_marca.toString() || null,
+                        id_calidad: editingRecord.calidad?.id_calidad.toString() || null,
+                        id_origen: editingRecord.origen?.id_origen.toString() || null,
                         id_fabrica: editingRecord.fabrica?.id_fabrica.toString() || null,
                         proveedores: editingRecord.proveedores.map(p => ({
                             id_proveedor: p.id_proveedor.toString(),

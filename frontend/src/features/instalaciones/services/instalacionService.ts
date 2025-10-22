@@ -7,14 +7,44 @@ import type {
     ActualizarInstalacion, 
     CrearUsuarioB2BPayload,
     CrearInstalacionCompletaPayload,
-    CrearInstalacionCompletaResponse
+    CrearInstalacionCompletaResponse,
+    InstalacionFilters,
+    PaginatedInstalacionesResponse
 } from '../types';
 
 // ===== CRUD Básico =====
 
-export const getInstalaciones = async (): Promise<Instalacion[]> => {
-    const response = await apiClient.get<Instalacion[]>('/instalaciones');
-    return response.data;
+export const getInstalaciones = async (filters?: InstalacionFilters): Promise<PaginatedInstalacionesResponse> => {
+    const params = new URLSearchParams();
+    
+    if (filters) {
+        if (filters.page) params.append('page', filters.page.toString());
+        if (filters.per_page) params.append('per_page', filters.per_page.toString());
+        if (filters.tipo_caso_id) params.append('tipo_caso_id', filters.tipo_caso_id.toString());
+        if (filters.usuario_b2b_id) params.append('usuario_b2b_id', filters.usuario_b2b_id.toString());
+        if (filters.id_cliente) params.append('id_cliente', filters.id_cliente.toString());
+        if (filters.id_vendedor) params.append('id_vendedor', filters.id_vendedor.toString());
+        if (filters.fecha_desde) params.append('fecha_desde', filters.fecha_desde);
+        if (filters.fecha_hasta) params.append('fecha_hasta', filters.fecha_hasta);
+        if (filters.estado) params.append('estado', filters.estado);
+    }
+    
+    // Ordenar por fecha de solicitud descendente (más reciente primero) por defecto
+    params.append('sort_by', 'fecha_solicitud');
+    params.append('sort_order', 'desc');
+    
+    const url = `/instalaciones?${params.toString()}`;
+    console.log('Making request to:', url);
+    console.log('Filters:', filters);
+    
+    try {
+        const response = await apiClient.get<PaginatedInstalacionesResponse>(url);
+        console.log('Response received:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error in getInstalaciones:', error);
+        throw error;
+    }
 };
 
 export const getInstalacionById = async (id: number): Promise<Instalacion> => {
@@ -49,6 +79,11 @@ export const rechazarInstalacion = async (id: number, observaciones: string): Pr
 
 export const crearUsuarioInstalacion = async (id: number, payload: CrearUsuarioB2BPayload): Promise<Instalacion> => {
     const response = await apiClient.post<Instalacion>(`/instalaciones/${id}/crear-usuario`, payload);
+    return response.data;
+};
+
+export const continuarSinUsuario = async (id: number): Promise<Instalacion> => {
+    const response = await apiClient.put<Instalacion>(`/instalaciones/${id}/continuar-sin-usuario`);
     return response.data;
 };
 

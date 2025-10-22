@@ -103,11 +103,30 @@ class ClienteService:
         return new_customer
     
     @staticmethod
-    def get_all_customers(page, per_page):
+    def get_all_customers(page, per_page, codigo_cliente=None, rut_cliente=None, nombre_cliente=None, vendedor_id=None, segmento_id=None, activo=None):
         """
-        Obtener una lista paginada de todos los clientes
+        Obtener una lista paginada de todos los clientes con filtros opcionales
         """
-        paginated_customers = MaestroClientes.query.filter_by(activo=True).paginate(
+        query = MaestroClientes.query
+        
+        # Aplicar filtros si se proporcionan
+        if codigo_cliente:
+            query = query.filter(MaestroClientes.codigo_cliente.ilike(f'%{codigo_cliente}%'))
+        if rut_cliente:
+            query = query.filter(MaestroClientes.rut_cliente.ilike(f'%{rut_cliente}%'))
+        if nombre_cliente:
+            query = query.filter(MaestroClientes.nombre_cliente.ilike(f'%{nombre_cliente}%'))
+        if vendedor_id is not None:
+            query = query.filter(MaestroClientes.id_vendedor == vendedor_id)
+        if segmento_id is not None:
+            query = query.filter(MaestroClientes.id_segmento_cliente == segmento_id)
+        if activo is not None:
+            query = query.filter(MaestroClientes.activo == activo)
+        elif activo is None:
+            # Por defecto, solo mostrar activos si no se especifica
+            query = query.filter(MaestroClientes.activo == True)
+        
+        paginated_customers = query.paginate(
             page=page, per_page=per_page, error_out=False
         )
         return paginated_customers

@@ -25,10 +25,10 @@ export interface Producto {
     activo: boolean;
 
     // Relaciones (objetos anidados en la respuesta)
-    codigo_referencia: CodigoReferencia;
-    marca: Marca;
-    calidad: Calidad;
-    origen: Origen;
+    codigo_referencia: CodigoReferencia | null;
+    marca: Marca | null;
+    calidad: Calidad | null;
+    origen: Origen | null;
     fabrica: Fabrica | null;
     proveedores: ProductoProveedor[];
     codigo_tecnico_sku: CodigoTecnico | null; // Puede ser nulo si no está asociado
@@ -78,3 +78,12 @@ export interface PaginatedProductosResponse {
         per_page: number;
     };
 }
+
+// Filtros para la búsqueda de productos
+export type ProductoFilters = {
+    page?: number;
+    per_page?: number;
+    sku?: string;
+    nombre_producto?: string;
+    id_marca?: number;
+};

@@ -25,6 +25,18 @@ export interface Direccion {
 // Tipo de Dirección para el PAYLOAD de la API (solo los campos que el backend espera)
 export type DireccionPayload = Omit<Direccion, 'id_ciudad' | 'id_region'>;
 
+// Filtros para la búsqueda de clientes
+export type ClienteFilters = {
+    page?: number;
+    per_page?: number;
+    codigo_cliente?: string;
+    rut_cliente?: string;
+    nombre_cliente?: string;
+    vendedor_id?: number;
+    segmento_id?: number;
+    activo?: boolean;
+};
+
 // Interfaz principal del Cliente (lo que recibimos de la API)
 export interface Cliente {
     id_cliente: number;

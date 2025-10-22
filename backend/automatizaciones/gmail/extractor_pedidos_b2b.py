@@ -134,7 +134,8 @@ def extraer_info_cliente_de_pdf(pdf_bytes: bytes) -> Dict[str, str]:
                     info['tipo_despacho'] = extraer_campo(texto, r"Tipo Despacho\s*:\s*(.+?)(?:\n|Vendedor)", '')
                     info['transporte'] = extraer_campo(texto, r"Transporte\s*:\s*(.+?)(?:\n|Tipo\s+Pago)", '')
                     
-                    print(f"DEBUG PDF: Cliente extraído del PDF - RUT={info['rut']}, Razón={info['razon_social'][:30] if info['razon_social'] else 'N/A'}")
+                    #print(f"DEBUG PDF: Cliente extraído del PDF - RUT={info['rut']}, Razón={info['razon_social'][:30] if info['razon_social'] else 'N/A'}")
+                    #print(f"DEBUG PDF: RUT extraído completo: '{info['rut']}' (longitud: {len(info['rut'])})")
     
     except Exception as e:
         print(f"ERROR PDF: No se pudo extraer info del cliente: {e}")
@@ -952,7 +953,9 @@ def procesar_pedidos_seleccionados(
                 
                 if not id_cliente:
                     info_cliente = pedido_info.get('info_cliente', {})
+                    print(f"DEBUG: info_cliente completo: {info_cliente}")
                     rut = info_cliente.get('rut', '').strip()
+                    print(f"DEBUG: RUT extraído de info_cliente: '{rut}' (longitud: {len(rut)})")
                     
                     # Primero buscar si existe en la BD (por si el preview estaba desactualizado)
                     if rut:
@@ -967,8 +970,10 @@ def procesar_pedidos_seleccionados(
                     # Si no existe y crear_clientes está activo, crear uno nuevo
                     if not id_cliente and crear_clientes:
                         try:
-                            # Generar código de cliente basado en RUT (formato C + RUT sin guión)
-                            codigo_cliente = f"C{rut.replace('-', '')}" if rut else f"CB2B{codigo_b2b}"
+                            # Generar código de cliente basado en RUT (formato C + RUT con guión)
+                            print(f"DEBUG: RUT antes de crear código: '{rut}' (longitud: {len(rut)})")
+                            codigo_cliente = f"C{rut}" if rut else f"CB2B{codigo_b2b}"
+                            print(f"DEBUG: Código cliente generado: '{codigo_cliente}'")
                             
                             nuevo_cliente = MaestroClientes(
                                 rut_cliente=rut,

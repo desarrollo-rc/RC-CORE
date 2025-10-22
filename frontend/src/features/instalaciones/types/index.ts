@@ -16,6 +16,17 @@ export interface UsuarioB2B {
     id_cliente: number;
     activo: boolean;
     fecha_creacion: string;
+    cliente?: {
+        id_cliente: number;
+        nombre_cliente: string;
+        codigo_cliente: string;
+        vendedor?: {
+            id_vendedor: number;
+            usuario?: {
+                nombre_completo: string;
+            };
+        };
+    };
 }
 
 export interface Caso {
@@ -25,6 +36,17 @@ export interface Caso {
     estado: string;
     prioridad: string;
     fecha_creacion: string;
+    cliente?: {
+        id_cliente: number;
+        nombre_cliente: string;
+        codigo_cliente: string;
+        vendedor?: {
+            id_vendedor: number;
+            usuario?: {
+                nombre_completo: string;
+            };
+        };
+    };
 }
 
 export interface Instalacion {
@@ -119,4 +141,28 @@ export interface CrearInstalacionCompletaResponse {
     casos: any[];
     instalaciones: Instalacion[];
     total_instalaciones: number;
+}
+
+// Filtros para instalaciones
+export interface InstalacionFilters {
+    page?: number;
+    per_page?: number;
+    tipo_caso_id?: number;
+    usuario_b2b_id?: number;
+    id_cliente?: number;
+    id_vendedor?: number;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+    estado?: string;
+}
+
+// Respuesta paginada de instalaciones
+export interface PaginatedInstalacionesResponse {
+    instalaciones: Instalacion[];
+    pagination: {
+        page: number;
+        pages: number;
+        per_page: number;
+        total: number;
+    };
 }

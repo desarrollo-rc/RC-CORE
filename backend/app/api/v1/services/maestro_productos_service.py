@@ -16,10 +16,20 @@ class MaestroProductoService:
         return query.order_by(MaestroProductos.nombre_producto).all()
 
     @staticmethod
-    def get_productos_paginated(page: int, per_page: int, include_inactive: bool = False):
+    def get_productos_paginated(page: int, per_page: int, include_inactive: bool = False, sku=None, nombre_producto=None, id_marca=None):
         query = MaestroProductos.query
+        
+        # Aplicar filtros si se proporcionan
+        if sku:
+            query = query.filter(MaestroProductos.sku.ilike(f'%{sku}%'))
+        if nombre_producto:
+            query = query.filter(MaestroProductos.nombre_producto.ilike(f'%{nombre_producto}%'))
+        if id_marca is not None:
+            query = query.filter(MaestroProductos.id_marca == id_marca)
+        
         if not include_inactive:
             query = query.filter_by(activo=True)
+        
         return query.order_by(MaestroProductos.nombre_producto).paginate(page=page, per_page=per_page, error_out=False)
 
     @staticmethod

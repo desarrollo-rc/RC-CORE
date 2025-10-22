@@ -1,6 +1,6 @@
 // frontend/src/features/clientes/services/clienteService.ts
 import apiClient from '../../../api/axios';
-import type { Cliente, ClientePayload } from '../types';
+import type { Cliente, ClientePayload, ClienteFilters } from '../types';
 
 // La API de clientes podría devolver paginación en el futuro
 interface PaginatedResponse {
@@ -13,8 +13,8 @@ interface PaginatedResponse {
     }
 }
 
-export const getClientes = async (params?: { page?: number; per_page?: number; search?: string }): Promise<PaginatedResponse> => {
-    const response = await apiClient.get<PaginatedResponse>('/clientes', { params });
+export const getClientes = async (filters?: ClienteFilters): Promise<PaginatedResponse> => {
+    const response = await apiClient.get<PaginatedResponse>('/clientes', { params: filters });
     return response.data;
 };
 

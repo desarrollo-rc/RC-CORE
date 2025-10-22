@@ -5,6 +5,7 @@ class ClienteSchema(Schema):
     id_cliente = fields.Int(dump_only=True)
     nombre_cliente = fields.Str(dump_only=True)
     codigo_cliente = fields.Str(dump_only=True)
+    vendedor = fields.Nested("VendedorSchema", dump_only=True, allow_none=True)
 
 class CasoSchema(Schema):
     id_caso = fields.Int(dump_only=True)

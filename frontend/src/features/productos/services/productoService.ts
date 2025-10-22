@@ -1,14 +1,8 @@
 // frontend/src/features/productos/services/productoService.ts
 import apiClient from '../../../api/axios';
-import type { Producto, ProductoPayload, PaginatedProductosResponse } from '../types';
+import type { Producto, ProductoPayload, PaginatedProductosResponse, ProductoFilters } from '../types';
 
-interface ProductoFilters {
-    page?: number;
-    per_page?: number;
-    // ... otros filtros que puedas necesitar
-}
-
-export const getProductos = async (filters: ProductoFilters = { page: 1, per_page: 10 }): Promise<PaginatedProductosResponse> => {
+export const getProductos = async (filters?: ProductoFilters): Promise<PaginatedProductosResponse> => {
     const response = await apiClient.get<PaginatedProductosResponse>('/productos', { params: filters });
     return response.data;
 };

@@ -1,10 +1,10 @@
 // frontend/src/features/instalaciones/components/InstalacionesList.tsx
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Table, Badge, Center, Loader, Alert, Paper, Title, Text, ActionIcon, Tooltip } from '@mantine/core';
+import { Table, Badge, Center, Loader, Alert, Paper, Text, ActionIcon, Tooltip, Pagination, Group } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
 import { getInstalaciones } from '../services/instalacionService';
-import type { Instalacion } from '../types';
+import type { InstalacionFilters, Instalacion } from '../types';
 
 // Helper para extraer el valor del enum del formato backend
 const extractEstadoValue = (estado: string): string => {
@@ -39,12 +39,22 @@ const getEstadoColor = (estado: string) => {
     return colorMap[cleanEstado] || 'gray';
 };
 
-export function InstalacionesList() {
+interface InstalacionesListProps {
+    filters?: InstalacionFilters;
+    onPageChange?: (page: number) => void;
+}
+
+export function InstalacionesList({ filters, onPageChange }: InstalacionesListProps) {
     const navigate = useNavigate();
-    const { data: instalaciones, isLoading, error } = useQuery<Instalacion[]>({
-        queryKey: ['instalaciones'],
-        queryFn: getInstalaciones,
+    const { data: response, isLoading, error } = useQuery({
+        queryKey: ['instalaciones', filters],
+        queryFn: () => {
+            console.log('Fetching instalaciones with filters:', filters);
+            return getInstalaciones(filters);
+        },
     });
+
+    console.log('InstalacionesList render - isLoading:', isLoading, 'error:', error, 'response:', response);
 
     if (isLoading) {
         return (
@@ -55,14 +65,30 @@ export function InstalacionesList() {
     }
 
     if (error) {
+        console.error('Error loading instalaciones:', error);
         return (
             <Alert color="red" title="Error">
-                No se pudieron cargar las instalaciones.
+                No se pudieron cargar las instalaciones. Error: {error.message}
             </Alert>
         );
     }
 
+    // El backend está devolviendo un array directo, no un objeto con instalaciones
+    let instalaciones: Instalacion[] = [];
+    let pagination = { page: 1, pages: 1, per_page: 15, total: 0 };
+    
+    if (Array.isArray(response)) {
+        // Si response es un array directo (formato antiguo)
+        instalaciones = response;
+        pagination = { page: 1, pages: 1, per_page: 15, total: response.length };
+    } else if (response && response.instalaciones) {
+        // Si response tiene la estructura esperada
+        instalaciones = response.instalaciones;
+        pagination = response.pagination || { page: 1, pages: 1, per_page: 15, total: 0 };
+    }
+
     if (!instalaciones || instalaciones.length === 0) {
+        console.log('No instalaciones found. Response:', response);
         return (
             <Paper withBorder p="xl">
                 <Center>
@@ -75,10 +101,13 @@ export function InstalacionesList() {
     const rows = instalaciones.map((instalacion) => (
         <Table.Tr key={instalacion.id_instalacion} style={{ cursor: 'pointer' }}>
             <Table.Td onClick={() => navigate(`/instalaciones/${instalacion.id_instalacion}`)}>
-                #{instalacion.id_instalacion}
+                {instalacion.caso?.titulo || `Caso #${instalacion.id_caso}`}
             </Table.Td>
             <Table.Td onClick={() => navigate(`/instalaciones/${instalacion.id_instalacion}`)}>
-                {instalacion.caso?.titulo || `Caso #${instalacion.id_caso}`}
+                {instalacion.caso?.cliente?.nombre_cliente || instalacion.usuario_b2b?.cliente?.nombre_cliente || 'Sin cliente'}
+            </Table.Td>
+            <Table.Td onClick={() => navigate(`/instalaciones/${instalacion.id_instalacion}`)}>
+                {instalacion.caso?.cliente?.vendedor?.usuario?.nombre_completo || instalacion.usuario_b2b?.cliente?.vendedor?.usuario?.nombre_completo || 'Sin vendedor'}
             </Table.Td>
             <Table.Td onClick={() => navigate(`/instalaciones/${instalacion.id_instalacion}`)}>
                 {instalacion.usuario_b2b?.nombre_completo || 'Sin asignar'}
@@ -108,21 +137,34 @@ export function InstalacionesList() {
     ));
 
     return (
-        <Paper withBorder>
-            <Table striped highlightOnHover>
-                <Table.Thead>
-                    <Table.Tr>
-                        <Table.Th>ID</Table.Th>
-                        <Table.Th>Caso</Table.Th>
-                        <Table.Th>Usuario B2B</Table.Th>
-                        <Table.Th>Estado</Table.Th>
-                        <Table.Th>Fecha Solicitud</Table.Th>
-                        <Table.Th>Acciones</Table.Th>
-                    </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>{rows}</Table.Tbody>
-            </Table>
-        </Paper>
+        <>
+            <Paper withBorder>
+                <Table striped highlightOnHover>
+                    <Table.Thead>
+                        <Table.Tr>
+                            <Table.Th>Caso</Table.Th>
+                            <Table.Th>Cliente</Table.Th>
+                            <Table.Th>Vendedor</Table.Th>
+                            <Table.Th>Usuario B2B</Table.Th>
+                            <Table.Th>Estado</Table.Th>
+                            <Table.Th>Fecha Solicitud</Table.Th>
+                            <Table.Th>Acciones</Table.Th>
+                        </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>{rows}</Table.Tbody>
+                </Table>
+            </Paper>
+            
+            {pagination.pages > 1 && (
+                <Group justify="center" mt="md">
+                    <Pagination
+                        total={pagination.pages}
+                        value={pagination.page}
+                        onChange={onPageChange}
+                    />
+                </Group>
+            )}
+        </>
     );
 }
 

@@ -12,6 +12,7 @@ import {
     aprobarInstalacion, 
     rechazarInstalacion, 
     marcarUsuarioCreado,
+    continuarSinUsuario,
     agendarInstalacion,
     finalizarInstalacion,
     sincronizarEquipos,
@@ -22,11 +23,7 @@ import {
 
 // ===== SCHEMAS DE VALIDACIÓN =====
 
-const aprobarSchema = z.object({
-    fecha_aprobacion: z.coerce.date(),
-    observaciones: z.string().optional(),
-});
-// type AprobarFormValues = z.infer<typeof aprobarSchema>;
+// Schema removido ya que no se usa en el formulario
 
 const rechazarSchema = z.object({
     observaciones: z.string().min(10, 'La observación debe tener al menos 10 caracteres'),
@@ -103,6 +100,17 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
             showNotification({ title: 'Éxito', message: 'Usuario B2B creado y registrado', color: 'green' });
+            closeModal();
+        },
+        onError: (error: any) => showNotification({ title: 'Error', message: error.response?.data?.error || error.message, color: 'red' }),
+    });
+
+    const continuarSinUsuarioMutation = useMutation({
+        mutationFn: () => continuarSinUsuario(instalacion.id_instalacion),
+        onSuccess: (updated) => {
+            queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
+            onUpdate(updated);
+            showNotification({ title: 'Éxito', message: 'Continuando sin usuario B2B', color: 'blue' });
             closeModal();
         },
         onError: (error: any) => showNotification({ title: 'Error', message: error.response?.data?.error || error.message, color: 'red' }),
@@ -193,11 +201,16 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
                         </Button>
                     );
                 }
-                // Si no es cambio de equipo o no tiene usuario, mostrar crear usuario
+                // Mostrar opciones: crear usuario o continuar sin usuario
                 return (
-                    <Button onClick={() => handleOpenModal('usuario')}>
-                        Crear Usuario B2B
-                    </Button>
+                    <Group>
+                        <Button onClick={() => handleOpenModal('usuario')}>
+                            Crear Usuario B2B
+                        </Button>
+                        <Button variant="outline" onClick={() => continuarSinUsuarioMutation.mutate()}>
+                            Continuar sin Usuario
+                        </Button>
+                    </Group>
                 );
             
             case 'Usuario Creado':
@@ -915,8 +928,9 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
             // Paso 1: Activar equipo
             await activarEquipo(instalacion.id_instalacion, selectedEquipo);
             
-            // Paso 2: Instalar equipo
-            const updated = await instalarEquipo(instalacion.id_instalacion, selectedEquipo);
+            // Paso 2: Instalar equipo con fecha personalizada si está disponible
+            const fechaInstalacionPersonalizada = usarFechaPersonalizada && fechaPersonalizada ? fechaPersonalizada : undefined;
+            const updated = await instalarEquipo(instalacion.id_instalacion, selectedEquipo, fechaInstalacionPersonalizada);
             
             queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
             onUpdate(updated);
@@ -954,7 +968,15 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
                             label="Usar fecha de creación personalizada"
                             description="Para equipos que se crearon anteriormente"
                             checked={usarFechaPersonalizada}
-                            onChange={(e) => setUsarFechaPersonalizada(e.currentTarget.checked)}
+                            onChange={(e) => {
+                                const checked = e.currentTarget.checked;
+                                setUsarFechaPersonalizada(checked);
+                                if (checked && !fechaPersonalizada) {
+                                    // Inicializar con fecha y hora actual
+                                    const now = new Date();
+                                    setFechaPersonalizada(createLocalISOString(now));
+                                }
+                            }}
                             mb="sm"
                         />
 

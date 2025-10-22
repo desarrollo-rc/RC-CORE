@@ -48,6 +48,59 @@ class InstalacionService:
     @staticmethod
     def get_all_instalaciones():
         return Instalacion.query.all()
+    
+    @staticmethod
+    def get_instalaciones_paginated(page=1, per_page=15, tipo_caso_id=None, usuario_b2b_id=None, 
+                                   id_cliente=None, id_vendedor=None, fecha_desde=None, fecha_hasta=None, estado=None, 
+                                   sort_by='fecha_solicitud', sort_order='desc'):
+        """
+        Obtiene instalaciones con filtros y paginación.
+        """
+        query = Instalacion.query
+        
+        # Aplicar filtros
+        if tipo_caso_id:
+            query = query.join(Caso).filter(Caso.id_tipo_caso == tipo_caso_id)
+        
+        if usuario_b2b_id:
+            query = query.filter(Instalacion.id_usuario_b2b == usuario_b2b_id)
+        
+        if id_cliente:
+            # Filtrar por cliente a través del caso
+            query = query.join(Caso).filter(Caso.id_cliente == id_cliente)
+        
+        if id_vendedor:
+            # Filtrar por vendedor a través del caso -> cliente -> vendedor
+            from app.models.entidades.maestro_clientes import MaestroClientes
+            query = query.join(Caso).join(MaestroClientes, Caso.id_cliente == MaestroClientes.id_cliente).filter(MaestroClientes.id_vendedor == id_vendedor)
+        
+        if fecha_desde:
+            query = query.filter(Instalacion.fecha_solicitud >= fecha_desde)
+        
+        if fecha_hasta:
+            query = query.filter(Instalacion.fecha_solicitud <= fecha_hasta)
+        
+        if estado:
+            # Convertir el string del estado al enum correspondiente
+            from app.models.soporte.instalaciones import EstadoInstalacion
+            try:
+                estado_enum = EstadoInstalacion(estado)
+                query = query.filter(Instalacion.estado == estado_enum)
+            except ValueError:
+                # Si el estado no es válido, ignorar el filtro
+                pass
+        
+        # Aplicar ordenamiento
+        if sort_by == 'fecha_solicitud':
+            if sort_order == 'desc':
+                query = query.order_by(Instalacion.fecha_solicitud.desc())
+            else:
+                query = query.order_by(Instalacion.fecha_solicitud.asc())
+        else:
+            # Ordenamiento por defecto
+            query = query.order_by(Instalacion.fecha_solicitud.desc())
+        
+        return query.paginate(page=page, per_page=per_page, error_out=False)
 
     @staticmethod
     def get_instalacion_by_id(instalacion_id):
@@ -147,12 +200,12 @@ class InstalacionService:
         
         # Calcular fecha de creación de usuario
         if data.get('fecha_creacion_personalizada'):
-            # Usar la fecha proporcionada
+            # Usar la fecha proporcionada por el usuario
             fecha_creacion = data['fecha_creacion_personalizada']
             if isinstance(fecha_creacion, str):
                 fecha_creacion = datetime.fromisoformat(fecha_creacion.replace('Z', '+00:00'))
         else:
-            # Usar fecha y hora actual para seguimiento real
+            # Usar fecha y hora actual para seguimiento real (usuario creado después de la solicitud)
             fecha_creacion = InstalacionService._obtener_fecha_chile()
         
         # Escenario 1: Usuario existe en sistema
@@ -176,6 +229,10 @@ class InstalacionService:
                 id_cliente=instalacion.caso.id_cliente
             )
             
+            # Establecer fecha de creación personalizada si se especifica
+            if data.get('fecha_creacion_personalizada'):
+                nuevo_usuario.fecha_creacion = fecha_creacion
+            
             # Generar password si no viene
             password = data.get('password') or f"{data['usuario']}.,{fecha_creacion.year}.*"
             nuevo_usuario.set_password(password)
@@ -194,6 +251,23 @@ class InstalacionService:
                 instalacion.estado = EstadoInstalacion.USUARIO_CREADO
             else:
                 instalacion.estado = EstadoInstalacion.USUARIO_CREADO
+        
+        db.session.commit()
+        return instalacion
+    
+    @staticmethod
+    def continuar_sin_usuario(instalacion_id):
+        """
+        Permite continuar con la instalación sin crear usuario B2B.
+        Cambia el estado a CONFIGURACION_PENDIENTE para permitir continuar con el flujo.
+        """
+        instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
+        
+        if not instalacion.puede_crear_usuario():
+            raise BusinessRuleError("La instalación no está en estado para continuar sin usuario")
+        
+        # Cambiar estado a CONFIGURACION_PENDIENTE para permitir continuar
+        instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
         
         db.session.commit()
         return instalacion
