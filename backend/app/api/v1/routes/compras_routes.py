@@ -13,10 +13,29 @@ compras_bp = Blueprint('compras', __name__, url_prefix='/compras')
 # Formato: {sku: [url1, url2, ...]}
 _image_cache = {}
 
-@lru_cache(maxsize=1024)
+# Cache más agresivo con TTL
+from functools import lru_cache
+import time
+
+# Cache con timestamp para TTL
+_image_cache = {}
+_cache_ttl = 300  # 5 minutos
+
 def _cached_get_images(sku: str):
-    """Cache las imágenes para un SKU"""
-    return tuple(get_images_for_sku(sku))
+    """Cache las imágenes para un SKU con TTL"""
+    current_time = time.time()
+    
+    # Verificar si existe en cache y no ha expirado
+    if sku in _image_cache:
+        cached_data, timestamp = _image_cache[sku]
+        if current_time - timestamp < _cache_ttl:
+            return cached_data
+    
+    # Si no está en cache o expiró, obtener de BD
+    images = get_images_for_sku(sku)
+    _image_cache[sku] = (tuple(images), current_time)
+    
+    return tuple(images)
 
 def _fetch_sku_images_worker(app, sku):
     """
@@ -53,7 +72,7 @@ def fetch_images_for_skus():
     image_map = {}
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_sku = {executor.submit(_fetch_sku_images_worker, app, sku): sku for sku in unique_skus}
             
             for future in concurrent.futures.as_completed(future_to_sku):
@@ -185,16 +204,35 @@ def serve_product_image(sku: str, index: int):
         image_url = images[index]
         
         try:
-            # Hacer una solicitud HTTP al servidor de imágenes con timeout muy optimizado
-            response = requests.get(image_url, timeout=3, allow_redirects=True)
-            response.raise_for_status()
+            # Sistema de retry con timeouts progresivos
+            timeouts = [1.5, 3.0, 5.0]  # 1.5s, 3s, 5s
+            last_error = None
             
-            # Retornar la imagen con el tipo de contenido correcto
-            return send_file(
-                BytesIO(response.content),
-                mimetype=response.headers.get('Content-Type', 'image/jpeg'),
-                as_attachment=False
-            )
+            for attempt, timeout in enumerate(timeouts):
+                try:
+                    # Hacer una solicitud HTTP al servidor de imágenes
+                    response = requests.get(image_url, timeout=timeout, allow_redirects=True)
+                    response.raise_for_status()
+                    
+                    # Verificar que la imagen no esté vacía
+                    if len(response.content) < 100:  # Menos de 100 bytes probablemente es error
+                        raise Exception("Image too small, likely an error page")
+                    
+                    # Retornar la imagen con el tipo de contenido correcto
+                    return send_file(
+                        BytesIO(response.content),
+                        mimetype=response.headers.get('Content-Type', 'image/jpeg'),
+                        as_attachment=False
+                    )
+                    
+                except Exception as e:
+                    last_error = e
+                    if attempt < len(timeouts) - 1:  # No es el último intento
+                        import time
+                        time.sleep(0.2 * (attempt + 1))  # Esperar un poco antes del retry
+                        continue
+                    else:
+                        raise e
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout) as e:
             # Si no puede conectarse al servidor externo, retornar placeholder
             placeholder = BytesIO(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\xcd\xf4\x0b\xaf\x00\x00\x00\x00IEND\xaeB`\x82')

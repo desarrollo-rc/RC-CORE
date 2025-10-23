@@ -86,7 +86,6 @@ def guardar_pdf_extraido(pdf_data: bytes, codigo_b2b: str, fecha_correo: datetim
         with open(ruta_completa, 'wb') as f:
             f.write(pdf_data)
         
-        print(f"DEBUG: PDF guardado en {ruta_completa}")
         return ruta_completa
         
     except Exception as e:
@@ -152,25 +151,20 @@ def extraer_productos_de_pdf(pdf_bytes: bytes) -> List[Dict]:
         pdf_stream = io.BytesIO(pdf_bytes)
         
         with pdfplumber.open(pdf_stream) as pdf:
-            print(f"DEBUG PDF: Número de páginas: {len(pdf.pages)}")
             
             for page_num, page in enumerate(pdf.pages):
-                print(f"DEBUG PDF: Procesando página {page_num + 1}")
                 
                 # Extraer tablas de la página
                 tables = page.extract_tables()
                 
                 if not tables:
-                    print(f"DEBUG PDF: No se encontraron tablas en página {page_num + 1}")
                     continue
                 
-                print(f"DEBUG PDF: Se encontraron {len(tables)} tabla(s) en página {page_num + 1}")
                 
                 for table_idx, table in enumerate(tables):
                     if not table or len(table) < 2:  # Necesita al menos header + 1 fila
                         continue
                     
-                    print(f"DEBUG PDF: Tabla {table_idx}: {len(table)} filas, {len(table[0]) if table else 0} columnas")
                     
                     # Buscar la fila de encabezado que contiene productos
                     header_row_idx = None
@@ -178,11 +172,9 @@ def extraer_productos_de_pdf(pdf_bytes: bytes) -> List[Dict]:
                         row_text = ' '.join([str(cell).lower() if cell else '' for cell in row])
                         if 'producto' in row_text or 'sku' in row_text or 'código' in row_text:
                             header_row_idx = idx
-                            print(f"DEBUG PDF: Encabezado encontrado en fila {idx}: {row}")
                             break
                     
                     if header_row_idx is None:
-                        print(f"DEBUG PDF: No se encontró encabezado de productos en tabla {table_idx}")
                         continue
                     
                     # Determinar índices de columnas
@@ -203,7 +195,6 @@ def extraer_productos_de_pdf(pdf_bytes: bytes) -> List[Dict]:
                         elif 'precio' in cell_lower or 'valor' in cell_lower or 'unit' in cell_lower:
                             col_precio = col_idx
                     
-                    print(f"DEBUG PDF: Columnas detectadas - SKU:{col_sku}, Nombre:{col_nombre}, Cant:{col_cantidad}, Precio:{col_precio}")
                     
                     # Procesar filas de datos
                     for row in table[header_row_idx + 1:]:
@@ -230,10 +221,8 @@ def extraer_productos_de_pdf(pdf_bytes: bytes) -> List[Dict]:
                                     'valor_unitario': precio
                                 }
                                 productos.append(producto)
-                                print(f"DEBUG PDF: Producto extraído: {sku} - {nombre} - Cant:{cantidad} - Precio:{precio}")
                         
                         except (ValueError, IndexError) as e:
-                            print(f"DEBUG PDF: Error procesando fila: {e}")
                             continue
     
     except Exception as e:
@@ -249,12 +238,10 @@ def extraer_tabla_productos(soup) -> List[Dict]:
     productos = []
     tabla = soup.find('table', id='tabla-productos')
     if not tabla:
-        print(f"DEBUG: No se encontró tabla con id='tabla-productos' en HTML")
         return productos
         
     tbody = tabla.find('tbody')
     if not tbody:
-        print(f"DEBUG: Tabla encontrada pero sin tbody")
         return productos
         
     for fila in tbody.find_all('tr'):
@@ -592,7 +579,6 @@ def extraer_pedidos_preview(
             query_parts.append(f"before:{before_date.strftime('%Y/%m/%d')}")
 
         query = " ".join(query_parts)
-        print(f"DEBUG: Ejecutando consulta en Gmail: '{query}'")
         
         # Buscar correos
         response = service.users().messages().list(userId='me', q=query).execute()
@@ -627,7 +613,6 @@ def extraer_pedidos_preview(
                 
                 codigo_b2b_actual = extraer_campo(subject, r'Nº ([A-Z0-9]+)', 'No encontrado')
                 
-                print(f"DEBUG: Pedido {codigo_b2b_actual} - Aprobado: {esta_aprobado}, Pendiente: {esta_pendiente}, Fecha: {fecha_correo}")
                 
                 if codigo_b2b_actual == 'No encontrado' or not codigo_b2b_actual:
                     error_msg = 'No se pudo extraer el código B2B del asunto'
@@ -657,18 +642,11 @@ def extraer_pedidos_preview(
                 
                 html_part = None
                 if 'parts' in payload:
-                    print(f"DEBUG [{codigo_b2b_actual}]: Payload tiene {len(payload['parts'])} parte(s)")
-                    for idx, p in enumerate(payload['parts']):
-                        mime = p.get('mimeType', '')
-                        has_data = 'data' in p.get('body', {})
-                        has_parts = 'parts' in p
-                        print(f"DEBUG [{codigo_b2b_actual}]: Parte {idx}: mime={mime}, data={has_data}, subparts={has_parts}")
                     
                     html_part = buscar_html_recursivo(payload['parts'])
                 elif 'body' in payload and 'data' in payload['body']:
                     # HTML directo sin partes
                     html_part = payload
-                    print(f"DEBUG [{codigo_b2b_actual}]: HTML directo en body (sin parts)")
                 
                 if not html_part or 'data' not in html_part.get('body', {}):
                     error_msg = 'No se encontró contenido HTML en el correo'
@@ -680,14 +658,6 @@ def extraer_pedidos_preview(
                 soup = BeautifulSoup(data, 'html.parser')
                 texto_plano_correo = soup.get_text()
                 
-                # Guardar HTML de ejemplo (solo primer correo)
-                if i == 0:
-                    try:
-                        with open('/tmp/correo_ejemplo.html', 'w', encoding='utf-8') as f:
-                            f.write(data)
-                        print(f"DEBUG: HTML guardado en /tmp/correo_ejemplo.html para inspección")
-                    except Exception as e:
-                        print(f"DEBUG: No se pudo guardar HTML: {e}")
                 
                 # Buscar PDF adjunto con los productos
                 pdf_part = None
@@ -701,7 +671,6 @@ def extraer_pedidos_preview(
                             # Si tiene attachmentId, necesitamos descargarlo
                             attachment_id = p.get('body', {}).get('attachmentId')
                             if attachment_id:
-                                print(f"DEBUG [{codigo_b2b_actual}]: Descargando adjunto PDF - {filename}")
                                 try:
                                     attachment = service.users().messages().attachments().get(
                                         userId='me',
@@ -711,16 +680,7 @@ def extraer_pedidos_preview(
                                     
                                     pdf_data = base64.urlsafe_b64decode(attachment['data'])
                                     pdf_part = pdf_data
-                                    print(f"DEBUG [{codigo_b2b_actual}]: PDF descargado - {len(pdf_data)} bytes")
                                     
-                                    # Guardar PDF de ejemplo (solo primer correo)
-                                    if i == 0:
-                                        try:
-                                            with open('/tmp/pedido_ejemplo.pdf', 'wb') as f:
-                                                f.write(pdf_data)
-                                            print(f"DEBUG: PDF guardado en /tmp/pedido_ejemplo.pdf para inspección")
-                                        except Exception as e:
-                                            print(f"DEBUG: No se pudo guardar PDF: {e}")
                                     
                                     break
                                 except Exception as e:
@@ -745,7 +705,6 @@ def extraer_pedidos_preview(
                     numero_sap = extraer_campo(texto_plano_correo, r"Número\s+Interno\s*:\s*(\d+)", '')
                 else:
                     # Fallback: intentar extraer del HTML (para correos antiguos)
-                    print(f"DEBUG [{codigo_b2b_actual}]: No se encontró PDF, intentando extraer del HTML")
                     info_cliente = extraer_info_cliente(texto_plano_correo)
                     productos_extraidos = extraer_tabla_productos(soup)
                     # Solo extraer "Número Interno" del cuerpo del correo (nunca del PDF)
@@ -757,13 +716,7 @@ def extraer_pedidos_preview(
                     if numero_sap.startswith('B2B') or not numero_sap.isdigit():
                         print(f"WARNING [{codigo_b2b_actual}]: Número SAP inválido (parece ser código B2B): {numero_sap}")
                         numero_sap = ''  # No guardar códigos B2B como número SAP
-                    else:
-                        print(f"DEBUG [{codigo_b2b_actual}]: Pedido confirmado - Número Interno SAP: {numero_sap}")
                 
-                print(f"DEBUG [{codigo_b2b_actual}]: Cliente - RUT={info_cliente.get('rut', 'N/A')}, Razón={info_cliente.get('razon_social', 'N/A')[:30] if info_cliente.get('razon_social') else 'N/A'}")
-                print(f"DEBUG [{codigo_b2b_actual}]: {len(productos_extraidos)} producto(s) extraídos")
-                if len(productos_extraidos) > 0:
-                    print(f"DEBUG [{codigo_b2b_actual}]: Primer producto: SKU={productos_extraidos[0].get('sku')} - {productos_extraidos[0].get('nombre_producto', '')[:30]}")
                 
                 # Validaciones
                 advertencias = []
@@ -953,9 +906,7 @@ def procesar_pedidos_seleccionados(
                 
                 if not id_cliente:
                     info_cliente = pedido_info.get('info_cliente', {})
-                    print(f"DEBUG: info_cliente completo: {info_cliente}")
                     rut = info_cliente.get('rut', '').strip()
-                    print(f"DEBUG: RUT extraído de info_cliente: '{rut}' (longitud: {len(rut)})")
                     
                     # Primero buscar si existe en la BD (por si el preview estaba desactualizado)
                     if rut:
@@ -965,15 +916,12 @@ def procesar_pedidos_seleccionados(
                         
                         if cliente_existente:
                             id_cliente = cliente_existente.id_cliente
-                            print(f"DEBUG: Cliente RUT {rut} ya existe con ID {id_cliente}")
                     
                     # Si no existe y crear_clientes está activo, crear uno nuevo
                     if not id_cliente and crear_clientes:
                         try:
                             # Generar código de cliente basado en RUT (formato C + RUT con guión)
-                            print(f"DEBUG: RUT antes de crear código: '{rut}' (longitud: {len(rut)})")
                             codigo_cliente = f"C{rut}" if rut else f"CB2B{codigo_b2b}"
-                            print(f"DEBUG: Código cliente generado: '{codigo_cliente}'")
                             
                             nuevo_cliente = MaestroClientes(
                                 rut_cliente=rut,
@@ -995,7 +943,6 @@ def procesar_pedidos_seleccionados(
                                 'nombre': nuevo_cliente.nombre_cliente,
                                 'id_cliente': id_cliente
                             })
-                            print(f"DEBUG: Cliente RUT {rut} creado con ID {id_cliente}")
                         except Exception as e:
                             import traceback
                             # Verificar si el error es por duplicado
@@ -1015,7 +962,6 @@ def procesar_pedidos_seleccionados(
                                     ).first()
                                     if cliente_existente:
                                         id_cliente = cliente_existente.id_cliente
-                                        print(f"DEBUG: Cliente RUT {rut} ya existe (encontrado después de rollback), usando ID {id_cliente}")
                                     else:
                                         resultado['errores'].append({
                                             'codigo_b2b': codigo_b2b,
@@ -1056,7 +1002,6 @@ def procesar_pedidos_seleccionados(
                 # Si es un duplicado diferente, usar el código alternativo
                 if pedido_info.get('es_duplicado_diferente', False):
                     codigo_b2b_final = pedido_info.get('codigo_b2b_alternativo', codigo_b2b)
-                    print(f"DEBUG: Usando código alternativo {codigo_b2b_final} para pedido duplicado {codigo_b2b}")
                 else:
                     # Verificar si el pedido ya existe (para casos normales)
                     if pedido_ya_existe(codigo_b2b, db):
@@ -1120,13 +1065,11 @@ def procesar_pedidos_seleccionados(
                     # Si tiene número SAP, agregarlo
                     if numero_sap:
                         nuevo_pedido.numero_pedido_sap = numero_sap
-                        print(f"DEBUG: Asignado número SAP {numero_sap} al pedido {codigo_b2b}")
                     
                     # Si tiene ruta de PDF, agregarla
                     ruta_pdf = pedido_info.get('ruta_pdf')
                     if ruta_pdf:
                         nuevo_pedido.ruta_pdf = ruta_pdf
-                        print(f"DEBUG: Asignada ruta PDF {ruta_pdf} al pedido {codigo_b2b}")
                     
                     db.add(nuevo_pedido)
                     db.flush()
@@ -1195,13 +1138,11 @@ def procesar_pedidos_seleccionados(
                         cantidad_actual = productos_consolidados[sku_key].get('cantidad', 0)
                         cantidad_nueva = prod_info.get('cantidad', 0)
                         productos_consolidados[sku_key]['cantidad'] = cantidad_actual + cantidad_nueva
-                        print(f"DEBUG: Consolidando SKU {sku} → {sku_key} - Cantidad total: {cantidad_actual + cantidad_nueva}")
                     else:
                         # Crear copia y normalizar SKU
                         prod_copy = prod_info.copy()
                         prod_copy['sku'] = sku  # Mantener SKU original para logs
                         productos_consolidados[sku_key] = prod_copy
-                        print(f"DEBUG: SKU {sku} → {sku_key} agregado a consolidación")
                 
                 productos_agregados = 0
                 productos_omitidos = []
@@ -1210,7 +1151,6 @@ def procesar_pedidos_seleccionados(
                     sku_original = prod_info.get('sku', sku_key)  # SKU original del PDF
                     id_producto = prod_info.get('id_producto')
                     
-                    print(f"DEBUG: Procesando SKU {sku_original} (normalizado: {sku_key})")
                     
                     # Verificar/Crear Producto
                     if not id_producto:
@@ -1226,7 +1166,6 @@ def procesar_pedidos_seleccionados(
                         if producto_existente:
                             # El producto ya existe, usar ese
                             id_producto = producto_existente.id_producto
-                            print(f"DEBUG: Producto {sku_original} ya existe con ID {id_producto}")
                         elif crear_productos:
                             # Crear producto nuevo con valores por defecto
                             try:
@@ -1250,7 +1189,6 @@ def procesar_pedidos_seleccionados(
                                     'nombre': nuevo_producto.nombre_producto,
                                     'id_producto': id_producto
                                 })
-                                print(f"DEBUG: Producto {sku_original} → {sku_normalizado} creado con ID {id_producto}")
                             except Exception as e:
                                 import traceback
                                 # Verificar si el error es por duplicado
@@ -1273,7 +1211,6 @@ def procesar_pedidos_seleccionados(
                                     
                                     if producto_existente:
                                         id_producto = producto_existente.id_producto
-                                        print(f"DEBUG: Producto {sku_original} ya existe (encontrado después de rollback), usando ID {id_producto}")
                                     else:
                                         # Realmente no existe, saltar este producto
                                         resultado['errores'].append({
@@ -1283,7 +1220,6 @@ def procesar_pedidos_seleccionados(
                                             'mensaje': f'Producto duplicado pero no encontrado en BD. Posible inconsistencia.',
                                             'detalle': f'SKU: {sku_original}\nError original: {str(e)}'
                                         })
-                                        print(f"ADVERTENCIA: Producto {sku_original} duplicado pero no encontrado después de rollback")
                                         productos_omitidos.append(sku_original)
                                         continue
                                 else:
@@ -1457,8 +1393,6 @@ def procesar_pedidos_b2b(
 
         query = " ".join(query_parts)
         
-        # Mensaje de depuración para máxima claridad
-        print(f"DEBUG: Ejecutando consulta en Gmail: '{query}'")
         
         # Buscar correos
         response = service.users().messages().list(userId='me', q=query).execute()

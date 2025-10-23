@@ -44,11 +44,45 @@ export async function imageUrlToBase64(imageUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const base64 = reader.result as string;
-        // Guardar en cache antes de resolver
-        globalImageBase64Cache.set(finalUrl, base64);
-        console.log(`✅ Cached image: ${finalUrl}`);
-        resolve(base64);
+        let base64 = reader.result as string;
+        
+        // Comprimir imagen para Excel (más rápido)
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          if (ctx) {
+            // Redimensionar a máximo 200x200 para Excel
+            const maxSize = 200;
+            let { width, height } = img;
+            
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Comprimir con calidad 0.7 (más rápido)
+            base64 = canvas.toDataURL('image/jpeg', 0.7);
+          }
+          
+          // Guardar en cache antes de resolver
+          globalImageBase64Cache.set(finalUrl, base64);
+          console.log(`✅ Cached compressed image: ${finalUrl}`);
+          resolve(base64);
+        };
+        img.src = base64;
       };
       reader.onerror = (error) => {
         reject(error);

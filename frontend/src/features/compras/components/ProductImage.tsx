@@ -1,7 +1,7 @@
 // frontend/src/features/compras/components/ProductImage.tsx
 import { useState, useEffect } from 'react';
 import { Modal, Box, Text, Stack, ActionIcon } from '@mantine/core';
-import { IconZoomIn, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { IconZoomIn, IconChevronLeft, IconChevronRight, IconX } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 
 interface ProductImageProps {
@@ -10,9 +10,11 @@ interface ProductImageProps {
   numeroArticulo: string;
   size?: number;
   todasLasImagenes?: string[];
+  onDelete?: (index: number) => void;
+  showDeleteButton?: boolean;
 }
 
-export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImagenes }: ProductImageProps) {
+export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImagenes, onDelete, showDeleteButton = false }: ProductImageProps) {
   const [opened, { open, close }] = useDisclosure(false);
   const [imageError, setImageError] = useState(false);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -85,6 +87,8 @@ export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImag
 
   const handleImageError = () => {
     setImageError(true);
+    // Log para debugging de imágenes fallidas
+    console.warn(`🖼️ Image failed to load: ${imageSrc}`);
   };
 
   const handleOpen = () => {
@@ -206,38 +210,59 @@ export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImag
                 onError={handleImageError}
               />
 
-              {todasLasImagenes && todasLasImagenes.length > 1 && (
-                <>
-                  <ActionIcon
-                    variant="light"
-                    color="gray"
-                    onClick={handlePrev}
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: 0,
-                      transform: 'translateY(-50%)',
-                    }}
-                    aria-label="Anterior"
-                  >
-                    <IconChevronLeft size={18} />
-                  </ActionIcon>
-                  <ActionIcon
-                    variant="light"
-                    color="gray"
-                    onClick={handleNext}
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      right: 0,
-                      transform: 'translateY(-50%)',
-                    }}
-                    aria-label="Siguiente"
-                  >
-                    <IconChevronRight size={18} />
-                  </ActionIcon>
-                </>
-              )}
+                  {todasLasImagenes && todasLasImagenes.length > 1 && (
+                    <>
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        onClick={handlePrev}
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: 0,
+                          transform: 'translateY(-50%)',
+                        }}
+                        aria-label="Anterior"
+                      >
+                        <IconChevronLeft size={18} />
+                      </ActionIcon>
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        onClick={handleNext}
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          right: 0,
+                          transform: 'translateY(-50%)',
+                        }}
+                        aria-label="Siguiente"
+                      >
+                        <IconChevronRight size={18} />
+                      </ActionIcon>
+                    </>
+                  )}
+                  
+                  {showDeleteButton && onDelete && (
+                    <ActionIcon
+                      variant="filled"
+                      color="red"
+                      onClick={() => {
+                        onDelete(currentIndex);
+                        close();
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        zIndex: 10
+                      }}
+                      aria-label="Eliminar imagen"
+                      title="Eliminar esta imagen"
+                    >
+                      <IconX size={16} />
+                    </ActionIcon>
+                  )}
             </Box>
 
             <Text size="sm" c="dimmed" mt="sm">
