@@ -113,3 +113,26 @@ export const deleteCotizacion = async (id: number): Promise<void> => {
     throw error;
   }
 };
+
+export type ImageMap = Record<string, string[]>;
+
+interface FetchImagesResponse {
+  exito: boolean;
+  image_map: ImageMap;
+  mensaje?: string;
+}
+
+/**
+ * Envía una lista de SKUs al backend y recibe un mapa de imágenes.
+ */
+export const fetchImageMap = async (skus: string[]): Promise<ImageMap> => {
+  try {
+    const response = await api.post<FetchImagesResponse>('/compras/cotizador/fetch-images', {
+      skus,
+    });
+    
+    return response.data.image_map;
+  } catch (error) {
+    throw error;
+  }
+};

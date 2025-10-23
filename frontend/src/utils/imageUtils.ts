@@ -1,26 +1,61 @@
 // frontend/src/utils/imageUtils.ts
 
+// Cache compartido para almacenar imágenes Base64 ya convertidas
+const globalImageBase64Cache = new Map<string, string>();
+
+// Session HTTP reutilizable para connection pooling
+const httpSession = new Map<string, any>();
+
 /**
  * Convierte una URL de imagen a Base64
- * @param imageUrl - URL de la imagen
+ * @param imageUrl - URL de la imagen (puede ser relativa o absoluta)
  * @returns Promise<string> - Base64 de la imagen
  */
 export async function imageUrlToBase64(imageUrl: string): Promise<string> {
   try {
-    const response = await fetch(imageUrl);
+    // Si es una URL relativa, construir la URL absoluta
+    let finalUrl = imageUrl;
+    if (imageUrl.startsWith('/')) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000/api/v1';
+      finalUrl = `${baseUrl}${imageUrl}`;
+    }
+    
+    // Verificar si ya existe en cache
+    if (globalImageBase64Cache.has(finalUrl)) {
+      console.log(`📦 Using cached image: ${finalUrl}`);
+      return globalImageBase64Cache.get(finalUrl)!;
+    }
+    
+        const response = await fetch(finalUrl, {
+          mode: 'cors',
+          cache: 'force-cache', // Usar cache del navegador
+          headers: {
+            'Accept': 'image/*',
+            'Cache-Control': 'max-age=3600'
+          }
+        });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const blob = await response.blob();
     
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = reader.result as string;
+        // Guardar en cache antes de resolver
+        globalImageBase64Cache.set(finalUrl, base64);
+        console.log(`✅ Cached image: ${finalUrl}`);
         resolve(base64);
       };
-      reader.onerror = reject;
+      reader.onerror = (error) => {
+        reject(error);
+      };
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.error('Error convirtiendo imagen a Base64:', error);
     throw error;
   }
 }

@@ -152,6 +152,9 @@ def create_app(config_class=Config):
     from .api.v1.routes.archivos_routes import archivos_bp
     app.register_blueprint(archivos_bp, url_prefix='/api/v1/archivos')
 
+    from .api.v1.routes.compras_routes import compras_bp
+    app.register_blueprint(compras_bp, url_prefix='/api/v1/compras')
+
     # --- RUTAS ---
     # Una ruta de prueba para verificar que todo funciona
     @app.route('/database', methods=['GET'])

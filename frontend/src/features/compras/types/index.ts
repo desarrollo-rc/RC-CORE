@@ -37,6 +37,13 @@ export interface CotizacionItem {
   pedido: number;
   fob: number;
   last_fob: number;
+  // Campos específicos de Dealer
+  cod_mod?: string;
+  tg?: string;
+  com_tecnico?: string;
+  errores?: string;
+  volumen_dealer?: number;
+  supplier?: string;
   // Campos calculados
   subtotal?: number;
   observaciones?: string;
@@ -48,6 +55,7 @@ export interface CotizacionData {
   items: CotizacionItem[];
   total_items: number;
   total_estimado?: number;
+  tipoCliente?: 'fabrica' | 'dealer';
 }
 
 export interface ExcelUploadResult {

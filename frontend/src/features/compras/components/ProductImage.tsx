@@ -1,6 +1,6 @@
 // frontend/src/features/compras/components/ProductImage.tsx
-import { useState } from 'react';
-import { Image, Modal, Box, Text, Stack, ActionIcon } from '@mantine/core';
+import { useState, useEffect } from 'react';
+import { Modal, Box, Text, Stack, ActionIcon } from '@mantine/core';
 import { IconZoomIn, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 
@@ -16,6 +16,72 @@ export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImag
   const [opened, { open, close }] = useDisclosure(false);
   const [imageError, setImageError] = useState(false);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [imageSrc, setImageSrc] = useState<string>(src);
+  const [blobImages, setBlobImages] = useState<string[]>([]);
+
+  // Convertir URLs relativas a absolutas para la imagen principal
+  useEffect(() => {
+    if (!src) {
+      setImageSrc('');
+      return;
+    }
+
+    if (src.startsWith('/')) {
+      // URL relativa - convertir a absoluta
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000/api/v1';
+      const absoluteUrl = `${backendUrl}${src}`;
+      setImageSrc(absoluteUrl);
+      setImageError(false);
+    } else {
+      // URL absoluta - usar directamente
+      setImageSrc(src);
+    }
+  }, [src]);
+
+  // Convertir todas las imágenes relativas a blob URLs con límite de concurrencia
+  useEffect(() => {
+    if (!todasLasImagenes || todasLasImagenes.length === 0) {
+      setBlobImages([]);
+      return;
+    }
+
+    // Las imágenes pueden ser:
+    // 1. Base64 (si vienen del estado cotizacionData después de preview)
+    // 2. URLs relativas (si vienen directamente del backend)
+    
+    const processedImages = todasLasImagenes.map((img) => {
+      if (!img) return '';
+      
+      // Si ya es Base64 (empieza con 'data:image/')
+      if (img.startsWith('data:image/')) {
+        return img;
+      }
+      
+      // Si es URL relativa, construir absoluta
+      if (img.startsWith('/')) {
+        const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+        return `${backendUrl}${img}`;
+      }
+      
+      // Si es URL absoluta, usar directamente
+      return img;
+    });
+    
+    setBlobImages(processedImages);
+  }, [todasLasImagenes, numeroArticulo]);
+
+  // Log when rendering main image
+  useEffect(() => {
+    if (imageSrc && !imageSrc.includes('logoRC')) {
+    } else {
+    }
+  }, [imageSrc, numeroArticulo]);
+
+  // Log when displaying modal image
+  useEffect(() => {
+    if (opened && blobImages && blobImages.length > 0 && blobImages[currentIndex]) {
+    }
+  }, [currentIndex, blobImages, opened]);
 
   const handleImageError = () => {
     setImageError(true);
@@ -54,17 +120,35 @@ export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImag
         }}
         onClick={handleOpen}
       >
-        <Image
-          src={imageError ? '/src/assets/logoRC.jpeg' : src}
-          alt={alt}
-          style={{
-            width: size,
-            height: size,
-            objectFit: 'cover',
-            display: 'block'
-          }}
-          onError={handleImageError}
-        />
+        {imageSrc && !imageSrc.includes('logoRC') ? (
+          <>
+            <img
+              src={imageSrc}
+              alt={alt}
+              style={{
+                width: size,
+                height: size,
+                objectFit: 'cover',
+                display: 'block'
+              }}
+              onError={handleImageError}
+            />
+          </>
+        ) : (
+          <>
+            <img
+              src={imageError || !imageSrc ? '/src/assets/logoRC.jpeg' : imageSrc}
+              alt={alt}
+              style={{
+                width: size,
+                height: size,
+                objectFit: 'cover',
+                display: 'block'
+              }}
+              onError={handleImageError}
+            />
+          </>
+        )}
         <Box
           style={{
             position: 'absolute',
@@ -106,13 +190,11 @@ export function ProductImage({ src, alt, numeroArticulo, size = 50, todasLasImag
               <Text size="sm" fw={500} mb="xs">
                 {`Imagen ${todasLasImagenes && todasLasImagenes.length > 0 ? currentIndex + 1 : 1}`}
               </Text>
-              <Image
+              <img
                 src={
-                  todasLasImagenes && todasLasImagenes.length > 0
-                    ? todasLasImagenes[currentIndex]
-                    : imageError
-                      ? '/src/assets/logoRC.jpeg'
-                      : src
+                  blobImages && blobImages.length > 0 && blobImages[currentIndex]
+                    ? blobImages[currentIndex]
+                    : '/src/assets/logoRC.jpeg'
                 }
                 alt={alt}
                 style={{
