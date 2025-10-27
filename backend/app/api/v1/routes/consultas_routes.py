@@ -6,6 +6,7 @@ from app.api.v1.services.consulta_service import ConsultaService
 from app.api.v1.utils.decorators import permission_required
 from werkzeug.exceptions import NotFound, BadRequest, Forbidden
 from io import BytesIO
+from datetime import datetime
 
 consultas_bp = Blueprint('consultas_bp', __name__)
 
@@ -106,6 +107,46 @@ def sync_pedidos():
         return jsonify({"error": e.description}), e.code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@consultas_bp.route('/diagnostico/conexion-omsrc', methods=['GET'])
+@jwt_required()
+def test_omsrc_connection():
+    """
+    Endpoint de diagnóstico para probar la conexión a OMSRC.
+    Ayuda a identificar problemas de conectividad antes de ejecutar consultas.
+    """
+    try:
+        connection_ok, connection_msg = ConsultaService.test_omsrc_connection()
+        
+        if connection_ok:
+            return jsonify({
+                'status': 'success',
+                'message': 'Conexión a OMSRC exitosa',
+                'details': connection_msg,
+                'timestamp': datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Error de conexión a OMSRC',
+                'details': connection_msg,
+                'timestamp': datetime.now().isoformat(),
+                'troubleshooting': [
+                    'Verificar que el servidor SQL Server esté accesible',
+                    'Verificar la configuración de red y firewall',
+                    'Verificar que las credenciales sean correctas',
+                    'Verificar que el puerto 1433 esté abierto',
+                    'Contactar al administrador de la base de datos'
+                ]
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': 'Error inesperado durante la prueba de conexión',
+            'details': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @consultas_bp.route('/<string:codigo_consulta>/download-excel', methods=['POST'])
 @jwt_required()

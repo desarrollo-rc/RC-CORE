@@ -49,6 +49,11 @@ export function CotizadorPage() {
   const [loadingImages, setLoadingImages] = useState(false);
   const [tipoCliente, setTipoCliente] = useState<'fabrica' | 'dealer'>('fabrica');
   const [reloadingProducts, setReloadingProducts] = useState<Set<string>>(new Set());
+
+  // Función helper para determinar el límite de imágenes basado en la cantidad de SKUs
+  const getImageLimit = (skuCount: number): number => {
+    return skuCount <= 500 ? 5 : 3;
+  };
   
   // Estados para procesamiento por lotes
   const [, setBatchProcessing] = useState(false);
@@ -110,8 +115,10 @@ export function CotizadorPage() {
       console.log(`📥 Image URLs fetched for batch ${batchNumber} in ${(fetchTime - startTime).toFixed(2)}ms`);
 
       const imageMapBase64: Record<string, string[]> = {};
+      const imageLimit = getImageLimit(cotizacionData?.items.length || 0);
+      console.log(`📊 Image limit for ${cotizacionData?.items.length || 0} SKUs: ${imageLimit} images per SKU`);
       const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, 3).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
+        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
       );
       
       console.log(`🔄 Converting ${allImageUrls.length} images for batch ${batchNumber} with optimized settings...`);
@@ -305,9 +312,42 @@ export function CotizadorPage() {
     const startTime = performance.now();
     console.log(`🚀 Starting image loading for batch ${batchNumber}/${totalBatches} (${batchItems.length} products)...`);
     
-    try {
-      const skus = batchItems.map((item) => item.numero_articulo);
-      const imageMap = await fetchImageMap(skus);
+    // Debugging específico para el primer batch
+    if (batchNumber === 1) {
+      console.log(`🔍 DEBUGGING BATCH 1:`);
+      console.log(`   📊 Total items in batch: ${batchItems.length}`);
+      console.log(`   📋 First 5 SKUs:`, batchItems.slice(0, 5).map(item => item.numero_articulo));
+      console.log(`   📋 Last 5 SKUs:`, batchItems.slice(-5).map(item => item.numero_articulo));
+      console.log(`   🔍 SKU types:`, batchItems.slice(0, 5).map(item => typeof item.numero_articulo));
+      console.log(`   🔍 SKU values:`, batchItems.slice(0, 5).map(item => item.numero_articulo));
+    }
+    
+    // Retry logic para el primer batch que suele fallar
+    const maxRetries = batchNumber === 1 ? 2 : 1;
+    let lastError = null;
+    const skus = batchItems.map((item) => item.numero_articulo);
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        
+        if (attempt > 1) {
+          console.log(`🔄 Retry attempt ${attempt}/${maxRetries} for batch ${batchNumber} (${skus.length} SKUs)`);
+          // Pequeña pausa antes del retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Debugging específico para el primer batch
+        if (batchNumber === 1) {
+          console.log(`🔍 BATCH 1 - Attempt ${attempt}:`);
+          console.log(`   📤 Sending SKUs to backend:`, skus.slice(0, 10), skus.length > 10 ? `... and ${skus.length - 10} more` : '');
+          console.log(`   🔍 SKU types being sent:`, skus.slice(0, 5).map(sku => typeof sku));
+        }
+        
+        // Agregar identificador único al request
+        const requestId = `batch_${batchNumber}_attempt_${attempt}_${Date.now()}`;
+        console.log(`🔍 Request ID: ${requestId}`);
+        
+        const imageMap = await fetchImageMap(skus);
       
       const fetchTime = performance.now();
       console.log(`📥 Image URLs fetched for batch ${batchNumber} in ${(fetchTime - startTime).toFixed(2)}ms`);
@@ -316,9 +356,11 @@ export function CotizadorPage() {
       const imageMapBase64: Record<string, string[]> = {};
       
       // Procesar TODAS las imágenes usando Web Workers (máxima velocidad + no bloquea UI)
-      // Limitar a máximo 3 imágenes por SKU para evitar sobrecarga
+      // Usar límite dinámico basado en la cantidad total de SKUs
+      const imageLimit = getImageLimit(cotizacionData?.items.length || 0);
+      console.log(`📊 Image limit for ${cotizacionData?.items.length || 0} SKUs: ${imageLimit} images per SKU`);
       const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, 3).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
+        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
       );
       
       console.log(`🔄 Converting ${allImageUrls.length} images for batch ${batchNumber} using Web Workers...`);
@@ -476,14 +518,57 @@ export function CotizadorPage() {
       
       setBatchHistory(prev => [...prev, batchResult]);
       
-      console.log(`✅ Batch ${batchNumber} completed successfully!`);
-      console.log(`⏱️  Batch time: ${totalSeconds}s`);
-      console.log(`📊 Performance: ${imagesPerSecond} images/second`);
-      console.log(`🎯 Batch Quality: ${successfulImages}/${totalImages} successful (${successRate.toFixed(1)}%)`);
-
-    } catch (error) {
+        console.log(`✅ Batch ${batchNumber} completed successfully!`);
+        console.log(`⏱️  Batch time: ${totalSeconds}s`);
+        console.log(`📊 Performance: ${imagesPerSecond} images/second`);
+        console.log(`🎯 Batch Quality: ${successfulImages}/${totalImages} successful (${successRate.toFixed(1)}%)`);
+        
+        // Si llegamos aquí, el batch fue exitoso, salir del bucle de retry
+        return;
+        
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Error in batch ${batchNumber}, attempt ${attempt}/${maxRetries}:`, error);
+        
+        if (attempt < maxRetries) {
+          console.log(`🔄 Will retry batch ${batchNumber} in 1 second...`);
+          continue;
+        }
+      }
+    }
+    
+    // Si llegamos aquí, todos los intentos fallaron
+    if (lastError) {
       const errorTime = performance.now();
-      console.error(`❌ Error in batch ${batchNumber} after ${((errorTime - startTime) / 1000).toFixed(2)}s:`, error);
+      console.error(`❌ Error in batch ${batchNumber} after ${((errorTime - startTime) / 1000).toFixed(2)}s:`, lastError);
+      
+      // Log detallado del error para debugging
+      if (lastError && typeof lastError === 'object' && 'response' in lastError) {
+        const axiosError = lastError as any;
+        console.error(`🔍 Error details for batch ${batchNumber}:`);
+        console.error(`   Status: ${axiosError.response?.status}`);
+        console.error(`   Status Text: ${axiosError.response?.statusText}`);
+        console.error(`   Response Data:`, axiosError.response?.data);
+        console.error(`   Request URL: ${axiosError.config?.url}`);
+        console.error(`   Request Method: ${axiosError.config?.method}`);
+        console.error(`   SKUs being processed:`, skus.slice(0, 5), skus.length > 5 ? `... and ${skus.length - 5} more` : '');
+      }
+      
+      // Agregar lote fallido al historial para permitir recarga
+      const failedBatchResult = {
+        batchNumber,
+        totalProducts: batchItems.length,
+        totalImages: 0,
+        successfulImages: 0,
+        failedImages: 0,
+        successRate: 0,
+        processingTime: parseFloat(((errorTime - startTime) / 1000).toFixed(2)),
+        status: 'failed' as const
+      };
+      
+      setBatchHistory(prev => [...prev, failedBatchResult]);
+      
+      console.log(`📝 Added failed batch ${batchNumber} to history for potential reload`);
       
       // Actualizar estadísticas de error
       setBatchProgress(prev => ({
@@ -492,6 +577,7 @@ export function CotizadorPage() {
       }));
     }
   };
+
 
   const fetchAndSetRealImages = async (items: CotizacionItem[]) => {
     setLoadingImages(true);
@@ -511,9 +597,11 @@ export function CotizadorPage() {
       const imageMapBase64: Record<string, string[]> = {};
       
       // Procesar TODAS las imágenes usando Web Workers (máxima velocidad + no bloquea UI)
-      // Limitar a máximo 3 imágenes por SKU para evitar sobrecarga
+      // Usar límite dinámico basado en la cantidad total de SKUs
+      const imageLimit = getImageLimit(items.length);
+      console.log(`📊 Image limit for ${items.length} SKUs: ${imageLimit} images per SKU`);
       const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, 3).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
+        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
       );
       
       console.log(`🔄 Converting ${allImageUrls.length} images using Web Workers...`);
@@ -834,59 +922,108 @@ export function CotizadorPage() {
         const isFabrica = tipoCliente === 'fabrica';
         const minColumns = isFabrica ? 12 : 16;
 
+        console.log(`📊 Processing Excel with ${jsonData.length} rows (including header)`);
+        console.log(`📊 Client type: ${tipoCliente}, Min columns required: ${minColumns}`);
+
+        let processedRows = 0;
+        let skippedValidation = 0;
+        let consecutiveEmptyRows = 0;
+        let rowsWithSKU = 0;
+        const maxConsecutiveEmpty = 10; // Parar después de 10 filas vacías consecutivas
+
         for (let i = 1; i < jsonData.length; i++) {
           const row = jsonData[i] as any[];
-          if (row && row.length >= minColumns) {
-            const numeroArticulo = row[0]?.toString() || '';
-            const descripcionArticulo = row[1]?.toString() || '';
+          processedRows++;
+          
+          // Verificar si hay SKU en la primera columna (columna 0)
+          const hasSKU = row && row.length > 0 && row[0] && row[0].toString().trim() !== '';
+          
+          if (!hasSKU) {
+            consecutiveEmptyRows++;
+            if (consecutiveEmptyRows >= maxConsecutiveEmpty) {
+              console.log(`🛑 Stopping processing at row ${i}: Found ${consecutiveEmptyRows} consecutive rows without SKU`);
+              break;
+            }
+            continue;
+          } else {
+            consecutiveEmptyRows = 0; // Resetear contador si encontramos SKU
+            rowsWithSKU++; // Contar filas que tienen SKU
+          }
+          
+          // Procesar si tiene SKU válido, independientemente del número de columnas
+          if (row && row.length > 0) {
+            // Función helper para obtener valores de manera segura
+            const getValue = (index: number, defaultValue: any = '') => {
+              return row && row.length > index ? row[index] : defaultValue;
+            };
+
+            const numeroArticulo = getValue(0, '');
+            const descripcionArticulo = getValue(1, '');
 
             let pedido: number;
             let precio: number;
 
             if (isFabrica) {
               // Formato Fábrica: Pedido en col 9, FOB en col 10
-              pedido = parseFloat(row[9]) || 0;
-              precio = parseFloat(row[10]) || 0;
+              pedido = parseFloat(getValue(9, 0)) || 0;
+              precio = parseFloat(getValue(10, 0)) || 0;
             } else {
               // Formato Dealer: Ped. Sug. en col 10, no hay precio directo
               // Para Dealer usamos Ped. Sug. como cantidad y el precio será 0 por ahora
-              pedido = parseFloat(row[10]) || 0;
+              pedido = parseFloat(getValue(10, 0)) || 0;
               precio = 0; // Dealer no tiene FOB en la estructura actual
             }
 
             const subtotal = pedido * precio;
 
-            if (numeroArticulo && descripcionArticulo && pedido > 0) {
+            // Validación más flexible: solo requiere SKU y descripción
+            if (numeroArticulo && descripcionArticulo) {
               items.push({
                 numero_articulo: numeroArticulo,
                 descripcion_articulo: descripcionArticulo,
-                nombre_extranjero: row[2]?.toString() || '',
-                nombre_chino: row[3]?.toString() || '',
-                marca: row[4]?.toString() || '',
-                modelo: isFabrica ? row[5]?.toString() || '' : row[6]?.toString() || '',
-                modelo_chino: isFabrica ? row[6]?.toString() || '' : row[7]?.toString() || '',
-                volumen_unidad_compra: isFabrica ? parseFloat(row[7]) || 0 : parseFloat(row[8]) || 0,
-                oem_part: isFabrica ? row[8]?.toString() || '' : row[9]?.toString() || '',
+                nombre_extranjero: getValue(2, ''),
+                nombre_chino: getValue(3, ''),
+                marca: getValue(4, ''),
+                modelo: isFabrica ? getValue(5, '') : getValue(6, ''),
+                modelo_chino: isFabrica ? getValue(6, '') : getValue(7, ''),
+                volumen_unidad_compra: isFabrica ? parseFloat(getValue(7, 0)) || 0 : parseFloat(getValue(8, 0)) || 0,
+                oem_part: isFabrica ? getValue(8, '') : getValue(9, ''),
                 pedido: pedido,
                 fob: precio,
-                last_fob: isFabrica ? parseFloat(row[11]) || 0 : 0,
+                last_fob: isFabrica ? parseFloat(getValue(11, 0)) || 0 : 0,
                 // Campos específicos de Dealer
                 ...(isFabrica ? {} : {
-                  cod_mod: row[5]?.toString() || '',
-                  tg: row[11]?.toString() || '',
-                  com_tecnico: row[12]?.toString() || '',
-                  errores: row[13]?.toString() || '',
-                  volumen_dealer: parseFloat(row[14]) || 0,
-                  supplier: row[15]?.toString() || '',
+                  cod_mod: getValue(5, ''),
+                  tg: getValue(11, ''),
+                  com_tecnico: getValue(12, ''),
+                  errores: getValue(13, ''),
+                  volumen_dealer: parseFloat(getValue(14, 0)) || 0,
+                  supplier: getValue(15, ''),
                 }),
                 subtotal: subtotal,
                 observaciones: '',
                 imagenes: [], // Empezamos con array vacío
               });
               totalEstimado += subtotal;
+            } else {
+              skippedValidation++;
+              if (skippedValidation <= 10) { // Mostrar más ejemplos
+                console.log(`⚠️ Skipped row ${i}: SKU="${numeroArticulo}", Desc="${descripcionArticulo}", Pedido=${pedido}`);
+                console.log(`   Raw row data:`, row.slice(0, 5)); // Mostrar primeros 5 campos
+              }
             }
           }
         }
+
+        // Log de estadísticas finales
+        console.log(`📊 Excel Processing Summary:`);
+        console.log(`   📥 Total rows processed: ${processedRows}`);
+        console.log(`   🔍 Rows with SKU: ${rowsWithSKU}`);
+        console.log(`   ❌ Skipped (validation failed): ${skippedValidation}`);
+        console.log(`   ✅ Successfully processed: ${items.length}`);
+        console.log(`   📊 Success rate: ${((items.length / rowsWithSKU) * 100).toFixed(1)}% (based on rows with SKU)`);
+        console.log(`   🚀 Performance: Processed ${processedRows} rows instead of ${jsonData.length} total rows`);
+        console.log(`   💡 Note: Now processing all rows with SKU regardless of column count`);
 
         const result: CotizacionData = {
           items,
@@ -1477,7 +1614,17 @@ export function CotizadorPage() {
                           <Badge color="blue" size="sm">Procesando...</Badge>
                         )}
                         {batch.status === 'failed' && (
-                          <Badge color="red" size="sm">Falló</Badge>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="red"
+                            leftSection={<IconRefresh size="0.8rem" />}
+                            onClick={() => reloadBatch(batch.batchNumber)}
+                            disabled={false}
+                            title={`Recargar lote ${batch.batchNumber} (Falló)`}
+                          >
+                            Recargar (Falló)
+                          </Button>
                         )}
                         {batch.status === 'completed' && batch.successRate === 100 && (
                           <Badge color="green" size="sm">Perfecto</Badge>

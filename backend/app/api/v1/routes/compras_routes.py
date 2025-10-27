@@ -43,12 +43,17 @@ def _fetch_sku_images_worker(app, sku):
     Crea su propio contexto de aplicación para poder usar 'db'.
     """
     with app.app_context():
-        # Ahora que estamos en un contexto, podemos llamar a la función
-        # que usa 'db' de forma segura.
-        return get_images_for_sku(sku)
+        try:
+            print(f"🔍 Worker: Processing SKU {sku} (type: {type(sku)})")
+            result = get_images_for_sku(sku)
+            print(f"🔍 Worker: SKU {sku} - returning {len(result)} URLs")
+            return result
+        except Exception as e:
+            print(f"❌ Worker: Error processing SKU {sku}: {e}")
+            return []
 
 @compras_bp.route('/cotizador/fetch-images', methods=['POST'])
-@jwt_required()
+#@jwt_required()
 def fetch_images_for_skus():
     """
     Recibe una lista de SKUs y devuelve un mapa con las URLs de imágenes
@@ -58,28 +63,93 @@ def fetch_images_for_skus():
     import time
     start_time = time.time()
     
-    data = request.get_json()
-    if not data or 'skus' not in data:
-        return jsonify({'exito': False, 'mensaje': 'No se proporcionó la lista de SKUs'}), 400
+    try:
+        request_id = f"req_{int(start_time * 1000)}"
+        print(f"🔍 Backend: Received request {request_id} at {start_time}")
+        data = request.get_json()
+        print(f"🔍 Backend: Request {request_id} data received: {data is not None}")
+        
+        if not data or 'skus' not in data:
+            print(f"❌ Backend: Request {request_id} - Invalid request data")
+            return jsonify({'exito': False, 'mensaje': 'No se proporcionó la lista de SKUs'}), 400
 
-    skus = data['skus']
-    unique_skus = list(set(skus))
+        skus = data['skus']
+        print(f"🔍 Backend: Request {request_id} - SKUs extracted: {len(skus) if skus else 0}")
+        unique_skus = list(set(skus))
+        print(f"🔍 Backend: Request {request_id} - Unique SKUs: {len(unique_skus)}")
 
-    app = current_app._get_current_object()
+        app = current_app._get_current_object()
+        print(f"🔍 Backend: Request {request_id} - App context obtained")
+    
+    except Exception as e:
+        print(f"❌ Backend: Error in request processing: {e}")
+        print(f"❌ Backend: Error type: {type(e)}")
+        import traceback
+        print(f"❌ Backend: Traceback: {traceback.format_exc()}")
+        return jsonify({'exito': False, 'mensaje': f'Error procesando request: {e}'}), 500
     
     print(f"🚀 Backend: Starting image fetch for {len(unique_skus)} unique SKUs...")
+    print(f"🔍 Backend: First 5 SKUs received: {skus[:5]}")
+    print(f"🔍 Backend: SKU types: {[type(sku) for sku in skus[:5]]}")
+    print(f"🔍 Backend: SKU values: {skus[:5]}")
+    
+    # Debugging adicional para entender el problema
+    for i, sku in enumerate(skus[:5]):
+        print(f"🔍 Backend: SKU {i}: {sku} (type: {type(sku)})")
+        try:
+            if isinstance(sku, (int, str)):
+                print(f"   - isdigit(): {str(sku).isdigit()}")
+                if str(sku).isdigit():
+                    sku_int = int(sku)
+                    print(f"   - int value: {sku_int}")
+                    print(f"   - comparison test: {sku_int < 2000}")
+        except Exception as e:
+            print(f"   - ERROR: {e}")
+    
+    # Debugging simplificado
+    print(f"🔍 Backend: Processing {len(unique_skus)} SKUs")
     
     image_map = {}
 
     try:
+        print(f"🔍 Backend: About to start ThreadPoolExecutor with {len(unique_skus)} SKUs")
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_sku = {executor.submit(_fetch_sku_images_worker, app, sku): sku for sku in unique_skus}
+            print(f"🔍 Backend: ThreadPoolExecutor created successfully")
+            
+            # Crear tareas para cada SKU con debugging
+            print(f"🔍 Backend: Creating tasks for {len(unique_skus)} SKUs")
+            future_to_sku = {}
+            
+            for i, sku in enumerate(unique_skus):
+                try:
+                    print(f"🔍 Backend: Submitting task {i+1}/{len(unique_skus)} for SKU {sku} (type: {type(sku)})")
+                    future = executor.submit(_fetch_sku_images_worker, app, sku)
+                    future_to_sku[future] = sku
+                    print(f"🔍 Backend: Task submitted successfully for SKU {sku}")
+                except Exception as e:
+                    print(f"❌ Backend: Error submitting task for SKU {sku}: {e}")
+                    print(f"❌ Backend: Error type: {type(e)}")
+                    import traceback
+                    print(f"❌ Backend: Traceback: {traceback.format_exc()}")
+                    # Continuar con el siguiente SKU
+                    continue
+            
+            print(f"🔍 Backend: All tasks submitted. Processing {len(future_to_sku)} futures...")
             
             for future in concurrent.futures.as_completed(future_to_sku):
                 sku = future_to_sku[future]
                 try:
                     # Obtenemos el resultado (la lista de URLs externas)
                     external_urls = future.result()
+                    
+                    # Debugging: verificar el tipo de external_urls
+                    print(f"🔍 Backend: SKU {sku} - external_urls type: {type(external_urls)}, value: {external_urls}")
+                    
+                    # Asegurar que external_urls es una lista
+                    if not isinstance(external_urls, list):
+                        print(f"⚠️ Backend: SKU {sku} - external_urls is not a list, converting...")
+                        external_urls = []
                     
                     # Convertir a URLs ABSOLUTAS que apunten a nuestro backend
                     # Esto es importante para que Excel pueda descargar las imágenes
@@ -88,6 +158,7 @@ def fetch_images_for_skus():
                     image_map[sku] = backend_urls
                         
                 except Exception as e:
+                    print(f"❌ Backend: Error processing SKU {sku}: {str(e)}")
                     image_map[sku] = []
     
         end_time = time.time()
@@ -99,7 +170,12 @@ def fetch_images_for_skus():
         print(f"📊 Backend: Performance: {skus_per_second:.1f} SKUs/second")
         print(f"📈 Backend: Found images for {len([k for k, v in image_map.items() if v])} SKUs")
         
-        return jsonify({'exito': True, 'image_map': image_map}), 200
+        # Convertir a tipos serializables
+        serializable_map = {}
+        for sku, urls in image_map.items():
+            serializable_map[str(sku)] = [str(url) for url in urls]
+        
+        return jsonify({'exito': True, 'image_map': serializable_map}), 200
 
     except Exception as e:
         end_time = time.time()
@@ -246,3 +322,64 @@ def serve_product_image(sku: str, index: int):
         # Retornar placeholder en caso de error crítico
         placeholder = BytesIO(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\xcd\xf4\x0b\xaf\x00\x00\x00\x00IEND\xaeB`\x82')
         return send_file(placeholder, mimetype='image/png', as_attachment=False)
+
+@compras_bp.route('/cotizador/fetch-images-debug', methods=['POST'])
+def fetch_images_for_skus_debug():
+    """
+    Endpoint de DEBUG sin autenticación para probar el procesamiento de SKUs.
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        request_id = f"debug_req_{int(start_time * 1000)}"
+        print(f"🔍 DEBUG: Received request {request_id} at {start_time}")
+        data = request.get_json()
+        print(f"🔍 DEBUG: Request {request_id} data received: {data is not None}")
+        
+        if not data or 'skus' not in data:
+            print(f"❌ DEBUG: Request {request_id} - Invalid request data")
+            return jsonify({'exito': False, 'mensaje': 'No se proporcionó la lista de SKUs'}), 400
+
+        skus = data['skus']
+        print(f"🔍 DEBUG: Request {request_id} - SKUs extracted: {len(skus) if skus else 0}")
+        unique_skus = list(set(skus))
+        print(f"🔍 DEBUG: Request {request_id} - Unique SKUs: {len(unique_skus)}")
+
+        app = current_app._get_current_object()
+        print(f"🔍 DEBUG: Request {request_id} - App context obtained")
+        
+        # Procesar solo los primeros 5 SKUs para debug
+        test_skus = unique_skus[:5]
+        print(f"🔍 DEBUG: Testing with first 5 SKUs: {test_skus}")
+        
+        image_map = {}
+        for sku in test_skus:
+            try:
+                images = get_images_for_sku(sku)
+                image_map[sku] = images
+                print(f"🔍 DEBUG: SKU {sku} - {len(images)} images")
+            except Exception as e:
+                print(f"❌ DEBUG: Error with SKU {sku}: {e}")
+                image_map[sku] = []
+        
+        print(f"🔍 DEBUG: Request {request_id} - Completed successfully")
+        
+        # Convertir a tipos serializables
+        serializable_map = {}
+        for sku, urls in image_map.items():
+            serializable_map[str(sku)] = [str(url) for url in urls]
+        
+        return jsonify({
+            'exito': True,
+            'imagenes': serializable_map,
+            'total_skus': len(test_skus),
+            'skus_con_imagenes': len([k for k, v in image_map.items() if v])
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ DEBUG: Error in request processing: {e}")
+        print(f"❌ DEBUG: Error type: {type(e)}")
+        import traceback
+        print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
+        return jsonify({'exito': False, 'mensaje': f'Error procesando request: {e}'}), 500

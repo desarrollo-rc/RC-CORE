@@ -26,9 +26,18 @@ class Config:
     
     # Desactiva una función de SQLAlchemy que no necesitamos y que consume recursos.
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Configuración de pool de conexiones para mejorar la estabilidad
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,  # Verificar conexiones antes de usarlas
+        'pool_recycle': 3600,   # Reciclar conexiones cada hora
+        'pool_timeout': 30,     # Timeout para obtener conexión del pool
+        'max_overflow': 10,     # Conexiones adicionales permitidas
+        'pool_size': 5          # Tamaño base del pool
+    }
 
     SQLALCHEMY_BINDS = {
-        'omsrc': os.environ.get('OMSRC_DATABASE_URL') or 'mssql+pyodbc://federico.lorca:34NMyU$.32gH@omsrc.eastus.cloudapp.azure.com:1433/rcenter?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=yes'
+        'omsrc': os.environ.get('OMSRC_DATABASE_URL') or 'mssql+pyodbc://federico.lorca:34NMyU$.32gH@omsrc.eastus.cloudapp.azure.com:1433/rcenter?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=yes&Connection+Timeout=30&Command+Timeout=60&Login+Timeout=30'
     }
 
     # Clave para firma de JWT

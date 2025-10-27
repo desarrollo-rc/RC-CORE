@@ -120,57 +120,165 @@ class ConsultaService:
         db.session.add(ejecucion)
         db.session.commit()
 
-        try:
-            with engine.connect() as connection:
-                # Limpiar la query SQL: remover prefijos de base de datos innecesarios
-                query_sql_limpia = consulta.query_sql
+        # Configuración de reintentos para conexiones a SQL Server
+        max_retries = 3
+        retry_delay = 2  # segundos
+        last_exception = None
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"[DEBUG] Intento {attempt + 1}/{max_retries} de conexión a {consulta.bdd_source.name}")
                 
-                # Remover comandos USE database
-                query_sql_limpia = re.sub(r'^\s*USE\s+\w+\s*;?\s*', '', query_sql_limpia, flags=re.IGNORECASE | re.MULTILINE)
-                
-                # Remover patrones como [rcenter].[schema] y dejarlo como [schema]
-                query_sql_limpia = re.sub(r'\[rcenter\]\.', '', query_sql_limpia, flags=re.IGNORECASE)
-                
-                # Debug: imprimir la query limpia
-                print(f"[DEBUG] Query original: {consulta.query_sql[:200]}...")
-                print(f"[DEBUG] Query limpia: {query_sql_limpia[:200]}...")
-                
-                query_sql = text(query_sql_limpia)
-                result_proxy = connection.execute(query_sql, parametros or {})
-                
-                resultado = { "id_ejecucion": ejecucion.id_ejecucion }
-                if result_proxy.returns_rows:
-                    # Limitar a 50,000 filas para evitar crashes del navegador
-                    MAX_ROWS = 50000
-                    filas = []
-                    for i, row in enumerate(result_proxy.mappings()):
-                        if i >= MAX_ROWS:
-                            break
-                        filas.append(dict(row))
-                    
-                    resultado["data"] = filas
-                    resultado["filas"] = len(filas)
-                    resultado["filas_totales"] = result_proxy.rowcount if hasattr(result_proxy, 'rowcount') else len(filas)
-                    resultado["limitado"] = len(filas) >= MAX_ROWS
-                    
-                    print(f"[DEBUG] Filas retornadas: {resultado['filas']} (total: {resultado.get('filas_totales', 'N/A')})")
+                # Configurar timeout de conexión más largo para SQL Server
+                if consulta.bdd_source.name == 'OMSRC':
+                    # Para SQL Server, usar un timeout más largo
+                    with engine.connect() as connection:
+                        # Configurar timeout de comando
+                        connection.execute(text("SET LOCK_TIMEOUT 30000"))  # 30 segundos
+                        connection.execute(text("SET QUERY_GOVERNOR_COST_LIMIT 0"))
+                        
+                        # Limpiar la query SQL: remover prefijos de base de datos innecesarios
+                        query_sql_limpia = consulta.query_sql
+                        
+                        # Remover comandos USE database
+                        query_sql_limpia = re.sub(r'^\s*USE\s+\w+\s*;?\s*', '', query_sql_limpia, flags=re.IGNORECASE | re.MULTILINE)
+                        
+                        # Remover patrones como [rcenter].[schema] y dejarlo como [schema]
+                        query_sql_limpia = re.sub(r'\[rcenter\]\.', '', query_sql_limpia, flags=re.IGNORECASE)
+                        
+                        # Debug: imprimir la query limpia
+                        print(f"[DEBUG] Query original: {consulta.query_sql[:200]}...")
+                        print(f"[DEBUG] Query limpia: {query_sql_limpia[:200]}...")
+                        
+                        query_sql = text(query_sql_limpia)
+                        result_proxy = connection.execute(query_sql, parametros or {})
+                        
+                        resultado = { "id_ejecucion": ejecucion.id_ejecucion }
+                        if result_proxy.returns_rows:
+                            # Limitar a 50,000 filas para evitar crashes del navegador
+                            MAX_ROWS = 50000
+                            filas = []
+                            for i, row in enumerate(result_proxy.mappings()):
+                                if i >= MAX_ROWS:
+                                    break
+                                filas.append(dict(row))
+                            
+                            resultado["data"] = filas
+                            resultado["filas"] = len(filas)
+                            resultado["filas_totales"] = result_proxy.rowcount if hasattr(result_proxy, 'rowcount') else len(filas)
+                            resultado["limitado"] = len(filas) >= MAX_ROWS
+                            
+                            print(f"[DEBUG] Filas retornadas: {resultado['filas']} (total: {resultado.get('filas_totales', 'N/A')})")
+                        else:
+                            resultado["filas"] = result_proxy.rowcount
+                        
+                        ejecucion.filas = resultado["filas"]
+                        ejecucion.duracion_ms = int((time.time() - start_time) * 1000)
+                        db.session.commit()
+                        
+                        return resultado
                 else:
-                    resultado["filas"] = result_proxy.rowcount
+                    # Para otras bases de datos, usar el flujo normal
+                    with engine.connect() as connection:
+                        # Limpiar la query SQL: remover prefijos de base de datos innecesarios
+                        query_sql_limpia = consulta.query_sql
+                        
+                        # Remover comandos USE database
+                        query_sql_limpia = re.sub(r'^\s*USE\s+\w+\s*;?\s*', '', query_sql_limpia, flags=re.IGNORECASE | re.MULTILINE)
+                        
+                        # Remover patrones como [rcenter].[schema] y dejarlo como [schema]
+                        query_sql_limpia = re.sub(r'\[rcenter\]\.', '', query_sql_limpia, flags=re.IGNORECASE)
+                        
+                        # Debug: imprimir la query limpia
+                        print(f"[DEBUG] Query original: {consulta.query_sql[:200]}...")
+                        print(f"[DEBUG] Query limpia: {query_sql_limpia[:200]}...")
+                        
+                        query_sql = text(query_sql_limpia)
+                        result_proxy = connection.execute(query_sql, parametros or {})
+                        
+                        resultado = { "id_ejecucion": ejecucion.id_ejecucion }
+                        if result_proxy.returns_rows:
+                            # Limitar a 50,000 filas para evitar crashes del navegador
+                            MAX_ROWS = 50000
+                            filas = []
+                            for i, row in enumerate(result_proxy.mappings()):
+                                if i >= MAX_ROWS:
+                                    break
+                                filas.append(dict(row))
+                            
+                            resultado["data"] = filas
+                            resultado["filas"] = len(filas)
+                            resultado["filas_totales"] = result_proxy.rowcount if hasattr(result_proxy, 'rowcount') else len(filas)
+                            resultado["limitado"] = len(filas) >= MAX_ROWS
+                            
+                            print(f"[DEBUG] Filas retornadas: {resultado['filas']} (total: {resultado.get('filas_totales', 'N/A')})")
+                        else:
+                            resultado["filas"] = result_proxy.rowcount
+                        
+                        ejecucion.filas = resultado["filas"]
+                        ejecucion.duracion_ms = int((time.time() - start_time) * 1000)
+                        db.session.commit()
+                        
+                        return resultado
+                        
+            except Exception as e:
+                last_exception = e
+                print(f"[ERROR] Intento {attempt + 1}/{max_retries} falló: {str(e)}")
                 
-                ejecucion.filas = resultado["filas"]
-                ejecucion.duracion_ms = int((time.time() - start_time) * 1000)
-                db.session.commit()
-                
-                return resultado
+                # Si es un error de conexión y no es el último intento, esperar y reintentar
+                if (attempt < max_retries - 1 and 
+                    ('TCP Provider' in str(e) or 'timeout' in str(e).lower() or 
+                     'connection' in str(e).lower() or '10060' in str(e))):
+                    print(f"[DEBUG] Esperando {retry_delay} segundos antes del siguiente intento...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Backoff exponencial
+                    continue
+                else:
+                    # Si no es un error de conexión o es el último intento, fallar inmediatamente
+                    break
+        
+        # Si llegamos aquí, todos los intentos fallaron
+        db.session.rollback()
+        error_msg = f"Error al ejecutar la query después de {max_retries} intentos: {last_exception}"
+        print(f"[ERROR] {error_msg}")
+        
+        # Proporcionar información más específica sobre el error
+        if 'TCP Provider' in str(last_exception) and '10060' in str(last_exception):
+            error_msg += "\n\nPosibles soluciones:\n"
+            error_msg += "1. Verificar que el servidor SQL Server esté accesible\n"
+            error_msg += "2. Verificar la configuración de red y firewall\n"
+            error_msg += "3. Verificar que las credenciales sean correctas\n"
+            error_msg += "4. Verificar que el puerto 1433 esté abierto\n"
+            error_msg += "5. Contactar al administrador de la base de datos"
+        
+        raise BadRequest(error_msg)
+
+    @staticmethod
+    def test_omsrc_connection():
+        """Test the connection to OMSRC database"""
+        try:
+            engine = db.get_engine(bind_key='omsrc')
+            with engine.connect() as connection:
+                # Simple test query
+                result = connection.execute(text("SELECT 1 as test"))
+                row = result.fetchone()
+                return True, "Conexión exitosa"
         except Exception as e:
-            db.session.rollback()
-            print(f"[ERROR] Error ejecutando query: {str(e)}")
-            raise BadRequest(f"Error al ejecutar la query: {e}")
+            return False, f"Error de conexión: {str(e)}"
 
     @staticmethod
     def sincronizar_estados_pedidos_b2b(id_usuario: int):
         from app.models.negocio.pedidos import EstadoAprobacionCredito, EstadoPedido, HistorialEstadoPedido
         from datetime import datetime
+        
+        # Verificar conexión antes de proceder
+        print("[DEBUG] Verificando conexión a OMSRC...")
+        connection_ok, connection_msg = ConsultaService.test_omsrc_connection()
+        if not connection_ok:
+            print(f"[ERROR] No se pudo conectar a OMSRC: {connection_msg}")
+            raise BadRequest(f"No se pudo conectar a la base de datos OMSRC: {connection_msg}")
+        
+        print(f"[DEBUG] Conexión a OMSRC verificada: {connection_msg}")
         
         CODIGO_CONSULTA_OMS = "B2B_ESTADO_CREDITO_PEDIDOS"
         try:
