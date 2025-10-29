@@ -25,37 +25,47 @@ export interface ItemCompra {
 
 // Tipos para el Cotizador
 export interface CotizacionItem {
+  // Campos obligatorios
   numero_articulo: string;
   descripcion_articulo: string;
-  nombre_extranjero: string;
-  nombre_chino: string;
-  marca: string;
-  modelo: string;
-  modelo_chino: string;
-  volumen_unidad_compra: number;
-  oem_part: string;
-  pedido: number;
-  fob: number;
-  last_fob: number;
-  // Campos específicos de Dealer
+  
+  // Campos comunes (opcionales, se detectan automáticamente)
+  nombre_extranjero?: string;
+  nombre_chino?: string;
+  marca?: string;
+  modelo?: string;
+  modelo_chino?: string;
+  volumen_unidad_compra?: number;
+  oem_part?: string;
+  pedido?: number;
+  fob?: number;
+  last_fob?: number;
+  
+  // Campos específicos de Dealer (opcionales)
   cod_mod?: string;
   tg?: string;
   com_tecnico?: string;
   errores?: string;
   volumen_dealer?: number;
   supplier?: string;
+  
   // Campos calculados
   subtotal?: number;
   observaciones?: string;
-  // Campo para imágenes (hasta 5 imágenes)
+  
+  // Campo para imágenes (hasta 5 o 3 según cantidad de SKUs)
   imagenes?: string[];
+  
+  // Permitir propiedades dinámicas adicionales
+  [key: string]: any;
 }
 
 export interface CotizacionData {
   items: CotizacionItem[];
   total_items: number;
   total_estimado?: number;
-  tipoCliente?: 'fabrica' | 'dealer';
+  tipoCliente?: 'estandar';
+  originalHeaders?: string[]; // Headers originales del Excel para mantener orden
 }
 
 export interface ExcelUploadResult {

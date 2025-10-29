@@ -16,7 +16,6 @@ import {
   Divider,
   Center,
   Loader,
-  Select,
   Modal,
   Progress,
   Grid,
@@ -47,12 +46,144 @@ export function CotizadorPage() {
   const [nombreCotizacion, setNombreCotizacion] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [loadingImages, setLoadingImages] = useState(false);
-  const [tipoCliente, setTipoCliente] = useState<'fabrica' | 'dealer'>('fabrica');
+  // Eliminamos el estado de tipoCliente ya que ahora será automático
   const [reloadingProducts, setReloadingProducts] = useState<Set<string>>(new Set());
 
   // Función helper para determinar el límite de imágenes basado en la cantidad de SKUs
   const getImageLimit = (skuCount: number): number => {
     return skuCount <= 500 ? 5 : 3;
+  };
+
+  // Función helper para generar las columnas de la tabla dinámicamente
+  const generateTableColumns = (items: CotizacionItem[], originalHeaders?: string[]) => {
+    if (!items || items.length === 0) return [];
+
+    const firstItem = items[0];
+    const columns = [];
+
+    // Si tenemos headers originales, usarlos para mantener el orden
+    if (originalHeaders && originalHeaders.length > 0) {
+      originalHeaders.forEach((header, index) => {
+        if (index === 0) {
+          // Primera columna siempre es SKU
+          columns.push({
+            key: 'numero_articulo',
+            label: 'SKU',
+            width: '100px'
+          });
+        } else if (index === 1) {
+          // Segunda columna siempre es Descripción
+          columns.push({
+            key: 'descripcion_articulo',
+            label: 'Descripción',
+            width: '150px'
+          });
+        } else {
+          // Buscar la propiedad correspondiente en el item
+          const headerLower = header.toLowerCase();
+          let key = '';
+          let label = header;
+
+          // Mapear headers conocidos a propiedades del item
+          if (headerLower.includes('pedido') || headerLower.includes('cantidad') || headerLower.includes('qty') || headerLower.includes('order')) {
+            key = 'pedido';
+          } else if (headerLower.includes('fob') && !headerLower.includes('last')) {
+            key = 'fob';
+          } else if (headerLower.includes('nombre') && headerLower.includes('extranjero')) {
+            key = 'nombre_extranjero';
+          } else if (headerLower.includes('nombre') && headerLower.includes('chino')) {
+            key = 'nombre_chino';
+          } else if (headerLower.includes('marca')) {
+            key = 'marca';
+          } else if (headerLower.includes('modelo') && !headerLower.includes('chino')) {
+            key = 'modelo';
+          } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
+            key = 'modelo_chino';
+          } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
+            key = 'volumen_unidad_compra';
+          } else if (headerLower.includes('oem')) {
+            key = 'oem_part';
+          } else if (headerLower.includes('last') && headerLower.includes('fob')) {
+            key = 'last_fob';
+          } else if (headerLower.includes('cod') && headerLower.includes('mod')) {
+            key = 'cod_mod';
+          } else if (headerLower.includes('tg')) {
+            key = 'tg';
+          } else if (headerLower.includes('com') && headerLower.includes('técnico')) {
+            key = 'com_tecnico';
+          } else if (headerLower.includes('error')) {
+            key = 'errores';
+          } else if (headerLower.includes('supplier') || headerLower.includes('proveedor')) {
+            key = 'supplier';
+          } else {
+            // Para columnas no reconocidas, usar el nombre original
+            key = `columna_${index + 1}`;
+          }
+
+          // Verificar si la propiedad existe en el item
+          if (key && (firstItem as any)[key] !== undefined) {
+            columns.push({
+              key,
+              label,
+              width: key.includes('descripcion') || key.includes('nombre') ? '150px' : '120px'
+            });
+          } else {
+            // Si no se encuentra la propiedad, crear una columna genérica
+            columns.push({
+              key: `columna_${index + 1}`,
+              label,
+              width: '120px'
+            });
+          }
+        }
+      });
+    } else {
+      // Fallback: usar el método anterior si no hay headers originales
+      columns.push(
+        { key: 'numero_articulo', label: 'SKU', width: '100px' },
+        { key: 'descripcion_articulo', label: 'Descripción', width: '150px' }
+      );
+
+      Object.keys(firstItem).forEach(key => {
+        if (key !== 'numero_articulo' && key !== 'descripcion_articulo' && 
+            key !== 'imagenes' && key !== 'subtotal' && key !== 'observaciones') {
+          
+          let label = key;
+          if (key === 'nombre_extranjero') label = 'Nombre Extranjero';
+          else if (key === 'nombre_chino') label = 'Nombre Chino';
+          else if (key === 'volumen_unidad_compra') label = 'Volumen';
+          else if (key === 'oem_part') label = 'OEM Part';
+          else if (key === 'last_fob') label = 'Last FOB';
+          else if (key === 'cod_mod') label = 'Cod Mod';
+          else if (key === 'com_tecnico') label = 'Com Técnico';
+          else if (key === 'volumen_dealer') label = 'Volumen Dealer';
+          else if (key.startsWith('columna_')) {
+            const colNum = key.replace('columna_', '');
+            label = `Columna ${colNum}`;
+          } else {
+            label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+          }
+
+          columns.push({
+            key,
+            label,
+            width: key.includes('descripcion') || key.includes('nombre') ? '150px' : '120px'
+          });
+        }
+      });
+    }
+
+    // Agregar columnas de imágenes al final
+    const imageLimit = getImageLimit(items.length);
+    for (let i = 1; i <= imageLimit; i++) {
+      columns.push({
+        key: `imagen_${i}`,
+        label: `Imagen ${i}`,
+        width: '200px'
+      });
+    }
+
+    return columns;
   };
   
   // Estados para procesamiento por lotes
@@ -918,12 +1049,13 @@ export function CotizadorPage() {
         const items: CotizacionItem[] = [];
         let totalEstimado = 0;
 
-        // Determinar estructura según tipo de cliente
-        const isFabrica = tipoCliente === 'fabrica';
-        const minColumns = isFabrica ? 12 : 16;
-
+        // Detectar automáticamente las columnas del Excel
+        const headerRow = jsonData[0] as any[];
+        const columnCount = headerRow ? headerRow.length : 0;
+        
         console.log(`📊 Processing Excel with ${jsonData.length} rows (including header)`);
-        console.log(`📊 Client type: ${tipoCliente}, Min columns required: ${minColumns}`);
+        console.log(`📊 Detected columns: ${columnCount}`);
+        console.log(`📊 Column headers:`, headerRow);
 
         let processedRows = 0;
         let skippedValidation = 0;
@@ -960,50 +1092,84 @@ export function CotizadorPage() {
             const numeroArticulo = getValue(0, '');
             const descripcionArticulo = getValue(1, '');
 
-            let pedido: number;
-            let precio: number;
-
-            if (isFabrica) {
-              // Formato Fábrica: Pedido en col 9, FOB en col 10
-              pedido = parseFloat(getValue(9, 0)) || 0;
-              precio = parseFloat(getValue(10, 0)) || 0;
-            } else {
-              // Formato Dealer: Ped. Sug. en col 10, no hay precio directo
-              // Para Dealer usamos Ped. Sug. como cantidad y el precio será 0 por ahora
-              pedido = parseFloat(getValue(10, 0)) || 0;
-              precio = 0; // Dealer no tiene FOB en la estructura actual
+            // Detectar automáticamente las columnas de pedido y precio
+            // Buscar columnas que contengan "pedido", "cantidad", "qty", "order" o similares
+            let pedidoCol = -1;
+            let precioCol = -1;
+            
+            for (let col = 0; col < Math.min(row.length, 20); col++) {
+              const header = headerRow[col] ? headerRow[col].toString().toLowerCase() : '';
+              if (header.includes('pedido') || header.includes('cantidad') || header.includes('qty') || header.includes('order')) {
+                pedidoCol = col;
+              }
+              if (header.includes('fob') || header.includes('precio') || header.includes('price') || header.includes('cost')) {
+                precioCol = col;
+              }
             }
+
+            // Si no encontramos columnas específicas, usar valores por defecto
+            const pedido = pedidoCol >= 0 ? parseFloat(getValue(pedidoCol, 0)) || 0 : 0;
+            const precio = precioCol >= 0 ? parseFloat(getValue(precioCol, 0)) || 0 : 0;
 
             const subtotal = pedido * precio;
 
             // Validación más flexible: solo requiere SKU y descripción
             if (numeroArticulo && descripcionArticulo) {
-              items.push({
+              // Crear objeto dinámico con todas las columnas disponibles
+              const dynamicItem: any = {
                 numero_articulo: numeroArticulo,
                 descripcion_articulo: descripcionArticulo,
-                nombre_extranjero: getValue(2, ''),
-                nombre_chino: getValue(3, ''),
-                marca: getValue(4, ''),
-                modelo: isFabrica ? getValue(5, '') : getValue(6, ''),
-                modelo_chino: isFabrica ? getValue(6, '') : getValue(7, ''),
-                volumen_unidad_compra: isFabrica ? parseFloat(getValue(7, 0)) || 0 : parseFloat(getValue(8, 0)) || 0,
-                oem_part: isFabrica ? getValue(8, '') : getValue(9, ''),
                 pedido: pedido,
                 fob: precio,
-                last_fob: isFabrica ? parseFloat(getValue(11, 0)) || 0 : 0,
-                // Campos específicos de Dealer
-                ...(isFabrica ? {} : {
-                  cod_mod: getValue(5, ''),
-                  tg: getValue(11, ''),
-                  com_tecnico: getValue(12, ''),
-                  errores: getValue(13, ''),
-                  volumen_dealer: parseFloat(getValue(14, 0)) || 0,
-                  supplier: getValue(15, ''),
-                }),
                 subtotal: subtotal,
                 observaciones: '',
                 imagenes: [], // Empezamos con array vacío
-              });
+              };
+
+              // Mapear columnas comunes dinámicamente
+              for (let col = 0; col < Math.min(row.length, 20); col++) {
+                const header = headerRow[col] ? headerRow[col].toString().toLowerCase() : '';
+                const value = getValue(col, '');
+                
+                // Mapear columnas conocidas
+                if (header.includes('nombre') && header.includes('extranjero')) {
+                  dynamicItem.nombre_extranjero = value;
+                } else if (header.includes('nombre') && header.includes('chino')) {
+                  dynamicItem.nombre_chino = value;
+                } else if (header.includes('marca')) {
+                  dynamicItem.marca = value;
+                } else if (header.includes('modelo') && !header.includes('chino')) {
+                  dynamicItem.modelo = value;
+                } else if (header.includes('modelo') && header.includes('chino')) {
+                  dynamicItem.modelo_chino = value;
+                } else if (header.includes('volumen') || header.includes('vol')) {
+                  dynamicItem.volumen_unidad_compra = parseFloat(value) || 0;
+                } else if (header.includes('oem')) {
+                  dynamicItem.oem_part = value;
+                } else if (header.includes('last') && header.includes('fob')) {
+                  dynamicItem.last_fob = parseFloat(value) || 0;
+                } else if (header.includes('cod') && header.includes('mod')) {
+                  dynamicItem.cod_mod = value;
+                } else if (header.includes('tg')) {
+                  dynamicItem.tg = value;
+                } else if (header.includes('com') && header.includes('técnico')) {
+                  dynamicItem.com_tecnico = value;
+                } else if (header.includes('error')) {
+                  dynamicItem.errores = value;
+                } else if (header.includes('supplier') || header.includes('proveedor')) {
+                  dynamicItem.supplier = value;
+                }
+              }
+
+              // Agregar columnas adicionales como campos dinámicos
+              for (let col = 0; col < row.length; col++) {
+                const header = headerRow[col] ? headerRow[col].toString() : `Columna_${col + 1}`;
+                if (!dynamicItem[header.toLowerCase().replace(/\s+/g, '_')]) {
+                  dynamicItem[`columna_${col + 1}`] = getValue(col, '');
+                }
+              }
+
+              items.push(dynamicItem as CotizacionItem);
               totalEstimado += subtotal;
             } else {
               skippedValidation++;
@@ -1029,7 +1195,8 @@ export function CotizadorPage() {
           items,
           total_items: items.length,
           total_estimado: totalEstimado,
-          tipoCliente: tipoCliente,
+          tipoCliente: 'estandar', // Ahora siempre es estándar
+          originalHeaders: headerRow, // Guardar headers originales para mantener orden
         };
 
         // --- ¡ACCIÓN CLAVE! ---
@@ -1078,7 +1245,7 @@ export function CotizadorPage() {
     };
 
     reader.readAsArrayBuffer(file);
-  }, [fetchAndSetRealImages, tipoCliente]); // <-- Incluir tipoCliente en dependencias
+  }, [fetchAndSetRealImages]); // Removemos tipoCliente de las dependencias
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -1147,27 +1314,15 @@ export function CotizadorPage() {
       <Title order={2} mb="xl">Cotizador</Title>
 
       <Stack gap="lg">
-        {/* Selección de Tipo de Cliente */}
+        {/* Información del formato estándar */}
         <Paper p="lg" withBorder>
           <Stack gap="md">
-            <Text size="lg" fw={500}>Tipo de Cliente</Text>
-            <Select
-              label="Selecciona el tipo de cliente"
-              placeholder="Elige Fábrica o Dealer"
-              data={[
-                { value: 'fabrica', label: 'Fábrica' },
-                { value: 'dealer', label: 'Dealer' }
-              ]}
-              value={tipoCliente}
-              onChange={(value) => setTipoCliente(value as 'fabrica' | 'dealer')}
-              searchable
-              clearable={false}
-              description={
-                tipoCliente === 'fabrica'
-                  ? 'Se usará el formato estándar de cotización'
-                  : 'Se usará el formato de cotización para Dealer'
-              }
-            />
+            <Text size="lg" fw={500}>Formato Estándar de Cotización</Text>
+            <Text size="sm" c="dimmed">
+              El sistema ahora detecta automáticamente las columnas del archivo Excel. 
+              Solo es necesario que la primera columna contenga el SKU del producto.
+              El sistema agregará automáticamente las columnas de imágenes al final.
+            </Text>
           </Stack>
         </Paper>
 
@@ -1177,8 +1332,9 @@ export function CotizadorPage() {
             <Text size="lg" fw={500}>Cargar Archivo Excel</Text>
             <Text size="sm" c="dimmed">
               Arrastra y suelta un archivo Excel (.xlsx, .xls) o haz clic para seleccionar.
-              El archivo debe tener las columnas: Número de artículo, Descripción del artículo, Nombre extranjero, Nombre en Chino, Marca, Modelo, Modelo en Chino, Volumen - Unidad de compra, OEM Part, Pedido, FOB, Last FOB.
-              <br /><strong>Nota:</strong> Se agregará automáticamente una imagen por defecto a cada producto.
+              El archivo debe tener el SKU en la primera columna. El sistema detectará automáticamente 
+              todas las demás columnas y las procesará dinámicamente.
+              <br /><strong>Nota:</strong> Se agregarán automáticamente las columnas de imágenes al final (5 si son menos de 500 SKU, 3 si son más).
             </Text>
 
             <Paper
@@ -1299,102 +1455,67 @@ export function CotizadorPage() {
                 <Table striped highlightOnHover style={{ minWidth: '100%' }}>
                   <Table.Thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                     <Table.Tr>
-                      <Table.Th style={{ minWidth: '100px' }}>SKU</Table.Th>
-                      <Table.Th style={{ minWidth: '150px' }}>Descripción</Table.Th>
-                      <Table.Th style={{ minWidth: '120px' }}>Nombre Extranjero</Table.Th>
-                      <Table.Th style={{ minWidth: '120px' }}>Nombre Chino</Table.Th>
-                      <Table.Th style={{ minWidth: '100px' }}>Marca</Table.Th>
-                      {cotizacionData?.tipoCliente === 'dealer' && (
-                        <Table.Th style={{ minWidth: '80px' }}>Cod Mod</Table.Th>
-                      )}
-                      <Table.Th style={{ minWidth: '130px' }}>Modelo</Table.Th>
-                      <Table.Th style={{ minWidth: '130px' }}>Modelo Chino</Table.Th>
-                      <Table.Th style={{ minWidth: '100px' }}>Volumen</Table.Th>
-                      <Table.Th style={{ minWidth: '100px' }}>OEM Part</Table.Th>
-                      <Table.Th style={{ minWidth: '80px' }}>Pedido</Table.Th>
-                      {cotizacionData?.tipoCliente === 'fabrica' && (
-                        <>
-                          <Table.Th style={{ minWidth: '100px' }}>FOB</Table.Th>
-                          <Table.Th style={{ minWidth: '100px' }}>Last FOB</Table.Th>
-                        </>
-                      )}
-                      {cotizacionData?.tipoCliente === 'dealer' && (
-                        <>
-                          <Table.Th style={{ minWidth: '80px' }}>TG</Table.Th>
-                          <Table.Th style={{ minWidth: '120px' }}>Com Técnico</Table.Th>
-                          <Table.Th style={{ minWidth: '100px' }}>Errores</Table.Th>
-                          <Table.Th style={{ minWidth: '120px' }}>Volumen</Table.Th>
-                          <Table.Th style={{ minWidth: '120px' }}>Supplier</Table.Th>
-                        </>
-                      )}
-                          <Table.Th style={{ minWidth: '200px' }}>Imágenes</Table.Th>
-                          <Table.Th style={{ minWidth: '100px' }}>Acciones</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {cotizacionData.items.map((item, index) => (
-                          <Table.Tr key={index}>
-                            <Table.Td>{item.numero_articulo}</Table.Td>
-                            <Table.Td>{item.descripcion_articulo}</Table.Td>
-                            <Table.Td>{item.nombre_extranjero}</Table.Td>
-                            <Table.Td>{item.nombre_chino}</Table.Td>
-                            <Table.Td>{item.marca}</Table.Td>
-                            {cotizacionData?.tipoCliente === 'dealer' && (
-                              <Table.Td>{item.cod_mod}</Table.Td>
-                            )}
-                            <Table.Td>{item.modelo}</Table.Td>
-                            <Table.Td>{item.modelo_chino}</Table.Td>
-                            <Table.Td>{item.volumen_unidad_compra}</Table.Td>
-                            <Table.Td>{item.oem_part}</Table.Td>
-                            <Table.Td>{item.pedido}</Table.Td>
-                            {cotizacionData?.tipoCliente === 'fabrica' && (
-                              <>
-                                <Table.Td>${item.fob.toLocaleString()}</Table.Td>
-                                <Table.Td>${item.last_fob.toLocaleString()}</Table.Td>
-                              </>
-                            )}
-                            {cotizacionData?.tipoCliente === 'dealer' && (
-                              <>
-                                <Table.Td>{item.tg}</Table.Td>
-                                <Table.Td>{item.com_tecnico}</Table.Td>
-                                <Table.Td>{item.errores}</Table.Td>
-                                <Table.Td>{item.volumen_dealer}</Table.Td>
-                                <Table.Td>{item.supplier}</Table.Td>
-                              </>
-                            )}
-                            <Table.Td>
-                              <Group gap="xs" wrap="nowrap">
-                                {item.imagenes && item.imagenes.map((imagen, imgIndex) => (
-                                  <Box key={imgIndex} style={{ position: 'relative' }}>
-                                    <ProductImage
-                                      src={imagen}
-                                      alt={`Imagen ${imgIndex + 1}`}
-                                      numeroArticulo={`${item.numero_articulo} - Img ${imgIndex + 1}`}
-                                      size={35}
-                                      todasLasImagenes={item.imagenes}
-                                      showDeleteButton={true}
-                                      onDelete={(index) => removeImageFromProduct(item.numero_articulo, index)}
-                                    />
-                                  </Box>
-                                ))}
-                              </Group>
-                            </Table.Td>
-                            <Table.Td>
-                              <Button
-                                size="xs"
-                                variant="light"
-                                color="blue"
-                                leftSection={reloadingProducts.has(item.numero_articulo) ? <Loader size="0.8rem" /> : <IconRefresh size="0.8rem" />}
-                                onClick={() => reloadProductImages(item.numero_articulo)}
-                                loading={reloadingProducts.has(item.numero_articulo)}
-                                disabled={loadingImages}
-                                title="Recargar imágenes de este producto"
-                              >
-                                {reloadingProducts.has(item.numero_articulo) ? 'Recargando...' : 'Recargar'}
-                              </Button>
-                            </Table.Td>
-                          </Table.Tr>
-                        ))}
+                      {generateTableColumns(cotizacionData.items, cotizacionData.originalHeaders).map((column) => (
+                        <Table.Th key={column.key} style={{ minWidth: column.width }}>
+                          {column.label}
+                        </Table.Th>
+                      ))}
+                      <Table.Th style={{ minWidth: '100px' }}>Acciones</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {cotizacionData.items.map((item, index) => (
+                      <Table.Tr key={index}>
+                        {generateTableColumns(cotizacionData.items, cotizacionData.originalHeaders).map((column) => {
+                          if (column.key.startsWith('imagen_')) {
+                            const imgIndex = parseInt(column.key.replace('imagen_', '')) - 1;
+                            return (
+                              <Table.Td key={column.key}>
+                                <Group gap="xs" wrap="nowrap">
+                                  {item.imagenes && item.imagenes[imgIndex] && (
+                                    <Box style={{ position: 'relative' }}>
+                                      <ProductImage
+                                        src={item.imagenes[imgIndex]}
+                                        alt={`Imagen ${imgIndex + 1}`}
+                                        numeroArticulo={`${item.numero_articulo} - Img ${imgIndex + 1}`}
+                                        size={35}
+                                        todasLasImagenes={item.imagenes}
+                                        showDeleteButton={true}
+                                        onDelete={(index) => removeImageFromProduct(item.numero_articulo, index)}
+                                      />
+                                    </Box>
+                                  )}
+                                </Group>
+                              </Table.Td>
+                            );
+                          } else {
+                            const value = (item as any)[column.key];
+                            return (
+                              <Table.Td key={column.key}>
+                                {column.key === 'fob' || column.key === 'last_fob' ? 
+                                  `$${value ? parseFloat(value).toLocaleString() : '0'}` : 
+                                  value || ''
+                                }
+                              </Table.Td>
+                            );
+                          }
+                        })}
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            leftSection={reloadingProducts.has(item.numero_articulo) ? <Loader size="0.8rem" /> : <IconRefresh size="0.8rem" />}
+                            onClick={() => reloadProductImages(item.numero_articulo)}
+                            loading={reloadingProducts.has(item.numero_articulo)}
+                            disabled={loadingImages}
+                            title="Recargar imágenes de este producto"
+                          >
+                            {reloadingProducts.has(item.numero_articulo) ? 'Recargando...' : 'Recargar'}
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
                   </Table.Tbody>
                 </Table>
               </Box>
@@ -1405,52 +1526,31 @@ export function CotizadorPage() {
         {/* Información de ayuda */}
         <Alert
           icon={<IconFileSpreadsheet size="1rem" />}
-          title={`Formato del archivo Excel - ${tipoCliente === 'fabrica' ? 'Fábrica' : 'Dealer'}`}
+          title="Formato del archivo Excel - Estándar"
           color="blue"
           variant="light"
         >
           <Text size="sm">
-            El archivo Excel debe tener las siguientes columnas en la primera fila:
+            El archivo Excel debe tener las siguientes características:
           </Text>
           <Text size="sm" mt="xs">
-            {tipoCliente === 'fabrica' ? (
-              <>
-                <strong>Columna A:</strong> Número de artículo<br />
-                <strong>Columna B:</strong> Descripción del artículo<br />
-                <strong>Columna C:</strong> Nombre extranjero<br />
-                <strong>Columna D:</strong> Nombre en Chino<br />
-                <strong>Columna E:</strong> Marca<br />
-                <strong>Columna F:</strong> Modelo<br />
-                <strong>Columna G:</strong> Modelo en Chino<br />
-                <strong>Columna H:</strong> Volumen - Unidad de compra<br />
-                <strong>Columna I:</strong> OEM Part<br />
-                <strong>Columna J:</strong> Pedido<br />
-                <strong>Columna K:</strong> FOB<br />
-                <strong>Columna L:</strong> Last FOB
-              </>
-            ) : (
-              <>
-                <strong>Columna A:</strong> Artículo (SKU)<br />
-                <strong>Columna B:</strong> Descripción<br />
-                <strong>Columna C:</strong> Nombre extranjero<br />
-                <strong>Columna D:</strong> Nombre en chino<br />
-                <strong>Columna E:</strong> Marca<br />
-                <strong>Columna F:</strong> Cod mod<br />
-                <strong>Columna G:</strong> Modelo<br />
-                <strong>Columna H:</strong> Modelo chino<br />
-                <strong>Columna I:</strong> Volúmen<br />
-                <strong>Columna J:</strong> OEM<br />
-                <strong>Columna K:</strong> Ped. Sug.<br />
-                <strong>Columna L:</strong> TG<br />
-                <strong>Columna M:</strong> Com técnico<br />
-                <strong>Columna N:</strong> Errores<br />
-                <strong>Columna O:</strong> Volumen<br />
-                <strong>Columna P:</strong> SUPPLIER
-              </>
-            )}
+            <strong>Requisito obligatorio:</strong><br />
+            • <strong>Columna A:</strong> SKU del producto (primera columna)<br />
+            • <strong>Columna B:</strong> Descripción del producto (recomendado)<br />
+            <br />
+            <strong>Columnas opcionales (se detectan automáticamente):</strong><br />
+            • Nombre extranjero, Nombre chino, Marca, Modelo, etc.<br />
+            • Columnas de pedido, cantidad, FOB, precio, etc.<br />
+            • Cualquier otra columna será procesada dinámicamente<br />
+            <br />
+            <strong>Columnas de imágenes:</strong><br />
+            • Se agregan automáticamente al final del archivo<br />
+            • 5 columnas si hay menos de 500 SKUs<br />
+            • 3 columnas si hay 500 o más SKUs
           </Text>
           <Text size="sm" mt="md" c="dimmed">
-            <strong>Imágenes:</strong> Se cargarán automáticamente según el SKU del producto.
+            <strong>Nota:</strong> El sistema detecta automáticamente los nombres de las columnas y las procesa dinámicamente, 
+            por lo que no es necesario seguir un formato específico más allá de tener el SKU en la primera columna.
           </Text>
         </Alert>
       </Stack>

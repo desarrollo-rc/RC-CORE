@@ -15,26 +15,140 @@ export async function exportarCotizacionConImagenes(
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Cotización');
 
-  // Configurar columnas
-  worksheet.columns = [
-    { header: 'Número de artículo', key: 'numero_articulo', width: 15 },
-    { header: 'Descripción del artículo', key: 'descripcion_articulo', width: 25 },
-    { header: 'Nombre extranjero', key: 'nombre_extranjero', width: 20 },
-    { header: 'Nombre en Chino', key: 'nombre_chino', width: 20 },
-    { header: 'Marca', key: 'marca', width: 15 },
-    { header: 'Modelo', key: 'modelo', width: 15 },
-    { header: 'Modelo en Chino', key: 'modelo_chino', width: 20 },
-    { header: 'Volumen - Unidad de compra', key: 'volumen_unidad_compra', width: 15 },
-    { header: 'OEM Part', key: 'oem_part', width: 15 },
-    { header: 'Pedido', key: 'pedido', width: 10 },
-    { header: 'FOB', key: 'fob', width: 12 },
-    { header: 'Last FOB', key: 'last_fob', width: 12 },
-    { header: 'Imagen 1', key: 'imagen_1', width: 18 },
-    { header: 'Imagen 2', key: 'imagen_2', width: 18 },
-    { header: 'Imagen 3', key: 'imagen_3', width: 18 },
-    { header: 'Imagen 4', key: 'imagen_4', width: 18 },
-    { header: 'Imagen 5', key: 'imagen_5', width: 18 }
-  ];
+  // Generar columnas dinámicamente basadas en los datos
+  const generateColumns = (items: any[], originalHeaders?: string[]) => {
+    if (!items || items.length === 0) return [];
+
+    const firstItem = items[0];
+    const columns = [];
+
+    // Si tenemos headers originales, usarlos para mantener el orden
+    if (originalHeaders && originalHeaders.length > 0) {
+      originalHeaders.forEach((header, index) => {
+        if (index === 0) {
+          // Primera columna siempre es SKU
+          columns.push({
+            header: 'SKU',
+            key: 'numero_articulo',
+            width: 15
+          });
+        } else if (index === 1) {
+          // Segunda columna siempre es Descripción
+          columns.push({
+            header: 'Descripción',
+            key: 'descripcion_articulo',
+            width: 25
+          });
+        } else {
+          // Buscar la propiedad correspondiente en el item
+          const headerLower = header.toLowerCase();
+          let key = '';
+          let headerName = header;
+
+          // Mapear headers conocidos a propiedades del item
+          if (headerLower.includes('pedido') || headerLower.includes('cantidad') || headerLower.includes('qty') || headerLower.includes('order')) {
+            key = 'pedido';
+          } else if (headerLower.includes('fob') && !headerLower.includes('last')) {
+            key = 'fob';
+          } else if (headerLower.includes('nombre') && headerLower.includes('extranjero')) {
+            key = 'nombre_extranjero';
+          } else if (headerLower.includes('nombre') && headerLower.includes('chino')) {
+            key = 'nombre_chino';
+          } else if (headerLower.includes('marca')) {
+            key = 'marca';
+          } else if (headerLower.includes('modelo') && !headerLower.includes('chino')) {
+            key = 'modelo';
+          } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
+            key = 'modelo_chino';
+          } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
+            key = 'volumen_unidad_compra';
+          } else if (headerLower.includes('oem')) {
+            key = 'oem_part';
+          } else if (headerLower.includes('last') && headerLower.includes('fob')) {
+            key = 'last_fob';
+          } else if (headerLower.includes('cod') && headerLower.includes('mod')) {
+            key = 'cod_mod';
+          } else if (headerLower.includes('tg')) {
+            key = 'tg';
+          } else if (headerLower.includes('com') && headerLower.includes('técnico')) {
+            key = 'com_tecnico';
+          } else if (headerLower.includes('error')) {
+            key = 'errores';
+          } else if (headerLower.includes('supplier') || headerLower.includes('proveedor')) {
+            key = 'supplier';
+          } else {
+            // Para columnas no reconocidas, usar el nombre original
+            key = `columna_${index + 1}`;
+          }
+
+          // Verificar si la propiedad existe en el item
+          if (key && (firstItem as any)[key] !== undefined) {
+            columns.push({
+              header: headerName,
+              key,
+              width: key.includes('descripcion') || key.includes('nombre') ? 25 : 15
+            });
+          } else {
+            // Si no se encuentra la propiedad, crear una columna genérica
+            columns.push({
+              header: headerName,
+              key: `columna_${index + 1}`,
+              width: 15
+            });
+          }
+        }
+      });
+    } else {
+      // Fallback: usar el método anterior si no hay headers originales
+      columns.push(
+        { header: 'SKU', key: 'numero_articulo', width: 15 },
+        { header: 'Descripción', key: 'descripcion_articulo', width: 25 }
+      );
+
+      Object.keys(firstItem).forEach(key => {
+        if (key !== 'numero_articulo' && key !== 'descripcion_articulo' && 
+            key !== 'imagenes' && key !== 'subtotal' && key !== 'observaciones') {
+          
+          let header = key;
+          if (key === 'nombre_extranjero') header = 'Nombre Extranjero';
+          else if (key === 'nombre_chino') header = 'Nombre Chino';
+          else if (key === 'volumen_unidad_compra') header = 'Volumen';
+          else if (key === 'oem_part') header = 'OEM Part';
+          else if (key === 'last_fob') header = 'Last FOB';
+          else if (key === 'cod_mod') header = 'Cod Mod';
+          else if (key === 'com_tecnico') header = 'Com Técnico';
+          else if (key === 'volumen_dealer') header = 'Volumen Dealer';
+          else if (key.startsWith('columna_')) {
+            const colNum = key.replace('columna_', '');
+            header = `Columna ${colNum}`;
+          } else {
+            header = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+          }
+
+          columns.push({
+            header,
+            key,
+            width: key.includes('descripcion') || key.includes('nombre') ? 25 : 15
+          });
+        }
+      });
+    }
+
+    // Agregar columnas de imágenes al final
+    const imageLimit = items.length <= 500 ? 5 : 3;
+    for (let i = 1; i <= imageLimit; i++) {
+      columns.push({
+        header: `Imagen ${i}`,
+        key: `imagen_${i}`,
+        width: 18
+      });
+    }
+
+    return columns;
+  };
+
+  // Configurar columnas dinámicamente
+  worksheet.columns = generateColumns(cotizacionData.items, cotizacionData.originalHeaders);
 
   // Estilo para los headers
   worksheet.getRow(1).font = { bold: true };
@@ -49,28 +163,30 @@ export async function exportarCotizacionConImagenes(
     const item = cotizacionData.items[i];
     const rowNumber = i + 2; // +2 porque la primera fila es header
 
-    // Agregar fila con datos (sin imágenes por ahora)
-    const row = worksheet.addRow({
+    // Crear objeto de datos dinámico
+    const rowData: any = {
       numero_articulo: item.numero_articulo,
-      descripcion_articulo: item.descripcion_articulo,
-      nombre_extranjero: item.nombre_extranjero,
-      nombre_chino: item.nombre_chino,
-      marca: item.marca,
-      modelo: item.modelo,
-      modelo_chino: item.modelo_chino,
-      volumen_unidad_compra: item.volumen_unidad_compra,
-      oem_part: item.oem_part,
-      pedido: item.pedido,
-      fob: item.fob,
-      last_fob: item.last_fob
+      descripcion_articulo: item.descripcion_articulo
+    };
+
+    // Agregar todas las propiedades dinámicas del item
+    Object.keys(item).forEach(key => {
+      if (key !== 'numero_articulo' && key !== 'descripcion_articulo' && 
+          key !== 'imagenes' && key !== 'subtotal' && key !== 'observaciones') {
+        rowData[key] = (item as any)[key];
+      }
     });
+
+    // Agregar fila con datos dinámicos
+    const row = worksheet.addRow(rowData);
 
     // Configurar altura de fila para acomodar imágenes
     row.height = 46;
 
-    // Procesar imágenes en columnas separadas (hasta 5)
+    // Procesar imágenes en columnas separadas
+    const imageLimit = cotizacionData.items.length <= 500 ? 5 : 3;
     if (item.imagenes && item.imagenes.length > 0) {
-      for (let imgIndex = 0; imgIndex < Math.min(item.imagenes.length, 5); imgIndex++) {
+      for (let imgIndex = 0; imgIndex < Math.min(item.imagenes.length, imageLimit); imgIndex++) {
         try {
           const imagen = item.imagenes[imgIndex];
           
@@ -84,8 +200,9 @@ export async function exportarCotizacionConImagenes(
               extension: imagen.includes('image/png') ? 'png' : 'jpeg'
             });
 
-            // Calcular columna para cada imagen (columnas M, N, O, P, Q - índices 12, 13, 14, 15, 16)
-            const imageCol = 12 + imgIndex; // 12, 13, 14, 15, 16
+            // Calcular columna para cada imagen (después de todas las columnas de datos)
+            const dataColumnsCount = generateColumns(cotizacionData.items, cotizacionData.originalHeaders).length - imageLimit;
+            const imageCol = dataColumnsCount + imgIndex;
             
             // Agregar imagen a su columna correspondiente (misma fila que los datos)
             worksheet.addImage(imageId, {

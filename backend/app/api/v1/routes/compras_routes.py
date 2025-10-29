@@ -9,32 +9,25 @@ from functools import lru_cache
 
 compras_bp = Blueprint('compras', __name__, url_prefix='/compras')
 
-# Cache simple para almacenar URLs de imágenes por SKU
-# Formato: {sku: [url1, url2, ...]}
-_image_cache = {}
-
-# Cache más agresivo con TTL
-from functools import lru_cache
+# Cache con TTL simple para URLs de imágenes por SKU
 import time
-
-# Cache con timestamp para TTL
 _image_cache = {}
 _cache_ttl = 300  # 5 minutos
 
 def _cached_get_images(sku: str):
     """Cache las imágenes para un SKU con TTL"""
     current_time = time.time()
-    
+
     # Verificar si existe en cache y no ha expirado
     if sku in _image_cache:
         cached_data, timestamp = _image_cache[sku]
         if current_time - timestamp < _cache_ttl:
             return cached_data
-    
+
     # Si no está en cache o expiró, obtener de BD
     images = get_images_for_sku(sku)
     _image_cache[sku] = (tuple(images), current_time)
-    
+
     return tuple(images)
 
 def _fetch_sku_images_worker(app, sku):
