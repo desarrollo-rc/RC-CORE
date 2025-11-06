@@ -63,6 +63,8 @@ export function CotizadorPage() {
 
     // Si tenemos headers originales, usarlos para mantener el orden
     if (originalHeaders && originalHeaders.length > 0) {
+      const usedKeys = new Set<string>(); // Rastrear keys ya usadas para evitar duplicados
+      
       originalHeaders.forEach((header, index) => {
         if (index === 0) {
           // Primera columna siempre es SKU
@@ -71,6 +73,7 @@ export function CotizadorPage() {
             label: 'SKU',
             width: '100px'
           });
+          usedKeys.add('numero_articulo');
         } else if (index === 1) {
           // Segunda columna siempre es Descripción
           columns.push({
@@ -78,6 +81,7 @@ export function CotizadorPage() {
             label: 'Descripción',
             width: '150px'
           });
+          usedKeys.add('descripcion_articulo');
         } else {
           // Buscar la propiedad correspondiente en el item
           const headerLower = header.toLowerCase();
@@ -99,6 +103,12 @@ export function CotizadorPage() {
             key = 'modelo';
           } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
             key = 'modelo_chino';
+          } else if (headerLower.includes('volumen') && headerLower.includes('dealer')) {
+            key = 'volumen_dealer';
+          } else if (headerLower.includes('volumen') && headerLower.includes('total')) {
+            key = 'volumen_total';
+          } else if (headerLower.includes('volumen') && (headerLower.includes('compra') || headerLower.includes('unidad'))) {
+            key = 'volumen_unidad_compra';
           } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
             key = 'volumen_unidad_compra';
           } else if (headerLower.includes('oem')) {
@@ -120,6 +130,11 @@ export function CotizadorPage() {
             key = `columna_${index + 1}`;
           }
 
+          // Si la key ya fue usada, usar una key única basada en el índice
+          if (usedKeys.has(key)) {
+            key = `columna_${index + 1}`;
+          }
+
           // Verificar si la propiedad existe en el item
           if (key && (firstItem as any)[key] !== undefined) {
             columns.push({
@@ -127,13 +142,22 @@ export function CotizadorPage() {
               label,
               width: key.includes('descripcion') || key.includes('nombre') ? '150px' : '120px'
             });
+            usedKeys.add(key);
           } else {
             // Si no se encuentra la propiedad, crear una columna genérica
+            // Asegurar que la key sea única
+            let uniqueKey = `columna_${index + 1}`;
+            let counter = 1;
+            while (usedKeys.has(uniqueKey)) {
+              uniqueKey = `columna_${index + 1}_${counter}`;
+              counter++;
+            }
             columns.push({
-              key: `columna_${index + 1}`,
+              key: uniqueKey,
               label,
               width: '120px'
             });
+            usedKeys.add(uniqueKey);
           }
         }
       });
@@ -151,12 +175,13 @@ export function CotizadorPage() {
           let label = key;
           if (key === 'nombre_extranjero') label = 'Nombre Extranjero';
           else if (key === 'nombre_chino') label = 'Nombre Chino';
-          else if (key === 'volumen_unidad_compra') label = 'Volumen';
+          else if (key === 'volumen_unidad_compra') label = 'Volumen Compra';
+          else if (key === 'volumen_total') label = 'Volumen Total';
+          else if (key === 'volumen_dealer') label = 'Volumen Dealer';
           else if (key === 'oem_part') label = 'OEM Part';
           else if (key === 'last_fob') label = 'Last FOB';
           else if (key === 'cod_mod') label = 'Cod Mod';
           else if (key === 'com_tecnico') label = 'Com Técnico';
-          else if (key === 'volumen_dealer') label = 'Volumen Dealer';
           else if (key.startsWith('columna_')) {
             const colNum = key.replace('columna_', '');
             label = `Columna ${colNum}`;
@@ -210,18 +235,65 @@ export function CotizadorPage() {
     successRate: number;
     processingTime: number;
     status: 'completed' | 'failed' | 'processing';
+    failedSkus?: string[]; // SKUs que tuvieron errores en este batch
   }>>([]);
   const [showFinalSummary, setShowFinalSummary] = useState(false);
+  
+  // Estado para acumular errores durante el procesamiento
+  const [errorLogs, setErrorLogs] = useState<Array<{
+    timestamp: string;
+    batchNumber?: number;
+    sku?: string;
+    id?: string;
+    error: string;
+    errorType: string;
+    url?: string;
+  }>>([]);
 
   const reloadBatch = async (batchNumber: number) => {
     if (!cotizacionData) return;
     
-    const BATCH_SIZE = 100;
-    const startIndex = (batchNumber - 1) * BATCH_SIZE;
-    const endIndex = Math.min(startIndex + BATCH_SIZE, cotizacionData.items.length);
-    const batchItems = cotizacionData.items.slice(startIndex, endIndex);
+    // Obtener el batch del historial para ver qué SKUs tuvieron errores
+    const batchInfo = batchHistory.find(b => b.batchNumber === batchNumber);
     
-    console.log(`🔄 Reloading batch ${batchNumber} with ${batchItems.length} products`);
+    if (!batchInfo) {
+      console.warn(`⚠️ No se encontró información del batch ${batchNumber}`);
+      return;
+    }
+    
+    // Si hay SKUs con errores registrados, solo recargar esos
+    // Si no, recargar todo el batch
+    let itemsToReload: CotizacionItem[];
+    
+    if (batchInfo.failedSkus && batchInfo.failedSkus.length > 0) {
+      // Solo recargar SKUs que tuvieron errores
+      const BATCH_SIZE = 100;
+      const startIndex = (batchNumber - 1) * BATCH_SIZE;
+      const endIndex = Math.min(startIndex + BATCH_SIZE, cotizacionData.items.length);
+      const allBatchItems = cotizacionData.items.slice(startIndex, endIndex);
+      
+      // Filtrar solo los items con SKUs que tuvieron errores
+      itemsToReload = allBatchItems.filter(item => 
+        batchInfo.failedSkus!.includes(item.numero_articulo)
+      );
+      
+      console.log(`🔄 Reloading batch ${batchNumber}: ${itemsToReload.length} SKUs con errores (de ${allBatchItems.length} total)`);
+      console.log(`📋 SKUs a recargar:`, itemsToReload.map(item => item.numero_articulo).slice(0, 10), 
+        itemsToReload.length > 10 ? `... y ${itemsToReload.length - 10} más` : '');
+    } else {
+      // No hay SKUs específicos registrados, recargar todo el batch
+      const BATCH_SIZE = 100;
+      const startIndex = (batchNumber - 1) * BATCH_SIZE;
+      const endIndex = Math.min(startIndex + BATCH_SIZE, cotizacionData.items.length);
+      itemsToReload = cotizacionData.items.slice(startIndex, endIndex);
+      
+      console.log(`🔄 Reloading batch ${batchNumber} completo: ${itemsToReload.length} products`);
+    }
+    
+    if (itemsToReload.length === 0) {
+      console.warn(`⚠️ No hay items para recargar en el batch ${batchNumber}`);
+      return;
+    }
     
     // Marcar lote como procesando
     setBatchHistory(prev => prev.map(batch => 
@@ -231,7 +303,8 @@ export function CotizadorPage() {
     ));
     
     // Usar estrategia optimizada para recarga
-    await processBatchOptimized(batchItems, batchNumber, Math.ceil(cotizacionData.items.length / BATCH_SIZE));
+    const BATCH_SIZE = 100;
+    await processBatchOptimized(itemsToReload, batchNumber, Math.ceil(cotizacionData.items.length / BATCH_SIZE));
   };
 
   const processBatchOptimized = async (batchItems: CotizacionItem[], batchNumber: number, totalBatches: number) => {
@@ -248,9 +321,37 @@ export function CotizadorPage() {
       const imageMapBase64: Record<string, string[]> = {};
       const imageLimit = getImageLimit(cotizacionData?.items.length || 0);
       console.log(`📊 Image limit for ${cotizacionData?.items.length || 0} SKUs: ${imageLimit} images per SKU`);
-      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
-      );
+      
+      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => {
+        // Asegurar que el SKU no tenga el sufijo _index (en caso de que el backend lo haya agregado por error)
+        let cleanSku = sku;
+        
+        // Limpiar el SKU si tiene el patrón _número
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está en el rango válido (0-9), probablemente es un sufijo agregado por error
+          if (index >= 0 && index < 10) {
+            cleanSku = baseSku;
+          }
+        }
+        
+        // También limpiar las URLs si contienen el SKU con sufijo
+        const cleanedUrls = urls.map(url => {
+          // Si la URL contiene el SKU con sufijo, reemplazarlo con el SKU limpio
+          if (sku !== cleanSku && url.includes(`/${sku}/`)) {
+            return url.replace(`/${sku}/`, `/${cleanSku}/`);
+          }
+          return url;
+        });
+        
+        return cleanedUrls.slice(0, imageLimit).map((url, index) => ({ 
+          sku: cleanSku, // Usar el SKU limpio
+          url, 
+          id: `${cleanSku}_${index}` // El id también debe usar el SKU limpio
+        }));
+      });
       
       console.log(`🔄 Converting ${allImageUrls.length} images for batch ${batchNumber} with optimized settings...`);
       
@@ -265,11 +366,30 @@ export function CotizadorPage() {
         const worker = new Worker(new URL('../../../workers/imageWorker.ts', import.meta.url), { type: 'module' });
         workers.push(worker);
         
-        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean }>) => {
-          const { id, sku, base64, error, isPlaceholder } = event.data;
+        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean; url?: string }>) => {
+          const { id, sku, base64, error, isPlaceholder, url } = event.data;
           
           if (error && isPlaceholder) {
             console.warn(`🔄 Using placeholder for ${id}: ${error}`);
+            setErrorLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              batchNumber,
+              sku,
+              id,
+              error,
+              errorType: 'Placeholder',
+              url: url || 'N/A'
+            }]);
+          } else if (error && !isPlaceholder) {
+            setErrorLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              batchNumber,
+              sku,
+              id,
+              error,
+              errorType: 'Error',
+              url: url || 'N/A'
+            }]);
           }
           
           workerResults.set(id, { sku, base64 });
@@ -315,12 +435,31 @@ export function CotizadorPage() {
       workers.forEach(worker => worker.terminate());
       
       // Procesar resultados
-      workerResults.forEach(({ sku, base64 }) => {
-        if (base64) {
-          if (!imageMapBase64[sku]) {
-            imageMapBase64[sku] = [];
+      // Nota: workerResults es un Map donde la clave es el id (ej: "F5016_1") y el valor es { sku, base64 }
+      workerResults.forEach((result) => {
+        const { sku, base64 } = result;
+        // Asegurar que el SKU no tenga el sufijo _index (si el worker por alguna razón devolvió el id como sku)
+        // Solo limpiamos si el SKU termina en _número y ese número es un índice válido (0 hasta imageLimit-1)
+        let cleanSku = sku;
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está dentro del rango válido de imágenes (0 a imageLimit-1), probablemente es un sufijo agregado por error
+          // Si es mayor, podría ser parte del SKU legítimo
+          if (index >= 0 && index < imageLimit) {
+            cleanSku = baseSku;
+            // Log solo si detectamos una corrección
+            if (cleanSku !== sku) {
+              console.warn(`⚠️ SKU limpiado: "${sku}" -> "${cleanSku}" (índice ${index} detectado como sufijo)`);
+            }
           }
-          imageMapBase64[sku].push(base64);
+        }
+        if (base64) {
+          if (!imageMapBase64[cleanSku]) {
+            imageMapBase64[cleanSku] = [];
+          }
+          imageMapBase64[cleanSku].push(base64);
         }
       });
 
@@ -339,6 +478,42 @@ export function CotizadorPage() {
       const failedImages = totalImages - successfulImages;
       const successRate = (successfulImages / totalImages) * 100;
       
+      // Identificar SKUs que tuvieron errores en este batch
+      const skusWithFailedImages = new Set<string>();
+      batchItems.forEach(item => {
+        const images = imageMapBase64[item.numero_articulo] || [];
+        if (images.length === 0) {
+          skusWithFailedImages.add(item.numero_articulo);
+        } else {
+          // Verificar si todas las imágenes son placeholders
+          const allPlaceholders = images.every(img => 
+            img.includes('No Image') || 
+            img.length < 1000 || 
+            img.includes('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ')
+          );
+          if (allPlaceholders) {
+            skusWithFailedImages.add(item.numero_articulo);
+          }
+        }
+      });
+      
+      // También incluir SKUs que aparecen en errorLogs para este batch
+      // Obtener errorLogs del estado usando un callback
+      let errorLogsForBatch: typeof errorLogs = [];
+      setErrorLogs(currentLogs => {
+        errorLogsForBatch = currentLogs.filter(log => log.batchNumber === batchNumber);
+        return currentLogs; // No modificar, solo leer
+      });
+      
+      errorLogsForBatch.forEach(log => {
+        if (log.sku) {
+          const cleanSku = log.sku.replace(/_\d+$/, '');
+          skusWithFailedImages.add(cleanSku);
+        }
+      });
+      
+      const failedSkus = Array.from(skusWithFailedImages);
+      
       // Actualizar historial con resultados optimizados
       const batchResult = {
         batchNumber,
@@ -348,7 +523,8 @@ export function CotizadorPage() {
         failedImages,
         successRate: parseFloat(successRate.toFixed(1)),
         processingTime: parseFloat(((performance.now() - startTime) / 1000).toFixed(2)),
-        status: 'completed' as const
+        status: 'completed' as const,
+        failedSkus: failedSkus.length > 0 ? failedSkus : undefined
       };
       
       setBatchHistory(prev => prev.map(batch => 
@@ -391,6 +567,86 @@ export function CotizadorPage() {
     }
   };
 
+  // Función para generar y descargar el archivo de log de errores
+  const generateErrorLogFile = (logs: typeof errorLogs) => {
+    if (logs.length === 0) {
+      return;
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `error_log_${timestamp}.txt`;
+    
+    let logContent = `========================================\n`;
+    logContent += `LOG DE ERRORES - PROCESAMIENTO DE IMÁGENES\n`;
+    logContent += `Fecha: ${new Date().toLocaleString('es-ES')}\n`;
+    logContent += `Total de errores: ${logs.length}\n`;
+    logContent += `========================================\n\n`;
+    
+    // Agrupar errores por tipo
+    const errorsByType = logs.reduce((acc, log) => {
+      const type = log.errorType || 'Unknown';
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(log);
+      return acc;
+    }, {} as Record<string, typeof errorLogs>);
+    
+    logContent += `RESUMEN POR TIPO DE ERROR:\n`;
+    logContent += `----------------------------\n`;
+    Object.entries(errorsByType).forEach(([type, typeLogs]) => {
+      logContent += `${type}: ${typeLogs.length} errores\n`;
+    });
+    logContent += `\n\n`;
+    
+    // Agrupar errores por SKU
+    const errorsBySku = logs.reduce((acc, log) => {
+      const sku = log.sku || 'Unknown';
+      if (!acc[sku]) acc[sku] = [];
+      acc[sku].push(log);
+      return acc;
+    }, {} as Record<string, typeof errorLogs>);
+    
+    logContent += `ERRORES POR SKU:\n`;
+    logContent += `-----------------\n`;
+    Object.entries(errorsBySku)
+      .sort((a, b) => b[1].length - a[1].length) // Ordenar por cantidad de errores
+      .forEach(([sku, skuLogs]) => {
+        logContent += `\nSKU: ${sku} (${skuLogs.length} errores)\n`;
+        skuLogs.forEach(log => {
+          logContent += `  - [${log.timestamp}] Batch ${log.batchNumber || 'N/A'}, ID: ${log.id || 'N/A'}\n`;
+          logContent += `    Error: ${log.error}\n`;
+          if (log.url && log.url !== 'N/A') {
+            logContent += `    URL: ${log.url}\n`;
+          }
+        });
+      });
+    
+    logContent += `\n\nDETALLE COMPLETO DE ERRORES:\n`;
+    logContent += `------------------------------\n`;
+    logs.forEach((log, index) => {
+      logContent += `\n${index + 1}. [${log.timestamp}] ${log.errorType}\n`;
+      logContent += `   Batch: ${log.batchNumber || 'N/A'}\n`;
+      logContent += `   SKU: ${log.sku || 'N/A'}\n`;
+      logContent += `   ID: ${log.id || 'N/A'}\n`;
+      logContent += `   Error: ${log.error}\n`;
+      if (log.url && log.url !== 'N/A') {
+        logContent += `   URL: ${log.url}\n`;
+      }
+    });
+    
+    // Crear y descargar el archivo
+    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log(`📄 Archivo de log de errores generado: ${filename} (${logs.length} errores)`);
+  };
+
   const processImagesInBatches = async (items: CotizacionItem[]) => {
     const BATCH_SIZE = 100;
     const totalBatches = Math.ceil(items.length / BATCH_SIZE);
@@ -399,6 +655,7 @@ export function CotizadorPage() {
     setShowProgressModal(true);
     setBatchHistory([]);
     setShowFinalSummary(false);
+    setErrorLogs([]); // Limpiar logs anteriores
     setBatchProgress({
       currentBatch: 0,
       totalBatches,
@@ -437,6 +694,15 @@ export function CotizadorPage() {
     setShowFinalSummary(true);
     
     console.log(`✅ Batch processing completed!`);
+    
+    // Generar archivo de log de errores si hay errores
+    if (errorLogs.length > 0) {
+      console.log(`📊 Total de errores registrados: ${errorLogs.length}`);
+      // Usar setTimeout para asegurar que el estado se haya actualizado
+      setTimeout(() => {
+        generateErrorLogFile(errorLogs);
+      }, 1000);
+    }
   };
 
   const processBatch = async (batchItems: CotizacionItem[], batchNumber: number, totalBatches: number) => {
@@ -490,9 +756,54 @@ export function CotizadorPage() {
       // Usar límite dinámico basado en la cantidad total de SKUs
       const imageLimit = getImageLimit(cotizacionData?.items.length || 0);
       console.log(`📊 Image limit for ${cotizacionData?.items.length || 0} SKUs: ${imageLimit} images per SKU`);
-      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
-      );
+      
+      // Debug: Verificar las keys del imageMap
+      if (batchNumber === 1) {
+        console.log(`🔍 DEBUG: imageMap keys (first 10):`, Object.keys(imageMap).slice(0, 10));
+        console.log(`🔍 DEBUG: Expected SKUs (first 10):`, skus.slice(0, 10));
+        // Verificar si hay discrepancias
+        const mismatched = Object.keys(imageMap).slice(0, 10).filter(key => {
+          const cleanKey = key.includes('_') && /_\d+$/.test(key) ? key.replace(/_\d+$/, '') : key;
+          return !skus.slice(0, 10).includes(cleanKey) && !skus.slice(0, 10).includes(key);
+        });
+        if (mismatched.length > 0) {
+          console.warn(`⚠️ DEBUG: Found mismatched keys in imageMap:`, mismatched);
+        }
+      }
+      
+      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => {
+        // Asegurar que el SKU no tenga el sufijo _index (en caso de que el backend lo haya agregado por error)
+        let cleanSku = sku;
+        
+        // Limpiar el SKU si tiene el patrón _número
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está en el rango válido (0-9), probablemente es un sufijo agregado por error
+          if (index >= 0 && index < 10) {
+            cleanSku = baseSku;
+            if (cleanSku !== sku && batchNumber === 1) {
+              console.warn(`⚠️ SKU limpiado en imageMap: "${sku}" -> "${cleanSku}"`);
+            }
+          }
+        }
+        
+        // También limpiar las URLs si contienen el SKU con sufijo
+        const cleanedUrls = urls.map(url => {
+          // Si la URL contiene el SKU con sufijo, reemplazarlo con el SKU limpio
+          if (sku !== cleanSku && url.includes(`/${sku}/`)) {
+            return url.replace(`/${sku}/`, `/${cleanSku}/`);
+          }
+          return url;
+        });
+        
+        return cleanedUrls.slice(0, imageLimit).map((url, index) => ({ 
+          sku: cleanSku, // Usar el SKU limpio
+          url, 
+          id: `${cleanSku}_${index}` // El id también debe usar el SKU limpio
+        }));
+      });
       
       console.log(`🔄 Converting ${allImageUrls.length} images for batch ${batchNumber} using Web Workers...`);
       
@@ -513,11 +824,30 @@ export function CotizadorPage() {
         const worker = new Worker(new URL('../../../workers/imageWorker.ts', import.meta.url), { type: 'module' });
         workers.push(worker);
         
-        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean }>) => {
-          const { id, sku, base64, error, isPlaceholder } = event.data;
+        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean; url?: string }>) => {
+          const { id, sku, base64, error, isPlaceholder, url } = event.data;
           
           if (error && isPlaceholder) {
             console.warn(`🔄 Using placeholder for ${id}: ${error}`);
+            setErrorLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              batchNumber,
+              sku,
+              id,
+              error,
+              errorType: 'Placeholder',
+              url: url || 'N/A'
+            }]);
+          } else if (error && !isPlaceholder) {
+            setErrorLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              batchNumber,
+              sku,
+              id,
+              error,
+              errorType: 'Error',
+              url: url || 'N/A'
+            }]);
           }
           
           workerResults.set(id, { sku, base64 });
@@ -541,7 +871,8 @@ export function CotizadorPage() {
       }
       
       // Distribuir tareas entre workers con throttling optimizado
-      const batchSize = 5; // Procesar 5 imágenes a la vez (más rápido)
+      // Reducir batch size y aumentar delay para no saturar el backend
+      const batchSize = 3; // Procesar 3 imágenes a la vez (reducido para no saturar backend)
       for (let i = 0; i < allImageUrls.length; i += batchSize) {
         const batch = allImageUrls.slice(i, i + batchSize);
         
@@ -551,9 +882,9 @@ export function CotizadorPage() {
           workers[workerIndex].postMessage(task);
         });
         
-        // Pausa mínima entre batches
+        // Pausa más larga entre batches para dar tiempo al backend
         if (i + batchSize < allImageUrls.length) {
-          await new Promise(resolve => setTimeout(resolve, 50)); // 50ms entre batches
+          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms entre batches
         }
       }
       
@@ -573,12 +904,31 @@ export function CotizadorPage() {
       workers.forEach(worker => worker.terminate());
       
       // Agrupar resultados por SKU
-      workerResults.forEach(({ sku, base64 }) => {
-        if (base64) {
-          if (!imageMapBase64[sku]) {
-            imageMapBase64[sku] = [];
+      // Nota: workerResults es un Map donde la clave es el id (ej: "F5016_1") y el valor es { sku, base64 }
+      workerResults.forEach((result) => {
+        const { sku, base64 } = result;
+        // Asegurar que el SKU no tenga el sufijo _index (si el worker por alguna razón devolvió el id como sku)
+        // Solo limpiamos si el SKU termina en _número y ese número es un índice válido (0 hasta imageLimit-1)
+        let cleanSku = sku;
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está dentro del rango válido de imágenes (0 a imageLimit-1), probablemente es un sufijo agregado por error
+          // Si es mayor, podría ser parte del SKU legítimo
+          if (index >= 0 && index < imageLimit) {
+            cleanSku = baseSku;
+            // Log solo si detectamos una corrección
+            if (cleanSku !== sku) {
+              console.warn(`⚠️ SKU limpiado: "${sku}" -> "${cleanSku}" (índice ${index} detectado como sufijo)`);
+            }
           }
-          imageMapBase64[sku].push(base64);
+        }
+        if (base64) {
+          if (!imageMapBase64[cleanSku]) {
+            imageMapBase64[cleanSku] = [];
+          }
+          imageMapBase64[cleanSku].push(base64);
         }
       });
 
@@ -635,6 +985,44 @@ export function CotizadorPage() {
       const imagesPerSecond = (allImageUrls.length / (totalTime - startTime) * 1000).toFixed(1);
       const successRate = (successfulImages / totalImages) * 100;
       
+      // Identificar SKUs que tuvieron errores en este batch
+      // 1. SKUs que no tienen imágenes exitosas después del procesamiento
+      const skusWithFailedImages = new Set<string>();
+      batchItems.forEach(item => {
+        const images = imageMapBase64[item.numero_articulo] || [];
+        if (images.length === 0) {
+          skusWithFailedImages.add(item.numero_articulo);
+        } else {
+          // Verificar si todas las imágenes son placeholders
+          const allPlaceholders = images.every(img => 
+            img.includes('No Image') || 
+            img.length < 1000 || 
+            img.includes('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ')
+          );
+          if (allPlaceholders) {
+            skusWithFailedImages.add(item.numero_articulo);
+          }
+        }
+      });
+      
+      // 2. También incluir SKUs que aparecen en errorLogs para este batch
+      // Obtener errorLogs del estado usando un callback
+      let errorLogsForBatch: typeof errorLogs = [];
+      setErrorLogs(currentLogs => {
+        errorLogsForBatch = currentLogs.filter(log => log.batchNumber === batchNumber);
+        return currentLogs; // No modificar, solo leer
+      });
+      
+      errorLogsForBatch.forEach(log => {
+        if (log.sku) {
+          // Limpiar el SKU si tiene sufijo _número
+          const cleanSku = log.sku.replace(/_\d+$/, '');
+          skusWithFailedImages.add(cleanSku);
+        }
+      });
+      
+      const failedSkus = Array.from(skusWithFailedImages);
+      
       // Agregar al historial de lotes
       const batchResult = {
         batchNumber,
@@ -644,10 +1032,23 @@ export function CotizadorPage() {
         failedImages,
         successRate: parseFloat(successRate.toFixed(1)),
         processingTime: parseFloat(totalSeconds),
-        status: 'completed' as const
+        status: 'completed' as const,
+        failedSkus: failedSkus.length > 0 ? failedSkus : undefined
       };
       
-      setBatchHistory(prev => [...prev, batchResult]);
+      // Si el batch ya existe en el historial, actualizarlo; si no, agregarlo
+      setBatchHistory(prev => {
+        const existingIndex = prev.findIndex(b => b.batchNumber === batchNumber);
+        if (existingIndex >= 0) {
+          // Actualizar batch existente
+          const updated = [...prev];
+          updated[existingIndex] = batchResult;
+          return updated;
+        } else {
+          // Agregar nuevo batch
+          return [...prev, batchResult];
+        }
+      });
       
         console.log(`✅ Batch ${batchNumber} completed successfully!`);
         console.log(`⏱️  Batch time: ${totalSeconds}s`);
@@ -731,9 +1132,37 @@ export function CotizadorPage() {
       // Usar límite dinámico basado en la cantidad total de SKUs
       const imageLimit = getImageLimit(items.length);
       console.log(`📊 Image limit for ${items.length} SKUs: ${imageLimit} images per SKU`);
-      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => 
-        urls.slice(0, imageLimit).map((url, index) => ({ sku, url, id: `${sku}_${index}` }))
-      );
+      
+      const allImageUrls = Object.entries(imageMap).flatMap(([sku, urls]) => {
+        // Asegurar que el SKU no tenga el sufijo _index (en caso de que el backend lo haya agregado por error)
+        let cleanSku = sku;
+        
+        // Limpiar el SKU si tiene el patrón _número
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está en el rango válido (0-9), probablemente es un sufijo agregado por error
+          if (index >= 0 && index < 10) {
+            cleanSku = baseSku;
+          }
+        }
+        
+        // También limpiar las URLs si contienen el SKU con sufijo
+        const cleanedUrls = urls.map(url => {
+          // Si la URL contiene el SKU con sufijo, reemplazarlo con el SKU limpio
+          if (sku !== cleanSku && url.includes(`/${sku}/`)) {
+            return url.replace(`/${sku}/`, `/${cleanSku}/`);
+          }
+          return url;
+        });
+        
+        return cleanedUrls.slice(0, imageLimit).map((url, index) => ({ 
+          sku: cleanSku, // Usar el SKU limpio
+          url, 
+          id: `${cleanSku}_${index}` // El id también debe usar el SKU limpio
+        }));
+      });
       
       console.log(`🔄 Converting ${allImageUrls.length} images using Web Workers...`);
       
@@ -748,14 +1177,30 @@ export function CotizadorPage() {
         const worker = new Worker(new URL('../../../workers/imageWorker.ts', import.meta.url), { type: 'module' });
         workers.push(worker);
         
-        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean }>) => {
-          const { id, sku, base64, error, isPlaceholder } = event.data;
+        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean; url?: string }>) => {
+          const { id, sku, base64, error, isPlaceholder, url } = event.data;
           
           if (error) {
             if (isPlaceholder) {
               console.warn(`🔄 Using placeholder for ${id}: ${error}`);
+              setErrorLogs(prev => [...prev, {
+                timestamp: new Date().toISOString(),
+                sku,
+                id,
+                error,
+                errorType: 'Placeholder',
+                url: url || 'N/A'
+              }]);
             } else {
               console.warn(`❌ Worker error for ${id}:`, error);
+              setErrorLogs(prev => [...prev, {
+                timestamp: new Date().toISOString(),
+                sku,
+                id,
+                error,
+                errorType: 'Error',
+                url: url || 'N/A'
+              }]);
             }
           }
           
@@ -773,7 +1218,8 @@ export function CotizadorPage() {
       }
       
       // Distribuir tareas entre workers con throttling optimizado
-      const batchSize = 5; // Procesar 5 imágenes a la vez (más rápido)
+      // Reducir batch size y aumentar delay para no saturar el backend
+      const batchSize = 3; // Procesar 3 imágenes a la vez (reducido para no saturar backend)
       for (let i = 0; i < allImageUrls.length; i += batchSize) {
         const batch = allImageUrls.slice(i, i + batchSize);
         
@@ -783,9 +1229,9 @@ export function CotizadorPage() {
           workers[workerIndex].postMessage(task);
         });
         
-        // Pausa mínima entre batches
+        // Pausa más larga entre batches para dar tiempo al backend
         if (i + batchSize < allImageUrls.length) {
-          await new Promise(resolve => setTimeout(resolve, 50)); // 50ms entre batches
+          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms entre batches
         }
       }
       
@@ -805,12 +1251,31 @@ export function CotizadorPage() {
       workers.forEach(worker => worker.terminate());
       
       // Agrupar resultados por SKU
-      workerResults.forEach(({ sku, base64 }) => {
-        if (base64) {
-          if (!imageMapBase64[sku]) {
-            imageMapBase64[sku] = [];
+      // Nota: workerResults es un Map donde la clave es el id (ej: "F5016_1") y el valor es { sku, base64 }
+      workerResults.forEach((result) => {
+        const { sku, base64 } = result;
+        // Asegurar que el SKU no tenga el sufijo _index (si el worker por alguna razón devolvió el id como sku)
+        // Solo limpiamos si el SKU termina en _número y ese número es un índice válido (0 hasta imageLimit-1)
+        let cleanSku = sku;
+        const match = sku.match(/^(.+)_(\d+)$/);
+        if (match) {
+          const [, baseSku, indexStr] = match;
+          const index = parseInt(indexStr);
+          // Si el índice está dentro del rango válido de imágenes (0 a imageLimit-1), probablemente es un sufijo agregado por error
+          // Si es mayor, podría ser parte del SKU legítimo
+          if (index >= 0 && index < imageLimit) {
+            cleanSku = baseSku;
+            // Log solo si detectamos una corrección
+            if (cleanSku !== sku) {
+              console.warn(`⚠️ SKU limpiado: "${sku}" -> "${cleanSku}" (índice ${index} detectado como sufijo)`);
+            }
           }
-          imageMapBase64[sku].push(base64);
+        }
+        if (base64) {
+          if (!imageMapBase64[cleanSku]) {
+            imageMapBase64[cleanSku] = [];
+          }
+          imageMapBase64[cleanSku].push(base64);
         }
       });
 
@@ -907,12 +1372,20 @@ export function CotizadorPage() {
         let successfulImages = 0;
         let failedImages = 0;
         
-        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean }>) => {
-          const { id, sku, base64, error, isPlaceholder } = event.data;
+        worker.onmessage = (event: MessageEvent<{ id: string; sku: string; base64: string | null; error?: string; isPlaceholder?: boolean; url?: string }>) => {
+          const { id, sku, base64, error, isPlaceholder, url } = event.data;
           
           if (error && isPlaceholder) {
             console.warn(`🔄 Using placeholder for ${id}: ${error}`);
             failedImages++;
+            setErrorLogs(prev => [...prev, {
+              timestamp: new Date().toISOString(),
+              sku,
+              id,
+              error,
+              errorType: 'Placeholder',
+              url: url || 'N/A'
+            }]);
           } else if (base64) {
             // Verificar si es una imagen real (no placeholder)
             const isRealImage = base64.length > 1000 && !base64.includes('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ');
@@ -1142,6 +1615,10 @@ export function CotizadorPage() {
                   dynamicItem.modelo = value;
                 } else if (header.includes('modelo') && header.includes('chino')) {
                   dynamicItem.modelo_chino = value;
+                } else if (header.includes('volumen') && header.includes('total')) {
+                  dynamicItem.volumen_total = parseFloat(value) || 0;
+                } else if (header.includes('volumen') && (header.includes('compra') || header.includes('unidad'))) {
+                  dynamicItem.volumen_unidad_compra = parseFloat(value) || 0;
                 } else if (header.includes('volumen') || header.includes('vol')) {
                   dynamicItem.volumen_unidad_compra = parseFloat(value) || 0;
                 } else if (header.includes('oem')) {
@@ -1872,6 +2349,17 @@ export function CotizadorPage() {
         {/* Botón de cerrar cuando el procesamiento esté completo */}
         {showFinalSummary && (
           <Group justify="center" mt="md">
+            {errorLogs.length > 0 && (
+              <Button
+                size="md"
+                variant="outline"
+                color="orange"
+                leftSection={<IconDownload size="1rem" />}
+                onClick={() => generateErrorLogFile(errorLogs)}
+              >
+                Descargar Log de Errores ({errorLogs.length} errores)
+              </Button>
+            )}
             <Button
               size="md"
               variant="filled"

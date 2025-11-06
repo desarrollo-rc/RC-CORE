@@ -36,3 +36,19 @@ export const activateProducto = async (id: number): Promise<Producto> => {
     const response = await apiClient.put<Producto>(`/productos/${id}/activate`);
     return response.data;
 };
+
+export interface ProductoImagenesResponse {
+    exito: boolean;
+    sku: string;
+    imagenes: string[];
+    total: number;
+    mensaje?: string;
+}
+
+export const getProductoImagenes = async (sku: string): Promise<string[]> => {
+    const response = await apiClient.get<ProductoImagenesResponse>(`/productos/${sku}/imagenes`);
+    if (response.data.exito) {
+        return response.data.imagenes;
+    }
+    throw new Error(response.data.mensaje || 'Error al obtener imágenes');
+};

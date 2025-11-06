@@ -12,6 +12,8 @@ interface ImageProcessingResult {
   sku: string;
   base64: string | null;
   error?: string;
+  isPlaceholder?: boolean;
+  url?: string;
 }
 
 // Cache local del worker
@@ -58,11 +60,12 @@ self.onmessage = async (event: MessageEvent<ImageProcessingTask>) => {
       return;
     }
 
-    // Sistema de retry con timeouts más agresivos
+    // Sistema de retry con timeouts más generosos
+    // El backend necesita tiempo para consultar BD y hacer request externa
     let base64: string | null = null;
     let lastError: string = '';
     
-    const timeouts = [1500, 2500, 3500]; // Timeouts optimizados: 1.5s, 2.5s, 3.5s
+    const timeouts = [5000, 8000, 12000]; // Timeouts más generosos: 5s, 8s, 12s
     
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       try {
@@ -141,7 +144,8 @@ self.onmessage = async (event: MessageEvent<ImageProcessingTask>) => {
       self.postMessage({
         id,
         sku,
-        base64
+        base64,
+        url: url
       } as ImageProcessingResult);
     } else {
       throw new Error(`All retry attempts failed: ${lastError}`);
@@ -161,13 +165,14 @@ self.onmessage = async (event: MessageEvent<ImageProcessingTask>) => {
     // Crear imagen placeholder como fallback
     const placeholder = createPlaceholderImage(sku);
     
-    self.postMessage({
-      id,
-      sku,
-      base64: placeholder,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      isPlaceholder: true
-    } as ImageProcessingResult);
+      self.postMessage({
+        id,
+        sku,
+        base64: placeholder,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        isPlaceholder: true,
+        url: url
+      } as ImageProcessingResult);
   }
 };
 

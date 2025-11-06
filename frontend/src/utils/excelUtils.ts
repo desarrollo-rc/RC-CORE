@@ -24,6 +24,8 @@ export async function exportarCotizacionConImagenes(
 
     // Si tenemos headers originales, usarlos para mantener el orden
     if (originalHeaders && originalHeaders.length > 0) {
+      const usedKeys = new Set<string>(); // Rastrear keys ya usadas para evitar duplicados
+      
       originalHeaders.forEach((header, index) => {
         if (index === 0) {
           // Primera columna siempre es SKU
@@ -32,6 +34,7 @@ export async function exportarCotizacionConImagenes(
             key: 'numero_articulo',
             width: 15
           });
+          usedKeys.add('numero_articulo');
         } else if (index === 1) {
           // Segunda columna siempre es Descripción
           columns.push({
@@ -39,13 +42,14 @@ export async function exportarCotizacionConImagenes(
             key: 'descripcion_articulo',
             width: 25
           });
+          usedKeys.add('descripcion_articulo');
         } else {
           // Buscar la propiedad correspondiente en el item
           const headerLower = header.toLowerCase();
           let key = '';
           let headerName = header;
 
-          // Mapear headers conocidos a propiedades del item
+          // Mapear headers conocidos a propiedades del item (misma lógica que en CotizadorPage)
           if (headerLower.includes('pedido') || headerLower.includes('cantidad') || headerLower.includes('qty') || headerLower.includes('order')) {
             key = 'pedido';
           } else if (headerLower.includes('fob') && !headerLower.includes('last')) {
@@ -60,6 +64,12 @@ export async function exportarCotizacionConImagenes(
             key = 'modelo';
           } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
             key = 'modelo_chino';
+          } else if (headerLower.includes('volumen') && headerLower.includes('dealer')) {
+            key = 'volumen_dealer';
+          } else if (headerLower.includes('volumen') && headerLower.includes('total')) {
+            key = 'volumen_total';
+          } else if (headerLower.includes('volumen') && (headerLower.includes('compra') || headerLower.includes('unidad'))) {
+            key = 'volumen_unidad_compra';
           } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
             key = 'volumen_unidad_compra';
           } else if (headerLower.includes('oem')) {
@@ -77,8 +87,27 @@ export async function exportarCotizacionConImagenes(
           } else if (headerLower.includes('supplier') || headerLower.includes('proveedor')) {
             key = 'supplier';
           } else {
-            // Para columnas no reconocidas, usar el nombre original
-            key = `columna_${index + 1}`;
+            // Para columnas no reconocidas, primero intentar buscar una propiedad que coincida
+            // con el header normalizado (sin espacios, en minúsculas)
+            const normalizedHeader = header.toLowerCase().replace(/\s+/g, '_');
+            if ((firstItem as any)[normalizedHeader] !== undefined && !usedKeys.has(normalizedHeader)) {
+              key = normalizedHeader;
+            } else {
+              // Si no se encuentra, usar el nombre de columna basado en el índice
+              key = `columna_${index + 1}`;
+            }
+          }
+
+          // Si la key ya fue usada, buscar una alternativa
+          if (usedKeys.has(key)) {
+            // Intentar buscar columna_X primero
+            const columnaKey = `columna_${index + 1}`;
+            if ((firstItem as any)[columnaKey] !== undefined && !usedKeys.has(columnaKey)) {
+              key = columnaKey;
+            } else {
+              // Si no, usar una key única basada en el índice
+              key = `columna_${index + 1}`;
+            }
           }
 
           // Verificar si la propiedad existe en el item
@@ -88,13 +117,54 @@ export async function exportarCotizacionConImagenes(
               key,
               width: key.includes('descripcion') || key.includes('nombre') ? 25 : 15
             });
+            usedKeys.add(key);
           } else {
-            // Si no se encuentra la propiedad, crear una columna genérica
-            columns.push({
-              header: headerName,
-              key: `columna_${index + 1}`,
-              width: 15
-            });
+            // Si no se encuentra la propiedad, buscar si existe como columna_X
+            const columnaKey = `columna_${index + 1}`;
+            if ((firstItem as any)[columnaKey] !== undefined && !usedKeys.has(columnaKey)) {
+              columns.push({
+                header: headerName,
+                key: columnaKey,
+                width: 15
+              });
+              usedKeys.add(columnaKey);
+            } else {
+              // Si no se encuentra con el índice exacto, buscar cualquier propiedad columna_ no usada
+              let foundKey = '';
+              Object.keys(firstItem).forEach(itemKey => {
+                if (itemKey.startsWith('columna_') && !usedKeys.has(itemKey) && !foundKey) {
+                  // Verificar si el valor no está vacío
+                  const value = (firstItem as any)[itemKey];
+                  if (value !== undefined && value !== null && value !== '') {
+                    foundKey = itemKey;
+                  }
+                }
+              });
+              
+              if (foundKey) {
+                columns.push({
+                  header: headerName,
+                  key: foundKey,
+                  width: 15
+                });
+                usedKeys.add(foundKey);
+              } else {
+                // Si no se encuentra ninguna, crear una columna genérica
+                // Asegurar que la key sea única
+                let uniqueKey = `columna_${index + 1}`;
+                let counter = 1;
+                while (usedKeys.has(uniqueKey)) {
+                  uniqueKey = `columna_${index + 1}_${counter}`;
+                  counter++;
+                }
+                columns.push({
+                  header: headerName,
+                  key: uniqueKey,
+                  width: 15
+                });
+                usedKeys.add(uniqueKey);
+              }
+            }
           }
         }
       });
@@ -112,12 +182,13 @@ export async function exportarCotizacionConImagenes(
           let header = key;
           if (key === 'nombre_extranjero') header = 'Nombre Extranjero';
           else if (key === 'nombre_chino') header = 'Nombre Chino';
-          else if (key === 'volumen_unidad_compra') header = 'Volumen';
+          else if (key === 'volumen_unidad_compra') header = 'Volumen Compra';
+          else if (key === 'volumen_total') header = 'Volumen Total';
+          else if (key === 'volumen_dealer') header = 'Volumen Dealer';
           else if (key === 'oem_part') header = 'OEM Part';
           else if (key === 'last_fob') header = 'Last FOB';
           else if (key === 'cod_mod') header = 'Cod Mod';
           else if (key === 'com_tecnico') header = 'Com Técnico';
-          else if (key === 'volumen_dealer') header = 'Volumen Dealer';
           else if (key.startsWith('columna_')) {
             const colNum = key.replace('columna_', '');
             header = `Columna ${colNum}`;
@@ -147,8 +218,11 @@ export async function exportarCotizacionConImagenes(
     return columns;
   };
 
+  // Obtener todas las columnas definidas
+  const definedColumns = generateColumns(cotizacionData.items, cotizacionData.originalHeaders);
+  
   // Configurar columnas dinámicamente
-  worksheet.columns = generateColumns(cotizacionData.items, cotizacionData.originalHeaders);
+  worksheet.columns = definedColumns;
 
   // Estilo para los headers
   worksheet.getRow(1).font = { bold: true };
@@ -163,17 +237,34 @@ export async function exportarCotizacionConImagenes(
     const item = cotizacionData.items[i];
     const rowNumber = i + 2; // +2 porque la primera fila es header
 
-    // Crear objeto de datos dinámico
+    // Crear objeto de datos dinámico, inicializando con todas las columnas definidas
     const rowData: any = {
-      numero_articulo: item.numero_articulo,
-      descripcion_articulo: item.descripcion_articulo
+      numero_articulo: item.numero_articulo || '',
+      descripcion_articulo: item.descripcion_articulo || ''
     };
 
-    // Agregar todas las propiedades dinámicas del item
+    // Primero, agregar todas las propiedades del item
     Object.keys(item).forEach(key => {
       if (key !== 'numero_articulo' && key !== 'descripcion_articulo' && 
           key !== 'imagenes' && key !== 'subtotal' && key !== 'observaciones') {
         rowData[key] = (item as any)[key];
+      }
+    });
+
+    // Asegurar que todas las columnas definidas tengan un valor (incluso si es vacío)
+    definedColumns.forEach(column => {
+      if (column.key !== 'numero_articulo' && column.key !== 'descripcion_articulo' && 
+          !column.key.startsWith('imagen_')) {
+        if (rowData[column.key] === undefined) {
+          // Si la columna no tiene valor, intentar buscar en el item con diferentes variaciones
+          const itemValue = (item as any)[column.key];
+          if (itemValue !== undefined) {
+            rowData[column.key] = itemValue;
+          } else {
+            // Si no se encuentra, dejar como cadena vacía
+            rowData[column.key] = '';
+          }
+        }
       }
     });
 
@@ -201,7 +292,7 @@ export async function exportarCotizacionConImagenes(
             });
 
             // Calcular columna para cada imagen (después de todas las columnas de datos)
-            const dataColumnsCount = generateColumns(cotizacionData.items, cotizacionData.originalHeaders).length - imageLimit;
+            const dataColumnsCount = definedColumns.length - imageLimit;
             const imageCol = dataColumnsCount + imgIndex;
             
             // Agregar imagen a su columna correspondiente (misma fila que los datos)

@@ -16,7 +16,12 @@ class PedidoService:
 
     @staticmethod
     def get_all_pedidos(page, per_page, **filters):
-        query = Pedido.query.options(joinedload(Pedido.detalles))
+        query = Pedido.query.options(
+            joinedload(Pedido.detalles),
+            joinedload(Pedido.estado_general),
+            joinedload(Pedido.estado_credito),
+            joinedload(Pedido.estado_logistico)
+        )
 
         if filters.get('id_cliente'):
             query = query.filter(Pedido.id_cliente == filters['id_cliente'])
@@ -33,7 +38,12 @@ class PedidoService:
         if filters.get('id_estado_logistico'):
             query = query.filter(Pedido.id_estado_logistico == filters['id_estado_logistico'])
         if filters.get('codigo_b2b'):
-            query = query.filter(Pedido.codigo_pedido_origen.ilike(f"%{filters['codigo_b2b']}%"))
+            # Buscar tanto en código B2B como en número SAP
+            search_term = f"%{filters['codigo_b2b']}%"
+            query = query.filter(
+                (Pedido.codigo_pedido_origen.ilike(search_term)) |
+                (Pedido.numero_pedido_sap.ilike(search_term))
+            )
         if filters.get('fecha_desde'):
             query = query.filter(Pedido.fecha_creacion >= filters['fecha_desde'])
         if filters.get('fecha_hasta'):
@@ -256,6 +266,8 @@ class PedidoService:
                 if cambio['tipo_estado'] == 'LOGISTICO' and cambio['estado_anterior'] == 'N/A':
                     observacion = "Inicio automático del flujo logístico tras aprobación de crédito."
 
+                # No cerrar automáticamente fases con inicio/fin; deben cerrarse explícitamente
+
                 historial = HistorialEstadoPedido(
                     id_pedido=pedido.id_pedido,
                     id_usuario_responsable=user_id_responsable,
@@ -326,14 +338,13 @@ class PedidoService:
     def marcar_facturado(pedido_id: int, data: dict, user_id_responsable: int):
         """
         Registra la facturación del pedido. Acepta factura manual o número SAP.
-        Agrega un registro en el historial (tipo GENERAL) con la observación provista.
+        NO agrega registro al historial, solo actualiza los campos del pedido.
         """
         pedido = Pedido.query.get_or_404(pedido_id)
 
         factura_manual: bool = data.get('factura_manual', False)
         numero_factura_sap = data.get('numero_factura_sap')
         fecha_facturacion = data.get('fecha_facturacion') or datetime.utcnow()
-        observaciones = data.get('observaciones')
 
         if not factura_manual and not numero_factura_sap:
             raise BusinessRuleError("Debe indicar 'factura_manual' o proporcionar 'numero_factura_sap'.")
@@ -342,17 +353,6 @@ class PedidoService:
             pedido.factura_manual = factura_manual
             pedido.numero_factura_sap = numero_factura_sap
             pedido.fecha_facturacion = fecha_facturacion
-
-            historial = HistorialEstadoPedido(
-                id_pedido=pedido.id_pedido,
-                id_usuario_responsable=user_id_responsable,
-                fecha_evento=fecha_facturacion,
-                estado_anterior='N/A',
-                estado_nuevo='FACTURADO',
-                tipo_estado='GENERAL',
-                observaciones=observaciones
-            )
-            db.session.add(historial)
 
             db.session.commit()
             return PedidoService.get_pedido_by_id(pedido_id)
@@ -417,6 +417,102 @@ class PedidoService:
         except Exception as e:
             db.session.rollback()
             raise BusinessRuleError(f"Error al marcar entrega: {str(e)}")
+
+    @staticmethod
+    def actualizar_fechas_historial(pedido_id: int, actualizaciones: list, user_id_responsable: int):
+        """
+        Actualiza las fechas de múltiples registros del historial de un pedido.
+        actualizaciones: lista de dicts con {id_historial, fecha_evento, fecha_evento_fin?}
+        """
+        pedido = Pedido.query.get_or_404(pedido_id)
+        
+        try:
+            for actualizacion in actualizaciones:
+                id_historial = actualizacion.get('id_historial')
+                if not id_historial:
+                    continue
+                
+                historial = HistorialEstadoPedido.query.filter_by(
+                    id_historial=id_historial,
+                    id_pedido=pedido_id
+                ).first()
+                
+                if not historial:
+                    raise BusinessRuleError(f"Registro de historial con ID {id_historial} no encontrado para este pedido.")
+                
+                if 'fecha_evento' in actualizacion:
+                    historial.fecha_evento = actualizacion['fecha_evento']
+                
+                if 'fecha_evento_fin' in actualizacion:
+                    historial.fecha_evento_fin = actualizacion.get('fecha_evento_fin')  # Puede ser None
+            
+            db.session.commit()
+            return PedidoService.get_pedido_by_id(pedido_id)
+        except Exception as e:
+            db.session.rollback()
+            raise BusinessRuleError(f"Error al actualizar fechas del historial: {str(e)}")
+
+    @staticmethod
+    def actualizar_numero_sap(pedido_id: int, numero_pedido_sap: str):
+        """
+        Actualiza el número de pedido SAP del pedido sin cambiar estados ni crear historial.
+        """
+        pedido = Pedido.query.get_or_404(pedido_id)
+        
+        if not numero_pedido_sap or not numero_pedido_sap.strip():
+            raise BusinessRuleError("Debe proporcionar un número de pedido SAP válido.")
+        
+        try:
+            pedido.numero_pedido_sap = numero_pedido_sap.strip()
+            db.session.commit()
+            return PedidoService.get_pedido_by_id(pedido_id)
+        except Exception as e:
+            db.session.rollback()
+            raise BusinessRuleError(f"Error al actualizar número SAP: {str(e)}")
+
+    @staticmethod
+    def cerrar_fase_logistica_actual(pedido_id: int, data: dict, user_id_responsable: int):
+        """
+        Cierra la fase logística actual (solo para PICKING o EMBALAJE) asignando fecha_evento_fin
+        al último registro de historial abierto de esa fase. No cambia el estado logístico actual.
+        """
+        pedido = Pedido.query.get_or_404(pedido_id)
+        if not pedido.estado_logistico:
+            raise BusinessRuleError("El pedido no tiene una fase logística activa para cerrar.")
+
+        codigo_actual = pedido.estado_logistico.codigo_estado
+        nombre_actual = pedido.estado_logistico.nombre_estado
+        if codigo_actual not in ('PICKING', 'EMBALAJE'):
+            raise BusinessRuleError("Solo se pueden cerrar fases PICKING o EMBALAJE.")
+
+        fecha_fin = data.get('fecha_evento_fin') or data.get('fecha_evento')
+        if not fecha_fin:
+            raise BusinessRuleError("Debe indicar 'fecha_evento_fin'.")
+
+        try:
+            # En historial almacenamos 'estado_nuevo' como nombre legible; por compatibilidad, buscamos por nombre o código
+            ultimo_hist = (
+                HistorialEstadoPedido.query
+                .filter(
+                    HistorialEstadoPedido.id_pedido == pedido.id_pedido,
+                    HistorialEstadoPedido.tipo_estado == 'LOGISTICO',
+                    HistorialEstadoPedido.estado_nuevo.in_([codigo_actual, nombre_actual])
+                )
+                .order_by(HistorialEstadoPedido.id_historial.desc())
+                .first()
+            )
+            if not ultimo_hist:
+                raise BusinessRuleError(f"No se encontró historial de inicio para la fase {codigo_actual}.")
+            if ultimo_hist.fecha_evento_fin is not None:
+                raise BusinessRuleError(f"La fase {codigo_actual} ya está cerrada.")
+
+            ultimo_hist.fecha_evento_fin = fecha_fin
+
+            db.session.commit()
+            return PedidoService.get_pedido_by_id(pedido_id)
+        except Exception as e:
+            db.session.rollback()
+            raise BusinessRuleError(f"Error al cerrar fase logística: {str(e)}")
 
     @staticmethod
     def update_cantidades_detalle(pedido_id: int, detalles_actualizados: list, user_id_responsable: int):

@@ -54,7 +54,9 @@ class PedidoUpdateCantidadesSchema(Schema):
     )
 
 class HistorialEstadoPedidoSchema(Schema):
+    id_historial = fields.Int(dump_only=True)
     fecha_evento = fields.DateTime()
+    fecha_evento_fin = fields.DateTime(allow_none=True)
     estado_anterior = fields.Str()
     estado_nuevo = fields.Str()
     tipo_estado = fields.Str()
@@ -118,6 +120,8 @@ class PedidoListResponseSchema(Schema):
     fecha_creacion = fields.DateTime()
     monto_total = fields.Decimal(as_string=True, places=2)
     estado_general = fields.Nested(EstadoPedidoSchema)
+    estado_credito = fields.Nested(EstadoAprobacionCreditoSchema)
+    estado_logistico = fields.Nested(EstadoLogisticoSchema, allow_none=True)
     tipo = fields.Str()
     sku_count = fields.Int()
     total_unidades = fields.Int()
@@ -165,3 +169,18 @@ class PedidoFacturadoSchema(Schema):
 class PedidoEntregadoSchema(Schema):
     fecha_evento = fields.DateTime(required=True)
     observaciones = fields.Str(required=False, allow_none=True)
+
+class PedidoCerrarFaseSchema(Schema):
+    fecha_evento_fin = fields.DateTime(required=True)
+    observaciones = fields.Str(required=False, allow_none=True)
+
+class PedidoActualizarNumeroSapSchema(Schema):
+    numero_pedido_sap = fields.Str(required=True, validate=validate.Length(min=1))
+
+class HistorialFechaUpdateSchema(Schema):
+    id_historial = fields.Int(required=True)
+    fecha_evento = fields.DateTime(required=True)
+    fecha_evento_fin = fields.DateTime(required=False, allow_none=True)
+
+class PedidoActualizarFechasHistorialSchema(Schema):
+    actualizaciones = fields.List(fields.Nested(HistorialFechaUpdateSchema), required=True, validate=validate.Length(min=1))

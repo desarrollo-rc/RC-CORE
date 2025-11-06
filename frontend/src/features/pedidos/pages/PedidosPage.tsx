@@ -133,8 +133,8 @@ export function PedidosPage() {
                     
                     <Group mb="md" grow>
                         <TextInput
-                            label="Código B2B"
-                            placeholder="Ej: B2B-1234"
+                            label="Código B2B / Número SAP"
+                            placeholder="Ej: B2B-1234 o 10349749"
                             value={filters.codigo_b2b || ''}
                             onChange={(e: any) => {
                                 const val = typeof e === 'string' ? e : e?.currentTarget?.value;

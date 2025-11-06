@@ -47,6 +47,30 @@ export const updateEstadoLogistico = async (
     return response.data;
 };
 
+export const cerrarFaseLogisticaActual = async (
+    pedidoId: number,
+    payload: { fecha_evento_fin: string; observaciones?: string }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/logistica/cerrar-actual`, payload);
+    return response.data;
+};
+
+export const actualizarNumeroSap = async (
+    pedidoId: number,
+    payload: { numero_pedido_sap: string }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/actualizar-sap`, payload);
+    return response.data;
+};
+
+export const actualizarFechasHistorial = async (
+    pedidoId: number,
+    payload: { actualizaciones: Array<{ id_historial: number; fecha_evento: string; fecha_evento_fin?: string | null }> }
+): Promise<Pedido> => {
+    const response = await apiClient.put<Pedido>(`/pedidos/${pedidoId}/historial/actualizar-fechas`, payload);
+    return response.data;
+};
+
 export const exportPedidosCutoff = async (fecha: string, cutoffHour: number): Promise<Blob> => {
     const response = await apiClient.get(`/pedidos/export`, {
         params: { fecha, cutoff_hour: cutoffHour },

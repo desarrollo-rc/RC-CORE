@@ -7,7 +7,8 @@ import { modals } from '@mantine/modals';
 import { IconPlus, IconFilter, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { ProductosTable } from '../components/ProductosTable';
 import { ProductoForm } from '../components/ProductoForm';
-import { getProductos, createProducto, updateProducto, deactivateProducto, activateProducto } from '../services/productoService';
+import { ProductoImagenesModal } from '../components/ProductoImagenesModal';
+import { getProductos, createProducto, updateProducto, deactivateProducto, activateProducto, getProductoImagenes } from '../services/productoService';
 // Importar todos los servicios de los maestros
 import { getCodigosReferencia } from '../../codigos-referencia/services/codigoReferenciaService';
 import { getMarcas } from '../../marcas/services/marcaService';
@@ -35,6 +36,12 @@ export function ProductosPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Producto | null>(null);
     const [filtersOpened, { toggle: toggleFilters }] = useDisclosure(true);
+    
+    // Estados para el modal de imágenes
+    const [imagenesModalOpened, { open: openImagenesModal, close: closeImagenesModal }] = useDisclosure(false);
+    const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null);
+    const [productoImageUrls, setProductoImageUrls] = useState<string[]>([]);
+    const [loadingImages, setLoadingImages] = useState(false);
 
     const [filters, setFilters] = useState<ProductoFilters>({ page: 1, per_page: 15 });
     const [total, setTotal] = useState(0);
@@ -191,6 +198,29 @@ export function ProductosPage() {
         setFilters(currentFilters => ({ ...currentFilters, page: newPage }));
     };
 
+    const handleViewImages = async (record: Producto) => {
+        setSelectedProducto(record);
+        setProductoImageUrls([]);
+        setLoadingImages(true);
+        openImagenesModal();
+        
+        try {
+            // Obtener todas las imágenes del producto (sin limitación)
+            const urls = await getProductoImagenes(record.sku);
+            setProductoImageUrls(urls);
+        } catch (error) {
+            console.error('Error al cargar imágenes:', error);
+            notifications.show({
+                title: 'Error',
+                message: 'No se pudieron cargar las imágenes del producto.',
+                color: 'red'
+            });
+            setProductoImageUrls([]);
+        } finally {
+            setLoadingImages(false);
+        }
+    };
+
     if (loading) return <Center h={400}><Loader /></Center>;
     if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
@@ -238,7 +268,13 @@ export function ProductosPage() {
                 </Paper>
             </Collapse>
 
-            <ProductosTable records={productos} onEdit={(r) => { setEditingRecord(r); openModal(); }} onDeactivate={handleDeactivate} onActivate={handleActivate} />
+            <ProductosTable 
+                records={productos} 
+                onEdit={(r) => { setEditingRecord(r); openModal(); }} 
+                onDeactivate={handleDeactivate} 
+                onActivate={handleActivate}
+                onViewImages={handleViewImages}
+            />
             <Group justify="center" mt="md">
                 <Pagination total={pages} value={filters.page || 1} onChange={handlePageChange} withEdges />
                 <Text size="sm" c="dimmed">{total} registros</Text>
@@ -267,6 +303,13 @@ export function ProductosPage() {
                     {...maestros}
                 />
             </Modal>
+            <ProductoImagenesModal
+                opened={imagenesModalOpened}
+                onClose={closeImagenesModal}
+                sku={selectedProducto?.sku || ''}
+                imageUrls={productoImageUrls}
+                loading={loadingImages}
+            />
             <Affix position={{ bottom: rem(20), right: rem(20) }}>
                 <ActionIcon color="red" size={60} radius="xl" onClick={() => { setEditingRecord(null); openModal(); }}>
                     <IconPlus style={{ width: '70%', height: '70%' }} stroke={1.5} />

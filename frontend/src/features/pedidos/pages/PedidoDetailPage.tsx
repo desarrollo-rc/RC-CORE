@@ -1,13 +1,16 @@
 // frontend/src/features/pedidos/pages/PedidoDetailPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Title, Group, Alert, Center, Loader, Paper, Text, Grid, Badge, Table, Timeline, ThemeIcon, ActionIcon, Tooltip } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Paper, Text, Grid, Badge, Table, Timeline, ThemeIcon, ActionIcon, Tooltip, Modal, Button, TextInput, Divider } from '@mantine/core';
 import { IconCircleCheck, IconFileText } from '@tabler/icons-react';
-import { getPedidoById } from '../services/pedidoService';
+import { getPedidoById, actualizarFechasHistorial } from '../services/pedidoService';
 import { descargarPDFGmail, descargarArchivo } from '../services/archivoService';
 import type { Pedido, PedidoDetalle as PedidoDetalleType, HistorialEstado } from '../types';
 import { PedidoActionPanel } from '../components/PedidoActionPanel';
 import { notifications } from '@mantine/notifications';
+import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { showNotification } from '@mantine/notifications';
 
 // --- Componente para la Cabecera ---
 function PedidoHeader({ pedido }: { pedido: Pedido }) {
@@ -102,6 +105,16 @@ function PedidoHeader({ pedido }: { pedido: Pedido }) {
                         SAP: {pedido.numero_pedido_sap}
                     </Badge>
                 )}
+                {pedido.numero_factura_sap && (
+                    <Badge color="indigo" size="lg" variant="light">
+                        Factura: {pedido.numero_factura_sap}
+                    </Badge>
+                )}
+                {pedido.factura_manual && !pedido.numero_factura_sap && (
+                    <Badge color="indigo" size="lg" variant="light">
+                        Factura Manual
+                    </Badge>
+                )}
                 {pedido.vendedor && (
                     <Badge color="teal" size="lg" variant="light">
                         Vendedor: {pedido.vendedor.usuario.nombre_completo}
@@ -155,10 +168,18 @@ function PedidoDetalles({ detalles }: { detalles: PedidoDetalleType[] }) {
 }
 
 // --- Componente para la Línea de Tiempo ---
-function PedidoTimeline({ historial }: { historial: HistorialEstado[] }) {
+function PedidoTimeline({ historial, pedidoId, onUpdate }: { historial: HistorialEstado[]; pedidoId: number; onUpdate: (pedido: Pedido) => void }) {
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    
     return (
         <Paper withBorder p="lg">
-            <Title order={4} mb="xl">Línea de Tiempo</Title>
+            <Group justify="space-between" mb="xl">
+                <Title order={4}>Línea de Tiempo</Title>
+                <Button variant="light" size="sm" onClick={() => setEditModalOpen(true)}>Editar Fechas</Button>
+            </Group>
+            <Modal opened={editModalOpen} onClose={() => setEditModalOpen(false)} title="Editar Fechas del Historial" size="lg" centered>
+                <EditarFechasHistorialForm historial={historial} pedidoId={pedidoId} onUpdate={onUpdate} close={() => setEditModalOpen(false)} />
+            </Modal>
             <Timeline active={historial.length} bulletSize={24} lineWidth={2}>
                 {historial.slice().reverse().map((evento, index) => (
                     <Timeline.Item
@@ -168,16 +189,181 @@ function PedidoTimeline({ historial }: { historial: HistorialEstado[] }) {
                                 <IconCircleCheck size="0.9rem" />
                             </ThemeIcon>
                         }
-                        title={`${evento.tipo_estado}: ${evento.estado_nuevo}`}
+                        title={`${evento.tipo_estado}: ${evento.estado_nuevo}${evento.fecha_evento_fin ? ' (Completado)' : ''}`}
                     >
-                        <Text c="dimmed" size="sm">
-                            {new Date(evento.fecha_evento).toLocaleString('es-CL')} por {evento.usuario_responsable?.nombre_completo || 'Sistema'}
-                        </Text>
-                        {evento.observaciones && <Text size="sm" mt={4}>"{evento.observaciones}"</Text>}
+                        {evento.fecha_evento_fin ? (
+                            <>
+                                <Text c="dimmed" size="sm">
+                                    📍 Iniciado: {new Date(evento.fecha_evento).toLocaleString('es-CL')} por {evento.usuario_responsable?.nombre_completo || 'Sistema'}
+                                </Text>
+                                <Text c="dimmed" size="sm" mt={2} fw={500}>
+                                    ✅ Finalizado: {new Date(evento.fecha_evento_fin).toLocaleString('es-CL')}
+                                </Text>
+                                {evento.observaciones && <Text size="sm" mt={4}>"{evento.observaciones}"</Text>}
+                            </>
+                        ) : (
+                            <>
+                                <Text c="dimmed" size="sm">
+                                    {new Date(evento.fecha_evento).toLocaleString('es-CL')} por {evento.usuario_responsable?.nombre_completo || 'Sistema'}
+                                </Text>
+                                {evento.observaciones && <Text size="sm" mt={4}>"{evento.observaciones}"</Text>}
+                            </>
+                        )}
                     </Timeline.Item>
                 ))}
             </Timeline>
         </Paper>
+    );
+}
+
+// --- Componente para Editar Fechas del Historial ---
+function EditarFechasHistorialForm({ historial, pedidoId, onUpdate, close }: { historial: HistorialEstado[]; pedidoId: number; onUpdate: (pedido: Pedido) => void; close: () => void }) {
+    const queryClient = useQueryClient();
+    
+    const defaultValues = historial.reduce((acc, evento) => {
+        if (evento.id_historial) {
+            acc[`evento_${evento.id_historial}_inicio`] = new Date(evento.fecha_evento);
+            if (evento.fecha_evento_fin) {
+                acc[`evento_${evento.id_historial}_fin`] = new Date(evento.fecha_evento_fin);
+            }
+        }
+        return acc;
+    }, {} as Record<string, Date>);
+
+    const { control, handleSubmit } = useForm({
+        defaultValues
+    });
+
+    const mutation = useMutation({
+        mutationFn: (data: { actualizaciones: Array<{ id_historial: number; fecha_evento: string; fecha_evento_fin?: string | null }> }) =>
+            actualizarFechasHistorial(pedidoId, data),
+        onSuccess: (updatedPedido) => {
+            queryClient.setQueryData(['pedido', pedidoId], updatedPedido);
+            onUpdate(updatedPedido);
+            showNotification({ title: 'Éxito', message: 'Fechas actualizadas correctamente.', color: 'green' });
+            close();
+        },
+        onError: (error: any) => {
+            const apiMsg = error?.response?.data?.error || (typeof error?.response?.data === 'string' ? error.response.data : null);
+            const message = apiMsg || error?.message || 'Error al actualizar fechas';
+            showNotification({ title: 'Error', message, color: 'red' });
+        }
+    });
+
+    const onSubmit: SubmitHandler<any> = (data) => {
+        const actualizaciones = historial
+            .filter(e => e.id_historial)
+            .map(evento => {
+                const inicioKey = `evento_${evento.id_historial}_inicio`;
+                const finKey = `evento_${evento.id_historial}_fin`;
+                
+                const fechaInicio = data[inicioKey];
+                const fechaFin = data[finKey];
+                
+                const actualizacion: { id_historial: number; fecha_evento: string; fecha_evento_fin?: string | null } = {
+                    id_historial: evento.id_historial!,
+                    fecha_evento: fechaInicio instanceof Date ? fechaInicio.toISOString() : new Date(fechaInicio).toISOString()
+                };
+                
+                // Solo incluir fecha_evento_fin si el evento originalmente la tenía o si se está agregando
+                if (evento.fecha_evento_fin !== null && evento.fecha_evento_fin !== undefined) {
+                    actualizacion.fecha_evento_fin = fechaFin ? 
+                        (fechaFin instanceof Date ? fechaFin.toISOString() : new Date(fechaFin).toISOString()) : 
+                        null;
+                }
+                
+                return actualizacion;
+            });
+        
+        mutation.mutate({ actualizaciones });
+    };
+
+    return (
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <Box style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {historial.map((evento, index) => {
+                    if (!evento.id_historial) return null;
+                    
+                    return (
+                        <Box key={evento.id_historial} mb="xl">
+                            <Text fw={600} mb="md">
+                                {evento.tipo_estado}: {evento.estado_nuevo}
+                                {evento.estado_anterior && ` (de ${evento.estado_anterior})`}
+                            </Text>
+                            <FechaHoraController 
+                                control={control} 
+                                name={`evento_${evento.id_historial}_inicio`}
+                                label="Fecha y Hora de Inicio"
+                            />
+                            {evento.fecha_evento_fin !== null && evento.fecha_evento_fin !== undefined && (
+                                <FechaHoraController 
+                                    control={control} 
+                                    name={`evento_${evento.id_historial}_fin`}
+                                    label="Fecha y Hora de Fin"
+                                />
+                            )}
+                            {index < historial.length - 1 && <Divider my="lg" />}
+                        </Box>
+                    );
+                })}
+            </Box>
+            <Group justify="flex-end" mt="lg">
+                <Button variant="default" onClick={close}>Cancelar</Button>
+                <Button type="submit" loading={mutation.isPending}>Guardar Cambios</Button>
+            </Group>
+        </form>
+    );
+}
+
+function FechaHoraController({ control, name, label }: { control: any, name: string, label?: string }) {
+    return (
+        <Controller
+            name={name}
+            control={control}
+            render={({ field }) => {
+                const currentDate = field.value instanceof Date && !isNaN(field.value.getTime()) ? field.value : new Date();
+                
+                const dateValue = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                
+                const handleDatePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const dateStr = e.currentTarget.value;
+                    if (!dateStr) return;
+                    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+                    const newFullDate = new Date(yyyy, mm - 1, dd, currentDate.getHours(), currentDate.getMinutes(), 0, 0);
+                    field.onChange(newFullDate);
+                };
+                
+                const handleTimePartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const [hours, minutes] = e.currentTarget.value.split(':');
+                    if (!isNaN(parseInt(hours,10)) && !isNaN(parseInt(minutes,10))) {
+                        const newFullDate = new Date(currentDate);
+                        newFullDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+                        field.onChange(newFullDate);
+                    }
+                };
+                
+                const timeValue = `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+
+                return (
+                    <Group grow mt="md">
+                        <TextInput 
+                            type="date" 
+                            value={dateValue} 
+                            onChange={handleDatePartChange} 
+                            label={label || "Fecha del Evento"} 
+                            required 
+                        />
+                        <TextInput 
+                            type="time" 
+                            value={timeValue} 
+                            onChange={handleTimePartChange} 
+                            label={label ? label.replace('Fecha y Hora', 'Hora').replace('Fecha', 'Hora') : "Hora del Evento"} 
+                            required 
+                        />
+                    </Group>
+                );
+            }}
+        />
     );
 }
 
@@ -229,7 +415,7 @@ export function PedidoDetailPage() {
                     <PedidoActionPanel pedido={pedido} onUpdate={handleUpdate} />
 
                     <Box mt="lg">
-                        <PedidoTimeline historial={pedido.historial_estados} />
+                        <PedidoTimeline historial={pedido.historial_estados} pedidoId={pedido.id_pedido} onUpdate={handleUpdate} />
                     </Box>
                 </Grid.Col>
             </Grid>

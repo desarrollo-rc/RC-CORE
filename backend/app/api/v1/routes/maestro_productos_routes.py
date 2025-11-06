@@ -4,6 +4,7 @@ from app.api.v1.schemas.maestro_productos_schemas import MaestroProductoSchema, 
 from app.api.v1.services.maestro_productos_service import MaestroProductoService
 from app.api.v1.utils.errors import BusinessRuleError
 from app.api.v1.utils.decorators import permission_required
+from app.utils.image_fetcher import get_images_for_sku
 from marshmallow import ValidationError
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import NotFound
@@ -105,3 +106,27 @@ def activate_producto(producto_id):
         status = 422 if isinstance(e, ValidationError) else (409 if isinstance(e, BusinessRuleError) else 404)
         msg = e.messages if isinstance(e, ValidationError) else str(e)
         return jsonify({"error": msg}), status
+
+@maestro_productos_bp.route('/<string:sku>/imagenes', methods=['GET'])
+@jwt_required()
+@permission_required('productos:listar')
+def get_producto_imagenes(sku):
+    """
+    Obtiene todas las imágenes de un producto por su SKU.
+    Devuelve todas las URLs de imágenes sin limitación.
+    """
+    try:
+        # Obtener todas las imágenes del SKU (sin limitación)
+        image_urls = get_images_for_sku(sku)
+        
+        return jsonify({
+            'exito': True,
+            'sku': sku,
+            'imagenes': image_urls,
+            'total': len(image_urls)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'exito': False,
+            'mensaje': f'Error al obtener imágenes: {str(e)}'
+        }), 500

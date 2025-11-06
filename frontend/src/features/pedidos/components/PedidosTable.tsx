@@ -25,9 +25,35 @@ interface PedidosTableProps {
 }
 
 export function PedidosTable({ records, onView }: PedidosTableProps) {
+    const getEstadoActual = (record: PedidoList) => {
+        // Si el crédito está pendiente, mostrar estado de crédito
+        if (record.estado_credito?.codigo_estado === 'PENDIENTE') {
+            return {
+                nombre: record.estado_credito.nombre_estado,
+                color: 'orange',
+                tipo: 'credito'
+            };
+        }
+        // Si está aprobado y tiene estado logístico, mostrar logístico
+        if (record.estado_logistico) {
+            return {
+                nombre: record.estado_logistico.nombre_estado,
+                color: 'grape',
+                tipo: 'logistico'
+            };
+        }
+        // Si no, mostrar estado general
+        return {
+            nombre: record.estado_general?.nombre_estado || 'N/A',
+            color: record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue',
+            tipo: 'general'
+        };
+    };
+
     const rows = records.map((record) => {
         const colorTipo = record.tipo === 'RIFLEO' ? 'blue' : 'red';
         const letraTipo = record.tipo === 'RIFLEO' ? 'R' : 'M';
+        const estadoActual = getEstadoActual(record);
         
         return (
             <Table.Tr key={record.id_pedido}>
@@ -49,8 +75,8 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
                     </Badge>
                 </Table.Td>
                 <Table.Td>
-                    <Badge color={record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue'}>
-                        {record.estado_general?.nombre_estado || 'N/A'}
+                    <Badge color={estadoActual.color as any}>
+                        {estadoActual.nombre}
                     </Badge>
                 </Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>{formatCLP(record.monto_total)}</Table.Td>
@@ -75,7 +101,7 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
                     <Table.Th>Cliente</Table.Th>
                     <Table.Th>Fecha Creación</Table.Th>
                     <Table.Th>Tipo</Table.Th>
-                    <Table.Th>Estado</Table.Th>
+                    <Table.Th>Estado Actual</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Monto Total</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Acciones</Table.Th>
                 </Table.Tr>

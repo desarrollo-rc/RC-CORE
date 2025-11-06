@@ -1,6 +1,6 @@
 // frontend/src/features/productos/components/ProductosTable.tsx
 import { Table, Group, Text, ActionIcon, Tooltip, Badge } from '@mantine/core';
-import { IconPencil, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react';
+import { IconPencil, IconPlayerPlay, IconPlayerPause, IconPhoto } from '@tabler/icons-react';
 import type { Producto } from '../types';
 
 interface ProductosTableProps {
@@ -8,9 +8,10 @@ interface ProductosTableProps {
     onEdit: (record: Producto) => void;
     onDeactivate: (record: Producto) => void;
     onActivate: (record: Producto) => void;
+    onViewImages?: (record: Producto) => void;
 }
 
-export function ProductosTable({ records, onEdit, onDeactivate, onActivate }: ProductosTableProps) {
+export function ProductosTable({ records, onEdit, onDeactivate, onActivate, onViewImages }: ProductosTableProps) {
     const rows = records.map((record) => (
         <Table.Tr key={record.id_producto}>
             <Table.Td>{record.sku}</Table.Td>
@@ -24,6 +25,13 @@ export function ProductosTable({ records, onEdit, onDeactivate, onActivate }: Pr
             </Table.Td>
             <Table.Td>
                 <Group gap="xs" justify="flex-end">
+                    {onViewImages && (
+                        <Tooltip label="Ver imágenes">
+                            <ActionIcon variant="light" color="blue" onClick={() => onViewImages(record)}>
+                                <IconPhoto size={16} />
+                            </ActionIcon>
+                        </Tooltip>
+                    )}
                     <Tooltip label="Editar"><ActionIcon variant="light" onClick={() => onEdit(record)}><IconPencil size={16} /></ActionIcon></Tooltip>
                     {record.activo ? (
                         <Tooltip label="Desactivar"><ActionIcon variant="light" color="red" onClick={() => onDeactivate(record)}><IconPlayerPause size={16} /></ActionIcon></Tooltip>

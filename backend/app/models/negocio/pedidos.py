@@ -125,6 +125,7 @@ class HistorialEstadoPedido(db.Model):
     id_pedido = db.Column(db.Integer, db.ForeignKey('negocio.pedidos.id_pedido'), nullable=False, index=True)
 
     fecha_evento = db.Column(db.DateTime, nullable=False)
+    fecha_evento_fin = db.Column(db.DateTime, nullable=True, comment="Fecha de término del evento para estados con inicio/fin")
     id_usuario_responsable = db.Column(db.Integer, db.ForeignKey('entidades.usuarios.id_usuario'), nullable=True, comment="Usuario interno que gatilló el cambio")
 
     estado_anterior = db.Column(db.String(50), nullable=True)

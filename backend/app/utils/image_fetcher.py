@@ -53,19 +53,69 @@ def get_images_for_sku(sku: str) -> list[str]:
         print(f"🔍 Image fetcher: Parameters: {{'sku': {sku}}}")
         
         # Usamos el motor de BIND 'omsrc' definido en config.py (SQL Server)
-        with db.get_engine(bind_key='omsrc').connect() as conn:
-            print(f"🔍 Image fetcher: Database connection established for SKU {sku}")
-            result = conn.execute(sql_query, {'sku': sku})
-            print(f"🔍 Image fetcher: SQL executed successfully for SKU {sku}")
-            rows = result.fetchall()
-            print(f"🔍 Image fetcher: Retrieved {len(rows)} rows for SKU {sku}")
-            
-            # Convertir lista de tuplas [('url1',), ('url2',)] a lista de strings ['url1', 'url2']
-            urls = [row[0] for row in rows if row[0]]
-            print(f"🔍 Image fetcher: Processed {len(urls)} valid URLs for SKU {sku}")
-            
-            if sku_int is not None and sku_int < 2000:
-                print(f"🔍 Image fetcher: FIRST BATCH SKU {sku} - Found {len(urls)} URLs: {urls[:3] if urls else 'None'}")
+        # IMPORTANTE: Cada thread debe obtener su propia conexión del pool
+        # pyodbc con SQL Server puede tener problemas con conexiones concurrentes
+        # Usar un retry mechanism para manejar errores de "Connection is busy"
+        import time
+        max_retries = 3
+        retry_delay = 0.1  # 100ms entre reintentos
+        
+        engine = db.get_engine(bind_key='omsrc')
+        urls = []  # Inicializar urls antes del loop de retry
+        
+        for attempt in range(max_retries):
+            try:
+                # Usar raw_connection() para obtener una conexión directa del pool
+                # y asegurarnos de que se cierre correctamente
+                connection = engine.raw_connection()
+                try:
+                    cursor = connection.cursor()
+                    # Ejecutar la query directamente con pyodbc para mejor control
+                    cursor.execute("""
+                        SELECT 
+                            CASE 
+                            WHEN B.urlImagen LIKE '../Content/%' 
+                            THEN 'https://oms.repuestoscenter.cl/' + SUBSTRING(B.urlImagen, 4, LEN(B.urlImagen))
+                            ELSE B.urlImagen
+                            END AS urlImagen
+                        FROM [productos].[imagenesProducto] B
+                        WHERE B.idProducto = (
+                            SELECT TOP 1 idProducto 
+                            FROM [productos].[baseMaestroProductosBuscador]
+                            WHERE CAST(codigoTecnico AS VARCHAR(50)) = CAST(? AS VARCHAR(50))
+                        )
+                    """, sku)
+                    
+                    # Obtener todos los resultados inmediatamente
+                    rows = cursor.fetchall()
+                    # Convertir a lista de strings
+                    urls = [row[0] for row in rows if row[0]]
+                    
+                    cursor.close()
+                    connection.close()
+                    
+                    print(f"🔍 Image fetcher: Retrieved {len(urls)} URLs for SKU {sku}")
+                    if sku_int is not None and sku_int < 2000:
+                        print(f"🔍 Image fetcher: FIRST BATCH SKU {sku} - Found {len(urls)} URLs: {urls[:3] if urls else 'None'}")
+                    
+                    # Si llegamos aquí, la query fue exitosa, salir del loop de retry
+                    break
+                    
+                except Exception as e:
+                    cursor.close()
+                    connection.close()
+                    raise e
+                    
+            except Exception as e:
+                error_str = str(e)
+                if "Connection is busy" in error_str and attempt < max_retries - 1:
+                    wait_time = retry_delay * (attempt + 1)
+                    print(f"⚠️ Image fetcher: Connection busy for SKU {sku}, retry {attempt + 1}/{max_retries} after {wait_time}s")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Si no es un error de conexión ocupada o es el último intento, re-lanzar
+                    raise
             
     except Exception as e:
         print(f"❌ Image fetcher: Error for SKU {sku}: {str(e)}")

@@ -35,7 +35,9 @@ export interface ProductoDetalle {
 }
 
 export interface HistorialEstado {
+    id_historial?: number;
     fecha_evento: string;
+    fecha_evento_fin?: string | null;
     estado_anterior: string | null;
     estado_nuevo: string;
     tipo_estado: 'GENERAL' | 'CREDITO' | 'LOGISTICO';
@@ -98,6 +100,14 @@ export interface PedidoList {
     estado_general: {
         nombre_estado: string;
     };
+    estado_credito: {
+        nombre_estado: string;
+        codigo_estado: string;
+    };
+    estado_logistico: {
+        nombre_estado: string;
+        codigo_estado: string;
+    } | null;
     tipo: string;
     sku_count: number;
     total_unidades: number;

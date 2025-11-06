@@ -1,6 +1,6 @@
 # backend/app/api/v1/routes/pedidos_routes.py
 from flask import Blueprint, request, jsonify, Response
-from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema, PedidoUpdateCantidadesSchema
+from app.api.v1.schemas.pedidos_schemas import PedidoCreateSchema, PedidoResponseSchema, PedidoListResponseSchema, PedidoUpdateEstadoSchema, PedidoFacturadoSchema, PedidoEntregadoSchema, PedidoUpdateCantidadesSchema, PedidoCerrarFaseSchema, PedidoActualizarNumeroSapSchema, PedidoActualizarFechasHistorialSchema
 from app.api.v1.schemas.cliente_schemas import PaginationSchema
 from app.api.v1.services.pedidos_service import PedidoService
 from app.api.v1.services.informes_service import InformesService
@@ -21,7 +21,10 @@ pagination_schema = PaginationSchema()
 schema_update_estado = PedidoUpdateEstadoSchema()
 schema_facturado = PedidoFacturadoSchema()
 schema_entregado = PedidoEntregadoSchema()
+schema_cerrar_fase = PedidoCerrarFaseSchema()
 schema_update_cantidades = PedidoUpdateCantidadesSchema()
+schema_actualizar_sap = PedidoActualizarNumeroSapSchema()
+schema_actualizar_fechas_historial = PedidoActualizarFechasHistorialSchema()
 
 
 @pedidos_bp.route('/', methods=['POST'])
@@ -212,6 +215,90 @@ def update_pedido_estado(pedido_id):
         print(f"[RUTA] Traceback completo:")
         traceback.print_exc() # Imprime el stack trace completo en la consola
         print("--- FIN DE PETICIÓN CON ERROR ---\n")
+        return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+@pedidos_bp.route('/<int:pedido_id>/historial/actualizar-fechas', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:actualizar-estado')
+def actualizar_fechas_historial(pedido_id):
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+
+    try:
+        data = schema_actualizar_fechas_historial.load(json_data)
+        current_user_id = int(get_jwt_identity())
+        pedido_actualizado = PedidoService.actualizar_fechas_historial(pedido_id, data['actualizaciones'], current_user_id)
+        return schema_response.dump(pedido_actualizado), 200
+    
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except BusinessRuleError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except RelatedResourceNotFoundError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except NotFound:
+        return jsonify({"error": f"Pedido con ID {pedido_id} no encontrado."}), 404
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+@pedidos_bp.route('/<int:pedido_id>/actualizar-sap', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:actualizar-estado')
+def actualizar_numero_sap(pedido_id):
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+
+    try:
+        data = schema_actualizar_sap.load(json_data)
+        pedido_actualizado = PedidoService.actualizar_numero_sap(pedido_id, data['numero_pedido_sap'])
+        return schema_response.dump(pedido_actualizado), 200
+    
+    except ValidationError as err:
+        return jsonify(err.messages), 422
+    except BusinessRuleError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except RelatedResourceNotFoundError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except NotFound:
+        return jsonify({"error": f"Pedido con ID {pedido_id} no encontrado."}), 404
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
+
+@pedidos_bp.route('/<int:pedido_id>/logistica/cerrar-actual', methods=['PUT'])
+@jwt_required()
+@permission_required('pedidos:actualizar-estado')
+def cerrar_fase_logistica_actual(pedido_id):
+    json_data = request.get_json()
+    if not json_data:
+        return jsonify({"error": "Petición inválida."}), 400
+
+    try:
+        print("\n--- INICIO DE PETICIÓN PUT /pedidos/<id>/logistica/cerrar-actual ---")
+        print(f"[RUTA] Pedido ID: {pedido_id}")
+        print(f"[RUTA] Payload recibido: {json_data}")
+        data = schema_cerrar_fase.load(json_data)
+        current_user_id = int(get_jwt_identity())
+        print(f"[RUTA] Usuario responsable: {current_user_id}")
+        pedido_actualizado = PedidoService.cerrar_fase_logistica_actual(pedido_id, data, current_user_id)
+        print("[RUTA] Cierre de fase OK, enviando respuesta")
+        return schema_response.dump(pedido_actualizado), 200
+    
+    except ValidationError as err:
+        print(f"[RUTA] Error de validación: {err.messages}")
+        return jsonify(err.messages), 422
+    except BusinessRuleError as err:
+        print(f"[RUTA] Regla de negocio 400: {str(err)}")
+        return jsonify({"error": str(err)}), err.status_code
+    except RelatedResourceNotFoundError as err:
+        return jsonify({"error": str(err)}), err.status_code
+    except NotFound:
+        return jsonify({"error": f"Pedido con ID {pedido_id} no encontrado."}), 404
+    except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": f"Ocurrió un error interno: {e}"}), 500
 
 @pedidos_bp.route('/<int:pedido_id>/marcar-facturado', methods=['PUT'])

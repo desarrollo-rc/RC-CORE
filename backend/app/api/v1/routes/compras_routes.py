@@ -107,7 +107,12 @@ def fetch_images_for_skus():
     try:
         print(f"🔍 Backend: About to start ThreadPoolExecutor with {len(unique_skus)} SKUs")
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # Reducir el número de workers para evitar conflictos de conexión a la BD
+        # SQL Server con pyodbc puede tener problemas con múltiples conexiones simultáneas
+        # Reducir aún más para evitar el error "Connection is busy"
+        max_workers = min(3, len(unique_skus))  # Máximo 3 workers o el número de SKUs si es menor
+        print(f"🔍 Backend: Using {max_workers} workers for parallel processing (reduced to avoid connection conflicts)")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             print(f"🔍 Backend: ThreadPoolExecutor created successfully")
             
             # Crear tareas para cada SKU con debugging
@@ -131,24 +136,32 @@ def fetch_images_for_skus():
             print(f"🔍 Backend: All tasks submitted. Processing {len(future_to_sku)} futures...")
             
             for future in concurrent.futures.as_completed(future_to_sku):
+                # Obtener el SKU asociado a este future ANTES de obtener el resultado
                 sku = future_to_sku[future]
+                print(f"🔍 Backend: Processing result for SKU: {sku} (future completed)")
+                
                 try:
                     # Obtenemos el resultado (la lista de URLs externas)
                     external_urls = future.result()
                     
                     # Debugging: verificar el tipo de external_urls
-                    print(f"🔍 Backend: SKU {sku} - external_urls type: {type(external_urls)}, value: {external_urls}")
+                    print(f"🔍 Backend: SKU {sku} - external_urls type: {type(external_urls)}, length: {len(external_urls) if isinstance(external_urls, list) else 'N/A'}")
                     
                     # Asegurar que external_urls es una lista
                     if not isinstance(external_urls, list):
                         print(f"⚠️ Backend: SKU {sku} - external_urls is not a list, converting...")
                         external_urls = []
                     
+                    # Verificar que no haya un SKU previo con las mismas URLs (posible mezcla de resultados)
+                    if sku in image_map:
+                        print(f"⚠️ Backend: WARNING - SKU {sku} already exists in image_map! Overwriting...")
+                    
                     # Convertir a URLs ABSOLUTAS que apunten a nuestro backend
                     # Esto es importante para que Excel pueda descargar las imágenes
                     backend_base_url = 'http://127.0.0.1:5000/api/v1'  # En producción cambiar a URL real
                     backend_urls = [f"{backend_base_url}/compras/image/{sku}/{i}" for i in range(min(5, len(external_urls)))]
                     image_map[sku] = backend_urls
+                    print(f"✅ Backend: Mapped {len(backend_urls)} URLs to SKU: {sku}")
                         
                 except Exception as e:
                     print(f"❌ Backend: Error processing SKU {sku}: {str(e)}")
@@ -274,7 +287,8 @@ def serve_product_image(sku: str, index: int):
         
         try:
             # Sistema de retry con timeouts progresivos
-            timeouts = [1.5, 3.0, 5.0]  # 1.5s, 3s, 5s
+            # Aumentar timeouts para dar más tiempo al servidor externo
+            timeouts = [3.0, 5.0, 8.0]  # 3s, 5s, 8s
             last_error = None
             
             for attempt, timeout in enumerate(timeouts):
