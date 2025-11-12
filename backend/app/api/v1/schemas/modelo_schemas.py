@@ -10,6 +10,7 @@ class ModeloSchema(Schema):
     codigo_modelo = fields.Str(required=True, validate=validate.Length(min=1, max=10))
 
     nombre_modelo = fields.Str(required=True, validate=validate.Length(min=1))
+    nombre_antiguo = fields.Str(dump_only=True)
     id_marca = fields.Int(dump_only=True)
     activo = fields.Bool(dump_only=True)
     marca = fields.Nested(MarcaSchema, dump_only=True)
@@ -20,3 +21,4 @@ class UpdateModeloSchema(Schema):
     """
     codigo_modelo = fields.Str(validate=validate.Length(min=1, max=10))
     nombre_modelo = fields.Str(validate=validate.Length(min=1))
+    nombre_antiguo = fields.Str()

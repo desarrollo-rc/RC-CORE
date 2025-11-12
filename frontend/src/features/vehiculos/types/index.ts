@@ -13,6 +13,7 @@ export interface Modelo {
     id_modelo: number;
     codigo_modelo: string | null;
     nombre_modelo: string;
+    nombre_antiguo: string | null;
     id_marca: number;
     activo: boolean;
     marca: MarcaVehiculo; 
@@ -35,10 +36,12 @@ export interface VersionVehiculo {
 export type ModeloPayload = {
     codigo_modelo: string | null;
     nombre_modelo: string;
+    nombre_antiguo?: string | null;
 };
 export type ModeloFormData = {
     codigo_modelo: string;
     nombre_modelo: string;
+    nombre_antiguo: string;
 };
 
 export type VersionPayload = Omit<VersionVehiculo, 'id_version' | 'activo' | 'modelo' | 'id_modelo'>;

@@ -35,6 +35,7 @@ class ModeloService:
         nuevo_modelo = Modelo(
             nombre_modelo=nombre_modelo,
             codigo_modelo=data.get('codigo_modelo'),
+            nombre_antiguo=data.get('nombre_antiguo'),
             id_marca=marca_id
         )
         db.session.add(nuevo_modelo)
@@ -56,6 +57,8 @@ class ModeloService:
             modelo.nombre_modelo = nuevo_nombre
         if 'codigo_modelo' in data:
             modelo.codigo_modelo = data['codigo_modelo']
+        if 'nombre_antiguo' in data:
+            modelo.nombre_antiguo = data['nombre_antiguo']
             
         db.session.commit()
         return modelo

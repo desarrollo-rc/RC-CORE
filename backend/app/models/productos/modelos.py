@@ -32,6 +32,7 @@ class Modelo(db.Model, MixinAuditoria):
     id_modelo = db.Column(db.Integer, primary_key=True)
     codigo_modelo = db.Column(db.String(10), unique=True, nullable=False)
     nombre_modelo = db.Column(db.String(100), nullable=False)
+    nombre_antiguo = db.Column(db.String(100), nullable=True, comment="Nombre original del modelo previo al proceso de normalización.")
     
     id_marca = db.Column(db.Integer, db.ForeignKey('productos.marcas.id_marca'), nullable=False)
     marca = db.relationship('Marca', back_populates='modelos')
