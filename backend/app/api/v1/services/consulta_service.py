@@ -316,6 +316,7 @@ class ConsultaService:
         omitidos_no_existen = len(data_externa) - len(pedidos_a_procesar)
 
         actualizados = 0
+        omitidos_cancelados = 0
         errores = []
         debug_info = []  # Para diagnosticar qué está pasando
         for item in pedidos_a_procesar:
@@ -328,6 +329,11 @@ class ConsultaService:
             if not pedido:
                 # Esto no debería pasar ya que filtramos arriba, pero por seguridad lo dejamos
                 errores.append(f"Pedido con numeroVenta {numero_venta} no encontrado en RC CORE.")
+                continue
+
+            # Verificar si el pedido está cancelado - si está cancelado, no se deben aplicar cambios
+            if pedido.estado_general and pedido.estado_general.codigo_estado == 'CANCELADO':
+                omitidos_cancelados += 1
                 continue
 
             try:
@@ -344,14 +350,19 @@ class ConsultaService:
                     'id_estado_general': pedido.id_estado_general
                 })
                 
+                # Verificar si el crédito ya está aprobado antes de cualquier cambio
+                credito_ya_aprobado = pedido.id_estado_credito == estado_aprobado.id_estado
+                
                 # Verificar si necesita actualizaciones
                 necesita_actualizacion = False
                 cambios = []
+                credito_cambio_a_aprobado = False
                 
                 # Actualizar estado de crédito si no está aprobado
-                if pedido.id_estado_credito != estado_aprobado.id_estado:
+                if not credito_ya_aprobado:
                     pedido.id_estado_credito = estado_aprobado.id_estado
                     necesita_actualizacion = True
+                    credito_cambio_a_aprobado = True
                     cambios.append(f"Estado crédito: {estado_anterior_nombre} → APROBADO")
                 
                 # Actualizar estado general si no está en proceso
@@ -378,15 +389,15 @@ class ConsultaService:
                         except:
                             fecha_credito_omsrc = None
                 
-                # Verificar si necesitamos actualizar el historial con la fecha correcta
-                # Buscar el último registro de historial de crédito para este pedido
-                ultimo_historial = HistorialEstadoPedido.query.filter_by(
+                # Buscar el registro de historial donde el crédito fue aprobado
+                historial_aprobacion_credito = HistorialEstadoPedido.query.filter_by(
                     id_pedido=pedido.id_pedido,
-                    tipo_estado="CREDITO"
+                    tipo_estado="CREDITO",
+                    estado_nuevo=estado_aprobado.nombre_estado
                 ).order_by(HistorialEstadoPedido.fecha_evento.desc()).first()
                 
-                # Si hay cambios en estados, crear nuevo registro en el historial
-                if necesita_actualizacion:
+                # Si el crédito cambió a aprobado, crear nuevo registro en el historial
+                if credito_cambio_a_aprobado:
                     observacion = "Sincronización desde OMSRC: " + ", ".join(cambios)
                     
                     # Usar la fecha de crédito del OMSRC si está disponible, sino la hora actual
@@ -404,16 +415,39 @@ class ConsultaService:
                     db.session.add(historial)
                     actualizados += 1
                 
-                # Si no hay cambios en estados pero hay fecha de crédito del OMSRC, 
-                # actualizar el último registro del historial con la fecha correcta
-                elif fecha_credito_omsrc and ultimo_historial:
-                    # Comparar fechas (con margen de 1 minuto para evitar problemas de precisión)
-                    diferencia = abs((ultimo_historial.fecha_evento - fecha_credito_omsrc).total_seconds())
-                    if diferencia > 60:  # Más de 1 minuto de diferencia
-                        # Actualizar el registro existente con la fecha correcta
-                        ultimo_historial.fecha_evento = fecha_credito_omsrc
-                        ultimo_historial.observaciones = (ultimo_historial.observaciones or "") + " [Fecha corregida desde OMSRC]"
+                # Si el crédito ya estaba aprobado, solo actualizar la fecha si hay fecha de OMSRC
+                elif credito_ya_aprobado and fecha_credito_omsrc:
+                    if historial_aprobacion_credito:
+                        # Actualizar la fecha del registro existente si es diferente (más de 1 minuto)
+                        diferencia = abs((historial_aprobacion_credito.fecha_evento - fecha_credito_omsrc).total_seconds())
+                        if diferencia > 60:  # Más de 1 minuto de diferencia
+                            historial_aprobacion_credito.fecha_evento = fecha_credito_omsrc
+                            if historial_aprobacion_credito.observaciones:
+                                if "[Fecha actualizada desde OMSRC]" not in historial_aprobacion_credito.observaciones:
+                                    historial_aprobacion_credito.observaciones += " [Fecha actualizada desde OMSRC]"
+                            else:
+                                historial_aprobacion_credito.observaciones = "[Fecha actualizada desde OMSRC]"
+                            actualizados += 1
+                        # Si la diferencia es menor a 1 minuto, no actualizar (es la misma aprobación)
+                    else:
+                        # Si no existe historial de aprobación pero el crédito ya está aprobado, crear uno
+                        # (esto puede pasar si el historial fue eliminado o hay inconsistencia)
+                        observacion = "Sincronización desde OMSRC: Registro de aprobación de crédito creado"
+                        historial = HistorialEstadoPedido(
+                            id_pedido=pedido.id_pedido,
+                            fecha_evento=fecha_credito_omsrc,
+                            estado_anterior=estado_anterior_nombre,
+                            estado_nuevo=estado_aprobado.nombre_estado,
+                            tipo_estado="CREDITO",
+                            id_usuario_responsable=id_usuario,
+                            observaciones=observacion
+                        )
+                        db.session.add(historial)
                         actualizados += 1
+                
+                # Si hay otros cambios (estado general, SAP) pero no cambios de crédito, marcar como actualizado
+                elif necesita_actualizacion:
+                    actualizados += 1
                 
             except Exception as e:
                  errores.append(f"Error actualizando pedido {numero_venta}: {str(e)}")
@@ -432,6 +466,7 @@ class ConsultaService:
             "total_en_rc_core": len(pedidos_existentes),
             "pedidos_procesados": len(pedidos_a_procesar),
             "omitidos_no_existen": omitidos_no_existen,
+            "omitidos_cancelados": omitidos_cancelados,
             "actualizados": actualizados,
             "errores": errores
         }

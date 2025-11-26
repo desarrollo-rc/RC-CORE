@@ -71,6 +71,10 @@ export function ConsultasPage() {
                 notificationMessage += ` Omitidos (no existen en RC CORE): ${result.omitidos_no_existen}.`;
             }
             
+            if (result.omitidos_cancelados > 0) {
+                notificationMessage += ` Omitidos (cancelados): ${result.omitidos_cancelados}.`;
+            }
+            
             const notificationColor = result.actualizados > 0 ? 'green' : 'orange';
 
             if (result.errores && result.errores.length > 0) {

@@ -3,6 +3,87 @@ import ExcelJS from 'exceljs';
 import type { CotizacionData } from '../features/compras/types';
 
 /**
+ * Función helper robusta para mapear nombres de columnas a keys de propiedades
+ * Usa patrones específicos y prioriza coincidencias exactas para evitar conflictos
+ * @param header - Nombre de la columna (normalizado a minúsculas)
+ * @returns key correspondiente o null si no se encuentra
+ */
+function mapHeaderToKey(header: string): string | null {
+  const headerLower = header.toLowerCase().trim();
+  
+  // Patrones específicos (ordenados de más específico a menos específico)
+  // Usar expresiones regulares para patrones más complejos
+  
+  // 1. Coincidencias exactas o muy específicas primero
+  if (/^cod\s*mod|^código\s*modelo|codigo\s*modelo/i.test(headerLower)) {
+    return 'cod_mod';
+  }
+  
+  // 2. Patrones con múltiples palabras (más específicos)
+  if (/nombre.*extranjero|nombre.*foreign|foreign.*name/i.test(headerLower)) {
+    return 'nombre_extranjero';
+  }
+  if (/nombre.*chino|nombre.*chinese|chinese.*name/i.test(headerLower)) {
+    return 'nombre_chino';
+  }
+  if (/modelo.*chino|modelo.*chinese|chinese.*model/i.test(headerLower)) {
+    return 'modelo_chino';
+  }
+  if (/volumen.*total|total.*volumen|total.*volume/i.test(headerLower)) {
+    return 'volumen_total';
+  }
+  if (/volumen.*dealer|dealer.*volumen|dealer.*volume/i.test(headerLower)) {
+    return 'volumen_dealer';
+  }
+  if (/volumen.*(compra|unidad)|volume.*(compra|unidad)|(compra|unidad).*volumen/i.test(headerLower)) {
+    return 'volumen_unidad_compra';
+  }
+  if (/last.*fob|fob.*last|último.*fob/i.test(headerLower)) {
+    return 'last_fob';
+  }
+  if (/com.*técnico|com.*tecnico|technical.*comment|comentario.*técnico/i.test(headerLower)) {
+    return 'com_tecnico';
+  }
+  
+  // 3. Patrones simples pero verificando que no sean parte de palabras más complejas
+  // Verificar "modelo" pero asegurarse de que no sea parte de "cod modelo" o "modelo chino"
+  if (/^modelo$|^model$/.test(headerLower) || 
+      (/modelo/.test(headerLower) && !/cod.*modelo|modelo.*chino|código.*modelo/i.test(headerLower))) {
+    return 'modelo';
+  }
+  
+  // 4. Patrones simples
+  if (/^marca$|^brand$/i.test(headerLower) || 
+      (/marca|brand/.test(headerLower) && !/cod.*marca|código.*marca/i.test(headerLower))) {
+    return 'marca';
+  }
+  if (/^oem|oem.*part/i.test(headerLower)) {
+    return 'oem_part';
+  }
+  if (/^tg$|^tg\s/i.test(headerLower)) {
+    return 'tg';
+  }
+  if (/^error|errores/i.test(headerLower)) {
+    return 'errores';
+  }
+  if (/^supplier|proveedor/i.test(headerLower)) {
+    return 'supplier';
+  }
+  if (/^pedido|cantidad|qty|order/i.test(headerLower)) {
+    return 'pedido';
+  }
+  if (/^fob|precio|price|cost/i.test(headerLower) && !/last.*fob/i.test(headerLower)) {
+    return 'fob';
+  }
+  if (/^volumen|^vol\s|^volume/i.test(headerLower) && 
+      !/total|dealer|compra|unidad/i.test(headerLower)) {
+    return 'volumen_unidad_compra';
+  }
+  
+  return null;
+}
+
+/**
  * Exporta una cotización a Excel con imágenes incrustadas
  * @param cotizacionData - Datos de la cotización (con imágenes ya en Base64)
  * @param nombreArchivo - Nombre del archivo a exportar
@@ -44,51 +125,12 @@ export async function exportarCotizacionConImagenes(
           });
           usedKeys.add('descripcion_articulo');
         } else {
-          // Buscar la propiedad correspondiente en el item
-          const headerLower = header.toLowerCase();
-          let key = '';
+          // Buscar la propiedad correspondiente en el item usando la función helper robusta
+          let key = mapHeaderToKey(header);
           let headerName = header;
 
-          // Mapear headers conocidos a propiedades del item (misma lógica que en CotizadorPage)
-          if (headerLower.includes('pedido') || headerLower.includes('cantidad') || headerLower.includes('qty') || headerLower.includes('order')) {
-            key = 'pedido';
-          } else if (headerLower.includes('fob') && !headerLower.includes('last')) {
-            key = 'fob';
-          } else if (headerLower.includes('nombre') && headerLower.includes('extranjero')) {
-            key = 'nombre_extranjero';
-          } else if (headerLower.includes('nombre') && headerLower.includes('chino')) {
-            key = 'nombre_chino';
-          } else if (headerLower.includes('marca')) {
-            key = 'marca';
-          } else if (headerLower.includes('modelo') && !headerLower.includes('chino')) {
-            key = 'modelo';
-          } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
-            key = 'modelo_chino';
-          } else if (headerLower.includes('volumen') && headerLower.includes('dealer')) {
-            key = 'volumen_dealer';
-          } else if (headerLower.includes('volumen') && headerLower.includes('total')) {
-            key = 'volumen_total';
-          } else if (headerLower.includes('volumen') && (headerLower.includes('compra') || headerLower.includes('unidad'))) {
-            key = 'volumen_unidad_compra';
-          } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
-            key = 'volumen_unidad_compra';
-          } else if (headerLower.includes('oem')) {
-            key = 'oem_part';
-          } else if (headerLower.includes('last') && headerLower.includes('fob')) {
-            key = 'last_fob';
-          } else if (headerLower.includes('cod') && headerLower.includes('mod')) {
-            key = 'cod_mod';
-          } else if (headerLower.includes('tg')) {
-            key = 'tg';
-          } else if (headerLower.includes('com') && headerLower.includes('técnico')) {
-            key = 'com_tecnico';
-          } else if (headerLower.includes('error')) {
-            key = 'errores';
-          } else if (headerLower.includes('supplier') || headerLower.includes('proveedor')) {
-            key = 'supplier';
-          } else {
-            // Para columnas no reconocidas, primero intentar buscar una propiedad que coincida
-            // con el header normalizado (sin espacios, en minúsculas)
+          // Si no se encontró un mapeo, intentar buscar una propiedad que coincida
+          if (!key) {
             const normalizedHeader = header.toLowerCase().replace(/\s+/g, '_');
             if ((firstItem as any)[normalizedHeader] !== undefined && !usedKeys.has(normalizedHeader)) {
               key = normalizedHeader;

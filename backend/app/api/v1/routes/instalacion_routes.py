@@ -5,6 +5,7 @@ from app.api.v1.schemas.instalacion_schemas import instalacion_schema, instalaci
 from flask_jwt_extended import jwt_required
 from app.api.v1.utils.decorators import permission_required
 from marshmallow import ValidationError
+import os
 
 instalaciones_bp = Blueprint('instalaciones_bp', __name__)
 
@@ -166,11 +167,16 @@ def aprobar_instalacion(id):
 @permission_required('instalaciones:editar')
 def crear_usuario_instalacion(id):
     """Crea un nuevo usuario B2B para la instalación"""
+    from flask import current_app
     try:
         data = request.json
+        current_app.logger.info(f"[ENDPOINT] Crear usuario instalación {id} - Datos recibidos: {data}")
+        current_app.logger.info(f"[ENDPOINT] existe_en_corp recibido: {data.get('existe_en_corp', 'NO ENVIADO')}")
         instalacion = InstalacionService.crear_usuario_instalacion(id, data)
+        current_app.logger.info(f"[ENDPOINT] Usuario creado exitosamente. Estado final: {instalacion.estado}")
         return jsonify(instalacion_schema.dump(instalacion)), 200
     except Exception as e:
+        current_app.logger.error(f"[ENDPOINT] Error al crear usuario: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @instalaciones_bp.route('/<int:id>/continuar-sin-usuario', methods=['PUT'])
@@ -202,18 +208,56 @@ def agendar_instalacion_route(id):
 @jwt_required()
 @permission_required('instalaciones:editar')
 def sincronizar_equipos(id):
-    """Sincroniza los equipos del usuario desde Corp"""
+    """Sincroniza los equipos del usuario desde Corp usando Playwright"""
+    from flask import current_app
     try:
-        result = InstalacionService.sincronizar_equipos(id)
-        return jsonify(result), 200
+        # Obtener la instalación para obtener el usuario B2B
+        instalacion = InstalacionService.get_instalacion_by_id(id)
+        
+        if not instalacion.id_usuario_b2b:
+            return jsonify({"error": "La instalación no tiene un usuario B2B asignado"}), 400
+        
+        # Obtener el usuario B2B para obtener el código de usuario
+        from app.api.v1.services.usuario_b2b_service import UsuarioB2BService
+        usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(instalacion.id_usuario_b2b)
+        
+        current_app.logger.info(f"[SINCRONIZAR] Buscando equipos para usuario: {usuario_b2b.usuario}")
+        
+        # Llamar a la automatización de Playwright
+        from automatizaciones.playwright.equipo_automation import buscar_equipos_corp
+        
+        # Determinar si ejecutar en modo headless
+        headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+        
+        resultado = buscar_equipos_corp(
+            codigo_usuario=usuario_b2b.usuario,
+            headless=headless_mode
+        )
+        
+        if resultado["success"]:
+            return jsonify({
+                "ok": True,
+                "equipos": resultado["equipos"],
+                "total": resultado["total"],
+                "message": resultado["message"]
+            }), 200
+        else:
+            return jsonify({
+                "ok": False,
+                "equipos": [],
+                "total": 0,
+                "error": resultado.get("error", resultado.get("message", "Error desconocido"))
+            }), 400
+            
     except Exception as e:
+        current_app.logger.error(f"[SINCRONIZAR] Error al sincronizar equipos: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @instalaciones_bp.route('/<int:id>/activar-equipo', methods=['POST'])
 @jwt_required()
 @permission_required('instalaciones:editar')
 def activar_equipo(id):
-    """Activa un equipo y desactiva los demás"""
+    """Activa un equipo y desactiva los demás (método local)"""
     try:
         data = request.json
         equipo_id = data.get('equipo_id')
@@ -223,6 +267,76 @@ def activar_equipo(id):
         result = InstalacionService.activar_equipo(id, equipo_id)
         return jsonify(result), 200
     except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@instalaciones_bp.route('/<int:id>/activar-equipo-corp', methods=['POST'])
+@jwt_required()
+@permission_required('instalaciones:editar')
+def activar_equipo_corp(id):
+    """Activa un equipo en Corp usando Playwright y luego lo instala"""
+    from flask import current_app
+    try:
+        data = request.json
+        nombre_equipo = data.get('nombre_equipo')
+        if not nombre_equipo:
+            return jsonify({"error": "Se requiere nombre_equipo"}), 400
+        
+        # Obtener la instalación
+        instalacion = InstalacionService.get_instalacion_by_id(id)
+        
+        if not instalacion.id_usuario_b2b:
+            return jsonify({"error": "La instalación no tiene un usuario B2B asignado"}), 400
+        
+        # Obtener el usuario B2B para obtener el código de usuario
+        from app.api.v1.services.usuario_b2b_service import UsuarioB2BService
+        usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(instalacion.id_usuario_b2b)
+        
+        current_app.logger.info(f"[ACTIVAR] Activando equipo {nombre_equipo} para usuario: {usuario_b2b.usuario}")
+        
+        # Llamar a la automatización de Playwright para activar el equipo en Corp
+        from automatizaciones.playwright.equipo_automation import activar_equipo_corp
+        
+        # Determinar si ejecutar en modo headless
+        headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+        
+        resultado = activar_equipo_corp(
+            codigo_usuario=usuario_b2b.usuario,
+            nombre_equipo=nombre_equipo,
+            headless=headless_mode
+        )
+        
+        if resultado["success"]:
+            # Si la activación fue exitosa, buscar el equipo en la base de datos local y asociarlo
+            from app.models.entidades.equipos import Equipo
+            equipo = Equipo.query.filter_by(
+                id_usuario_b2b=usuario_b2b.id_usuario_b2b,
+                nombre_equipo=nombre_equipo
+            ).first()
+            
+            if equipo:
+                # Instalar el equipo (asociarlo a la instalación)
+                instalacion_actualizada = InstalacionService.instalar_equipo(id, equipo.id_equipo)
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"{resultado['message']}. Equipo instalado exitosamente.",
+                    "instalacion": instalacion_schema.dump(instalacion_actualizada)
+                }), 200
+            else:
+                # Si no se encuentra el equipo local, solo retornar éxito de activación
+                return jsonify({
+                    "success": True,
+                    "message": resultado["message"],
+                    "warning": "Equipo activado en Corp pero no encontrado en la base de datos local"
+                }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": resultado.get("error", resultado.get("message", "Error desconocido"))
+            }), 400
+            
+    except Exception as e:
+        current_app.logger.error(f"[ACTIVAR] Error al activar equipo en Corp: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @instalaciones_bp.route('/<int:id>/instalar', methods=['PUT'])

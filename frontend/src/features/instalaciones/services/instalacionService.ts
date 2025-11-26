@@ -108,6 +108,11 @@ export const activarEquipo = async (id: number, equipo_id: number): Promise<{ su
     return response.data;
 };
 
+export const activarEquipoCorp = async (id: number, nombre_equipo: string): Promise<{ success: boolean; message: string; instalacion?: any; warning?: string }> => {
+    const response = await apiClient.post<{ success: boolean; message: string; instalacion?: any; warning?: string }>(`/instalaciones/${id}/activar-equipo-corp`, { nombre_equipo });
+    return response.data;
+};
+
 export const instalarEquipo = async (id: number, equipo_id: number, fecha_instalacion_personalizada?: string): Promise<Instalacion> => {
     const data: any = { equipo_id };
     if (fecha_instalacion_personalizada) {

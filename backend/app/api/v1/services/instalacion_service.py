@@ -11,6 +11,7 @@ from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleEr
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 import pytz
+import os
 
 class InstalacionService:
     @staticmethod
@@ -190,6 +191,9 @@ class InstalacionService:
             'fecha_creacion_personalizada': str (opcional, fecha ISO para creación de usuario)
         }
         """
+        print(f"[AUTOMATIZACION] ===== INICIO crear_usuario_instalacion para instalacion_id={instalacion_id} =====")
+        print(f"[AUTOMATIZACION] Data completa recibida: {data}")
+        
         instalacion = InstalacionService.get_instalacion_by_id(instalacion_id)
         
         if not instalacion.puede_crear_usuario():
@@ -197,6 +201,14 @@ class InstalacionService:
         
         existe_en_sistema = data.get('existe_en_sistema', False)
         existe_en_corp = data.get('existe_en_corp', False)
+        
+        # Logging usando print (visible en consola) y también logger si está disponible
+        from flask import current_app
+        try:
+            current_app.logger.info(f"[AUTOMATIZACION] Valores recibidos - existe_en_sistema: {existe_en_sistema}, existe_en_corp: {existe_en_corp}")
+        except:
+            pass
+        print(f"[AUTOMATIZACION] Valores recibidos - existe_en_sistema: {existe_en_sistema}, existe_en_corp: {existe_en_corp}")
         
         # Calcular fecha de creación de usuario
         if data.get('fecha_creacion_personalizada'):
@@ -244,12 +256,91 @@ class InstalacionService:
             instalacion.fecha_creacion_usuario = fecha_creacion
             
             # Escenario 2 y 3: Llamar automatización si NO existe en Corp
+            print(f"[AUTOMATIZACION] Evaluando automatización - existe_en_corp={existe_en_corp}, not existe_en_corp={not existe_en_corp}")
+            try:
+                current_app.logger.info(f"[AUTOMATIZACION] Evaluando automatización - existe_en_corp={existe_en_corp}")
+            except:
+                pass
+            
             if not existe_en_corp:
-                # Aquí iría la llamada a automatización
-                # Por ahora dejamos el estado como USUARIO_CREADO
-                # Si falla la automatización, se cambia a CONFIGURACION_PENDIENTE
-                instalacion.estado = EstadoInstalacion.USUARIO_CREADO
+                # Llamar automatización de Playwright para crear usuario en Corp
+                print(f"[AUTOMATIZACION] ✓ Entrando al bloque de automatización para: {nuevo_usuario.usuario}")
+                try:
+                    current_app.logger.info(f"[AUTOMATIZACION] ✓ Entrando al bloque de automatización para: {nuevo_usuario.usuario}")
+                except:
+                    pass
+                try:
+                    from automatizaciones.playwright.usuario_automation import crear_usuario_corp
+                    from app.models.entidades.maestro_clientes import MaestroClientes
+                    
+                    print(f"[AUTOMATIZACION] Módulo importado correctamente")
+                    
+                    # Obtener el cliente para obtener el RUT
+                    cliente = MaestroClientes.query.get(instalacion.caso.id_cliente)
+                    if not cliente:
+                        raise BusinessRuleError("No se encontró el cliente asociado a la instalación")
+                    
+                    print(f"[AUTOMATIZACION] Cliente encontrado: {cliente.nombre_cliente}, RUT: {cliente.rut_cliente}")
+                    
+                    # Determinar si ejecutar en modo headless (por defecto True en producción)
+                    headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+                    print(f"[AUTOMATIZACION] Modo headless: {headless_mode}")
+                    
+                    # Llamar a la automatización
+                    print(f"[AUTOMATIZACION] Llamando a crear_usuario_corp con: codigo={nuevo_usuario.usuario}, nombre={nuevo_usuario.nombre_completo}, rut={cliente.rut_cliente}, email={nuevo_usuario.email}")
+                    resultado = crear_usuario_corp(
+                        codigo=nuevo_usuario.usuario,
+                        nombre=nuevo_usuario.nombre_completo,
+                        contrasena=password,
+                        rut_cliente=cliente.rut_cliente,
+                        email=nuevo_usuario.email,
+                        nombre_cliente=cliente.nombre_cliente,
+                        headless=headless_mode
+                    )
+                    
+                    print(f"[AUTOMATIZACION] Resultado de automatización: {resultado}")
+                    
+                    if resultado["success"]:
+                        instalacion.estado = EstadoInstalacion.USUARIO_CREADO
+                        # Agregar observación sobre la creación automática
+                        observacion = f"Usuario creado automáticamente en Corp: {resultado['message']}"
+                        if instalacion.observaciones:
+                            instalacion.observaciones += f"\n{observacion}"
+                        else:
+                            instalacion.observaciones = observacion
+                        print(f"[AUTOMATIZACION] Usuario creado exitosamente en Corp")
+                    else:
+                        # Si falla la automatización, cambiar a CONFIGURACION_PENDIENTE
+                        instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
+                        error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
+                        if instalacion.observaciones:
+                            instalacion.observaciones += f"\n{error_msg}"
+                        else:
+                            instalacion.observaciones = error_msg
+                        print(f"[AUTOMATIZACION] Error en automatización: {error_msg}")
+                        # Re-lanzar el error para que el endpoint pueda informarlo
+                        raise BusinessRuleError(error_msg)
+                        
+                except BusinessRuleError as e:
+                    # Re-lanzar errores de negocio
+                    print(f"[AUTOMATIZACION] BusinessRuleError: {str(e)}")
+                    raise
+                except Exception as e:
+                    # Para otros errores, cambiar estado y continuar
+                    import traceback
+                    error_trace = traceback.format_exc()
+                    print(f"[AUTOMATIZACION] Excepción inesperada: {str(e)}")
+                    print(f"[AUTOMATIZACION] Traceback: {error_trace}")
+                    instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
+                    error_msg = f"Error inesperado al crear usuario en Corp: {str(e)}"
+                    if instalacion.observaciones:
+                        instalacion.observaciones += f"\n{error_msg}"
+                    else:
+                        instalacion.observaciones = error_msg
+                    # Re-lanzar el error para que se vea en la respuesta
+                    raise BusinessRuleError(error_msg)
             else:
+                print(f"[AUTOMATIZACION] Usuario ya existe en Corp, saltando automatización")
                 instalacion.estado = EstadoInstalacion.USUARIO_CREADO
         
         db.session.commit()

@@ -54,6 +54,87 @@ export function CotizadorPage() {
     return skuCount <= 500 ? 5 : 3;
   };
 
+  /**
+   * Función helper robusta para mapear nombres de columnas a keys de propiedades
+   * Usa patrones específicos y prioriza coincidencias exactas para evitar conflictos
+   * @param header - Nombre de la columna (normalizado a minúsculas)
+   * @returns key correspondiente o null si no se encuentra
+   */
+  const mapHeaderToKey = (header: string): string | null => {
+    const headerLower = header.toLowerCase().trim();
+    
+    // Patrones específicos (ordenados de más específico a menos específico)
+    // Usar expresiones regulares para patrones más complejos
+    
+    // 1. Coincidencias exactas o muy específicas primero
+    if (/^cod\s*mod|^código\s*modelo|codigo\s*modelo/i.test(headerLower)) {
+      return 'cod_mod';
+    }
+    
+    // 2. Patrones con múltiples palabras (más específicos)
+    if (/nombre.*extranjero|nombre.*foreign|foreign.*name/i.test(headerLower)) {
+      return 'nombre_extranjero';
+    }
+    if (/nombre.*chino|nombre.*chinese|chinese.*name/i.test(headerLower)) {
+      return 'nombre_chino';
+    }
+    if (/modelo.*chino|modelo.*chinese|chinese.*model/i.test(headerLower)) {
+      return 'modelo_chino';
+    }
+    if (/volumen.*total|total.*volumen|total.*volume/i.test(headerLower)) {
+      return 'volumen_total';
+    }
+    if (/volumen.*dealer|dealer.*volumen|dealer.*volume/i.test(headerLower)) {
+      return 'volumen_dealer';
+    }
+    if (/volumen.*(compra|unidad)|volume.*(compra|unidad)|(compra|unidad).*volumen/i.test(headerLower)) {
+      return 'volumen_unidad_compra';
+    }
+    if (/last.*fob|fob.*last|último.*fob/i.test(headerLower)) {
+      return 'last_fob';
+    }
+    if (/com.*técnico|com.*tecnico|technical.*comment|comentario.*técnico/i.test(headerLower)) {
+      return 'com_tecnico';
+    }
+    
+    // 3. Patrones simples pero verificando que no sean parte de palabras más complejas
+    // Verificar "modelo" pero asegurarse de que no sea parte de "cod modelo" o "modelo chino"
+    if (/^modelo$|^model$/.test(headerLower) || 
+        (/modelo/.test(headerLower) && !/cod.*modelo|modelo.*chino|código.*modelo/i.test(headerLower))) {
+      return 'modelo';
+    }
+    
+    // 4. Patrones simples
+    if (/^marca$|^brand$/i.test(headerLower) || 
+        (/marca|brand/.test(headerLower) && !/cod.*marca|código.*marca/i.test(headerLower))) {
+      return 'marca';
+    }
+    if (/^oem|oem.*part/i.test(headerLower)) {
+      return 'oem_part';
+    }
+    if (/^tg$|^tg\s/i.test(headerLower)) {
+      return 'tg';
+    }
+    if (/^error|errores/i.test(headerLower)) {
+      return 'errores';
+    }
+    if (/^supplier|proveedor/i.test(headerLower)) {
+      return 'supplier';
+    }
+    if (/^pedido|cantidad|qty|order/i.test(headerLower)) {
+      return 'pedido';
+    }
+    if (/^fob|precio|price|cost/i.test(headerLower) && !/last.*fob/i.test(headerLower)) {
+      return 'fob';
+    }
+    if (/^volumen|^vol\s|^volume/i.test(headerLower) && 
+        !/total|dealer|compra|unidad/i.test(headerLower)) {
+      return 'volumen_unidad_compra';
+    }
+    
+    return null;
+  };
+
   // Función helper para generar las columnas de la tabla dinámicamente
   const generateTableColumns = (items: CotizacionItem[], originalHeaders?: string[]) => {
     if (!items || items.length === 0) return [];
@@ -83,52 +164,9 @@ export function CotizadorPage() {
           });
           usedKeys.add('descripcion_articulo');
         } else {
-          // Buscar la propiedad correspondiente en el item
-          const headerLower = header.toLowerCase();
-          let key = '';
+          // Buscar la propiedad correspondiente en el item usando la función helper robusta
+          let key = mapHeaderToKey(header) || `columna_${index + 1}`;
           let label = header;
-
-          // Mapear headers conocidos a propiedades del item
-          if (headerLower.includes('pedido') || headerLower.includes('cantidad') || headerLower.includes('qty') || headerLower.includes('order')) {
-            key = 'pedido';
-          } else if (headerLower.includes('fob') && !headerLower.includes('last')) {
-            key = 'fob';
-          } else if (headerLower.includes('nombre') && headerLower.includes('extranjero')) {
-            key = 'nombre_extranjero';
-          } else if (headerLower.includes('nombre') && headerLower.includes('chino')) {
-            key = 'nombre_chino';
-          } else if (headerLower.includes('marca')) {
-            key = 'marca';
-          } else if (headerLower.includes('modelo') && !headerLower.includes('chino')) {
-            key = 'modelo';
-          } else if (headerLower.includes('modelo') && headerLower.includes('chino')) {
-            key = 'modelo_chino';
-          } else if (headerLower.includes('volumen') && headerLower.includes('dealer')) {
-            key = 'volumen_dealer';
-          } else if (headerLower.includes('volumen') && headerLower.includes('total')) {
-            key = 'volumen_total';
-          } else if (headerLower.includes('volumen') && (headerLower.includes('compra') || headerLower.includes('unidad'))) {
-            key = 'volumen_unidad_compra';
-          } else if (headerLower.includes('volumen') || headerLower.includes('vol')) {
-            key = 'volumen_unidad_compra';
-          } else if (headerLower.includes('oem')) {
-            key = 'oem_part';
-          } else if (headerLower.includes('last') && headerLower.includes('fob')) {
-            key = 'last_fob';
-          } else if (headerLower.includes('cod') && headerLower.includes('mod')) {
-            key = 'cod_mod';
-          } else if (headerLower.includes('tg')) {
-            key = 'tg';
-          } else if (headerLower.includes('com') && headerLower.includes('técnico')) {
-            key = 'com_tecnico';
-          } else if (headerLower.includes('error')) {
-            key = 'errores';
-          } else if (headerLower.includes('supplier') || headerLower.includes('proveedor')) {
-            key = 'supplier';
-          } else {
-            // Para columnas no reconocidas, usar el nombre original
-            key = `columna_${index + 1}`;
-          }
 
           // Si la key ya fue usada, usar una key única basada en el índice
           if (usedKeys.has(key)) {
@@ -1599,42 +1637,23 @@ export function CotizadorPage() {
                 imagenes: [], // Empezamos con array vacío
               };
 
-              // Mapear columnas comunes dinámicamente
+              // Mapear columnas comunes dinámicamente usando la función helper robusta
               for (let col = 0; col < Math.min(row.length, 20); col++) {
-                const header = headerRow[col] ? headerRow[col].toString().toLowerCase() : '';
+                const header = headerRow[col] ? headerRow[col].toString() : '';
                 const value = getValue(col, '');
                 
-                // Mapear columnas conocidas
-                if (header.includes('nombre') && header.includes('extranjero')) {
-                  dynamicItem.nombre_extranjero = value;
-                } else if (header.includes('nombre') && header.includes('chino')) {
-                  dynamicItem.nombre_chino = value;
-                } else if (header.includes('marca')) {
-                  dynamicItem.marca = value;
-                } else if (header.includes('modelo') && !header.includes('chino')) {
-                  dynamicItem.modelo = value;
-                } else if (header.includes('modelo') && header.includes('chino')) {
-                  dynamicItem.modelo_chino = value;
-                } else if (header.includes('volumen') && header.includes('total')) {
-                  dynamicItem.volumen_total = parseFloat(value) || 0;
-                } else if (header.includes('volumen') && (header.includes('compra') || header.includes('unidad'))) {
-                  dynamicItem.volumen_unidad_compra = parseFloat(value) || 0;
-                } else if (header.includes('volumen') || header.includes('vol')) {
-                  dynamicItem.volumen_unidad_compra = parseFloat(value) || 0;
-                } else if (header.includes('oem')) {
-                  dynamicItem.oem_part = value;
-                } else if (header.includes('last') && header.includes('fob')) {
-                  dynamicItem.last_fob = parseFloat(value) || 0;
-                } else if (header.includes('cod') && header.includes('mod')) {
-                  dynamicItem.cod_mod = value;
-                } else if (header.includes('tg')) {
-                  dynamicItem.tg = value;
-                } else if (header.includes('com') && header.includes('técnico')) {
-                  dynamicItem.com_tecnico = value;
-                } else if (header.includes('error')) {
-                  dynamicItem.errores = value;
-                } else if (header.includes('supplier') || header.includes('proveedor')) {
-                  dynamicItem.supplier = value;
+                // Usar la función helper para mapear el header a la key correspondiente
+                const mappedKey = mapHeaderToKey(header);
+                
+                if (mappedKey) {
+                  // Si es un campo numérico, convertir a número
+                  if (mappedKey === 'volumen_total' || mappedKey === 'volumen_unidad_compra' || 
+                      mappedKey === 'volumen_dealer' || mappedKey === 'last_fob' || 
+                      mappedKey === 'fob' || mappedKey === 'pedido') {
+                    (dynamicItem as any)[mappedKey] = parseFloat(value) || 0;
+                  } else {
+                    (dynamicItem as any)[mappedKey] = value;
+                  }
                 }
               }
 
@@ -1689,13 +1708,8 @@ export function CotizadorPage() {
         });
 
             // 2. Iniciar la búsqueda de imágenes reales EN SEGUNDO PLANO
-            if (items.length > 100) {
-              // Usar procesamiento por lotes para archivos grandes
-              processImagesInBatches(items);
-            } else {
-              // Usar procesamiento normal para archivos pequeños
-              fetchAndSetRealImages(items);
-            }
+            // Siempre usar procesamiento por lotes para mostrar el modal de progreso
+            processImagesInBatches(items);
 
       } catch (error) {
         console.error('Error procesando Excel:', error);
@@ -1870,7 +1884,7 @@ export function CotizadorPage() {
                         leftSection={<IconRefresh size="1rem" />}
                         onClick={() => {
                           if (cotizacionData) {
-                            fetchAndSetRealImages(cotizacionData.items);
+                            processImagesInBatches(cotizacionData.items);
                           }
                         }}
                         disabled={loadingImages}

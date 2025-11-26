@@ -862,7 +862,7 @@ function FinalizarForm({ mutation, close }: { mutation: any; close: () => void }
 function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: Instalacion; onUpdate: (i: Instalacion) => void; close: () => void }) {
     const [equipos, setEquipos] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [selectedEquipo, setSelectedEquipo] = useState<number | null>(null);
+    const [selectedEquipo, setSelectedEquipo] = useState<string | number | null>(null);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
     const [fechaPersonalizada, setFechaPersonalizada] = useState('');
@@ -925,17 +925,55 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
         
         setLoading(true);
         try {
-            // Paso 1: Activar equipo
-            await activarEquipo(instalacion.id_instalacion, selectedEquipo);
+            // Encontrar el equipo seleccionado
+            const equipoSeleccionado = equipos.find((eq: any) => {
+                const equipoId = eq.id_equipo || eq.nombre_equipo || `equipo_${eq.mac}`;
+                return equipoId.toString() === selectedEquipo.toString();
+            });
             
-            // Paso 2: Instalar equipo con fecha personalizada si está disponible
-            const fechaInstalacionPersonalizada = usarFechaPersonalizada && fechaPersonalizada ? fechaPersonalizada : undefined;
-            const updated = await instalarEquipo(instalacion.id_instalacion, selectedEquipo, fechaInstalacionPersonalizada);
+            if (!equipoSeleccionado) {
+                showNotification({ title: 'Error', message: 'Equipo seleccionado no encontrado', color: 'red' });
+                setLoading(false);
+                return;
+            }
             
-            queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
-            onUpdate(updated);
-            showNotification({ title: 'Éxito', message: 'Equipo activado e instalación completada', color: 'green' });
-            close();
+            // Si es un equipo de Corp, usar el endpoint de activación de Corp
+            if (equipoSeleccionado.es_corp) {
+                const { activarEquipoCorp } = await import('../services/instalacionService');
+                const resultado = await activarEquipoCorp(instalacion.id_instalacion, equipoSeleccionado.nombre_equipo);
+                
+                if (resultado.success) {
+                    if (resultado.instalacion) {
+                        queryClient.setQueryData(['instalacion', instalacion.id_instalacion], resultado.instalacion);
+                        onUpdate(resultado.instalacion);
+                    }
+                    showNotification({ 
+                        title: 'Éxito', 
+                        message: resultado.message || 'Equipo activado e instalación completada', 
+                        color: resultado.warning ? 'yellow' : 'green' 
+                    });
+                    close();
+                } else {
+                    showNotification({ title: 'Error', message: resultado.message || 'Error al activar equipo', color: 'red' });
+                }
+            } else {
+                // Equipo local: usar el flujo normal
+                const equipoId = typeof equipoSeleccionado.id_equipo === 'number' 
+                    ? equipoSeleccionado.id_equipo 
+                    : parseInt(equipoSeleccionado.id_equipo);
+                
+                // Paso 1: Activar equipo
+                await activarEquipo(instalacion.id_instalacion, equipoId);
+                
+                // Paso 2: Instalar equipo con fecha personalizada si está disponible
+                const fechaInstalacionPersonalizada = usarFechaPersonalizada && fechaPersonalizada ? fechaPersonalizada : undefined;
+                const updated = await instalarEquipo(instalacion.id_instalacion, equipoId, fechaInstalacionPersonalizada);
+                
+                queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
+                onUpdate(updated);
+                showNotification({ title: 'Éxito', message: 'Equipo activado e instalación completada', color: 'green' });
+                close();
+            }
         } catch (error: any) {
             showNotification({ title: 'Error', message: error.response?.data?.error || 'Error en el proceso', color: 'red' });
         } finally {
@@ -1026,32 +1064,42 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
             )}
 
             {equipos.length > 0 && (
-                <Radio.Group value={selectedEquipo?.toString()} onChange={(val) => setSelectedEquipo(Number(val))}>
+                <Radio.Group value={selectedEquipo?.toString()} onChange={(val) => setSelectedEquipo(val)}>
                     <Stack gap="sm">
-                        {equipos.map((eq: any) => (
-                            <Paper key={eq.id_equipo} withBorder p="sm">
-                                <Radio
-                                    value={eq.id_equipo.toString()}
-                                    label={
-                                        <Box>
-                                            <Group gap="xs">
-                                                <Text fw={600}>{eq.equipo}</Text>
-                                                <Badge color={eq.estado ? 'green' : 'gray'} size="sm">
-                                                    {eq.estado ? 'Activo' : 'Inactivo'}
-                                                </Badge>
-                                                <Badge color={eq.alta === 'Aprobado' ? 'green' : eq.alta === 'Rechazado' ? 'red' : 'yellow'} size="sm">
-                                                    {eq.alta_str || eq.alta}
-                                                </Badge>
-                                            </Group>
-                                            <Text size="xs" c="dimmed">MAC: {eq.mac}</Text>
-                                            <Text size="xs" c="dimmed">Procesador: {eq.procesador}</Text>
-                                            <Text size="xs" c="dimmed">Placa: {eq.placa}</Text>
-                                            <Text size="xs" c="dimmed">Disco: {eq.disco}</Text>
-                                        </Box>
-                                    }
-                                />
-                            </Paper>
-                        ))}
+                        {equipos.map((eq: any) => {
+                            // Usar id_equipo si existe, sino usar nombre_equipo como identificador
+                            const equipoId = eq.id_equipo || eq.nombre_equipo || `equipo_${eq.mac}`;
+                            const equipoKey = eq.id_equipo || `corp_${eq.nombre_equipo}`;
+                            const equipoNombre = eq.equipo || eq.nombre_equipo || 'Sin nombre';
+                            
+                            return (
+                                <Paper key={equipoKey} withBorder p="sm">
+                                    <Radio
+                                        value={equipoId.toString()}
+                                        label={
+                                            <Box>
+                                                <Group gap="xs">
+                                                    <Text fw={600}>{equipoNombre}</Text>
+                                                    {eq.es_corp && (
+                                                        <Badge color="blue" size="sm">Corp</Badge>
+                                                    )}
+                                                    <Badge color={eq.estado ? 'green' : 'gray'} size="sm">
+                                                        {eq.estado ? 'Activo' : 'Inactivo'}
+                                                    </Badge>
+                                                    <Badge color={eq.alta === true || eq.alta === 'Aprobado' ? 'green' : eq.alta === 'Rechazado' ? 'red' : 'yellow'} size="sm">
+                                                        {eq.alta_str || (eq.alta === true ? 'Aprobado' : eq.alta === false ? 'Rechazado' : eq.estado_alta || 'Pendiente')}
+                                                    </Badge>
+                                                </Group>
+                                                {eq.mac && <Text size="xs" c="dimmed">MAC: {eq.mac}</Text>}
+                                                {eq.procesador && <Text size="xs" c="dimmed">Procesador: {eq.procesador}</Text>}
+                                                {eq.placa && <Text size="xs" c="dimmed">Placa: {eq.placa}</Text>}
+                                                {eq.disco && <Text size="xs" c="dimmed">Disco: {eq.disco}</Text>}
+                                            </Box>
+                                        }
+                                    />
+                                </Paper>
+                            );
+                        })}
                     </Stack>
                 </Radio.Group>
             )}

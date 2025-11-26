@@ -99,6 +99,7 @@ export interface PedidoList {
     monto_total: string;
     estado_general: {
         nombre_estado: string;
+        codigo_estado: string;
     };
     estado_credito: {
         nombre_estado: string;

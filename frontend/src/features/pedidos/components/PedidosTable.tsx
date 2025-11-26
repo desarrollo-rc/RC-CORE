@@ -26,7 +26,17 @@ interface PedidosTableProps {
 
 export function PedidosTable({ records, onView }: PedidosTableProps) {
     const getEstadoActual = (record: PedidoList) => {
-        // Si el crédito está pendiente, mostrar estado de crédito
+        // Prioridad 1: Si el pedido está cancelado, mostrar Cancelado
+        // (no importa el estado en logística, cobranza o si está pendiente)
+        if (record.estado_general?.codigo_estado === 'CANCELADO') {
+            return {
+                nombre: record.estado_general.nombre_estado,
+                color: 'red',
+                tipo: 'general'
+            };
+        }
+        
+        // Prioridad 2: Si el crédito está pendiente, mostrar estado de crédito
         if (record.estado_credito?.codigo_estado === 'PENDIENTE') {
             return {
                 nombre: record.estado_credito.nombre_estado,
@@ -34,7 +44,8 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
                 tipo: 'credito'
             };
         }
-        // Si está aprobado y tiene estado logístico, mostrar logístico
+        
+        // Prioridad 3: Si está aprobado y tiene estado logístico, mostrar logístico
         if (record.estado_logistico) {
             return {
                 nombre: record.estado_logistico.nombre_estado,
@@ -42,7 +53,8 @@ export function PedidosTable({ records, onView }: PedidosTableProps) {
                 tipo: 'logistico'
             };
         }
-        // Si no, mostrar estado general
+        
+        // Prioridad 4: Si no, mostrar estado general
         return {
             nombre: record.estado_general?.nombre_estado || 'N/A',
             color: record.estado_general?.nombre_estado === 'COMPLETADO' ? 'green' : 'blue',

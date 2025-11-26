@@ -1,4 +1,5 @@
 import os
+import re
 from time import perf_counter
 from playwright.sync_api import sync_playwright, Page
 from navegation_corp import go_to_usuarios
@@ -102,22 +103,50 @@ def asignar_canal_b2b(page: Page, codigo_usuario: str | None = None, nombre_usua
             buscar_y_abrir_usuario(page, codigo_usuario=codigo_usuario, nombre_usuario=nombre_usuario)
         else:
             raise ValueError("No estás en el detalle y no se entregaron parametros de búsqueda")
-
-    # Intentar presionar botón "Agregar" en el detalle
+    
+    # Esperar a que el detalle esté completamente cargado
+    page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=5000)
+    page.wait_for_timeout(500)
+    
+    # Cerrar cualquier modal que pueda estar abierto
     try:
-        agregar_btn = page.locator('a[onclick="VerInsertarUsuarios()"]')
-        if agregar_btn.first.is_visible():
-            agregar_btn.first.click()
+        # Cerrar modal de búsqueda si está abierto
+        modal_busqueda = page.locator("#modalResBuscarAgrupacionesUsuarios")
+        if modal_busqueda.is_visible():
+            page.get_by_role("button", name="Close").click()
             page.wait_for_timeout(300)
     except Exception:
         pass
-
-    # TODO: Completar los pasos de asignación de canal cuando definamos los selectores/flujo exactos
-    # Abrir formulario Agregar
+    
+    # Esperar a que no haya modales bloqueando
     try:
-        page.get_by_role("link", name=" Agregar").click()
+        page.wait_for_function("document.querySelectorAll('.modal.show').length === 0", timeout=3000)
     except Exception:
-        page.locator('a[onclick="VerInsertarUsuarios()"]').first.click()
+        # Si hay modales, intentar cerrarlos
+        try:
+            page.locator('.modal.show .close, .modal.show [data-dismiss="modal"]').first.click()
+            page.wait_for_timeout(300)
+        except Exception:
+            pass
+
+    # Abrir formulario Agregar - usar force=True si hay modales bloqueando
+    try:
+        agregar_btn = page.locator('a[onclick="VerInsertarUsuarios()"]').first
+        agregar_btn.wait_for(state="visible", timeout=5000)
+        # Intentar clic normal primero
+        try:
+            agregar_btn.click(timeout=5000)
+        except Exception:
+            # Si falla, usar force=True
+            agregar_btn.click(force=True)
+        page.wait_for_timeout(500)
+    except Exception as e:
+        # Si no funciona con el selector onclick, intentar con el texto
+        try:
+            page.get_by_role("link", name=re.compile("Agregar", re.I)).first.click(force=True)
+            page.wait_for_timeout(500)
+        except Exception:
+            raise Exception(f"No se pudo abrir el formulario de agregar: {str(e)}")
 
     # Trabajar estrictamente dentro del modal de inserción (el modal visible más reciente)
     insert_modal = page.locator("#formInsertarUsuario")
