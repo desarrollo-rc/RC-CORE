@@ -20,6 +20,11 @@ export function ClientesTable({ records, onView, onEdit, onDeactivate, onActivat
             <Table.Td>{record.vendedor?.usuario.nombre_completo || 'Sin Asignar'}</Table.Td>
             <Table.Td>{record.segmento_cliente.nombre_segmento_cliente}</Table.Td>
             <Table.Td>
+                <Badge color={record.cantidad_usuarios_b2b && record.cantidad_usuarios_b2b > 0 ? 'blue' : 'gray'} variant="light">
+                    {record.cantidad_usuarios_b2b || 0}
+                </Badge>
+            </Table.Td>
+            <Table.Td>
                 <Badge color={record.activo ? 'green' : 'gray'}>
                     {record.activo ? 'Activo' : 'Inactivo'}
                 </Badge>
@@ -47,12 +52,13 @@ export function ClientesTable({ records, onView, onEdit, onDeactivate, onActivat
                     <Table.Th>RUT</Table.Th>
                     <Table.Th>Vendedor</Table.Th>
                     <Table.Th>Segmento</Table.Th>
+                    <Table.Th>Usuarios B2B</Table.Th>
                     <Table.Th>Estado</Table.Th>
                     <Table.Th style={{ textAlign: 'right' }}>Acciones</Table.Th>
                 </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-                {rows.length > 0 ? rows : <Table.Tr><Table.Td colSpan={7}><Text c="dimmed" ta="center">No se encontraron clientes.</Text></Table.Td></Table.Tr>}
+                {rows.length > 0 ? rows : <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center">No se encontraron clientes.</Text></Table.Td></Table.Tr>}
             </Table.Tbody>
         </Table>
     );

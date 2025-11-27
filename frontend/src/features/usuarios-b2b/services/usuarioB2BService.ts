@@ -1,12 +1,12 @@
 // frontend/src/features/usuarios-b2b/services/usuarioB2BService.ts
 
 import apiClient from '../../../api/axios';
-import type { UsuarioB2B, CrearUsuarioB2BPayload, ActualizarUsuarioB2BPayload } from '../types';
+import type { UsuarioB2B, CrearUsuarioB2BPayload, ActualizarUsuarioB2BPayload, UsuarioB2BFilters, PaginatedUsuariosB2BResponse } from '../types';
 
 // ===== CRUD Básico =====
 
-export const getUsuariosB2B = async (): Promise<UsuarioB2B[]> => {
-    const response = await apiClient.get<UsuarioB2B[]>('/usuarios-b2b');
+export const getUsuariosB2B = async (filters?: UsuarioB2BFilters): Promise<PaginatedUsuariosB2BResponse> => {
+    const response = await apiClient.get<PaginatedUsuariosB2BResponse>('/usuarios-b2b', { params: filters });
     return response.data;
 };
 

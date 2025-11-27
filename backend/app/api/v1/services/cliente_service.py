@@ -106,8 +106,24 @@ class ClienteService:
     def get_all_customers(page, per_page, codigo_cliente=None, rut_cliente=None, nombre_cliente=None, vendedor_id=None, segmento_id=None, activo=None):
         """
         Obtener una lista paginada de todos los clientes con filtros opcionales
+        Incluye el conteo de usuarios B2B por cliente de manera eficiente usando una subquery
         """
-        query = MaestroClientes.query
+        from sqlalchemy import func
+        from app.models.entidades.usuarios_b2b import UsuarioB2B
+        
+        # Subquery para contar usuarios B2B por cliente (eficiente, se ejecuta una sola vez)
+        usuarios_count = db.session.query(
+            UsuarioB2B.id_cliente,
+            func.count(UsuarioB2B.id_usuario_b2b).label('cantidad_usuarios_b2b')
+        ).group_by(UsuarioB2B.id_cliente).subquery()
+        
+        # Query principal con LEFT JOIN para incluir el conteo
+        query = db.session.query(
+            MaestroClientes,
+            func.coalesce(usuarios_count.c.cantidad_usuarios_b2b, 0).label('cantidad_usuarios_b2b')
+        ).outerjoin(
+            usuarios_count, MaestroClientes.id_cliente == usuarios_count.c.id_cliente
+        )
         
         # Aplicar filtros si se proporcionan
         if codigo_cliente:
@@ -126,9 +142,35 @@ class ClienteService:
             # Por defecto, solo mostrar activos si no se especifica
             query = query.filter(MaestroClientes.activo == True)
         
-        paginated_customers = query.paginate(
-            page=page, per_page=per_page, error_out=False
+        # Paginar manualmente
+        total = query.count()
+        items = query.offset((page - 1) * per_page).limit(per_page).all()
+        
+        # Extraer clientes y agregar el conteo
+        clientes = []
+        for cliente, cantidad in items:
+            cliente.cantidad_usuarios_b2b = int(cantidad) if cantidad else 0
+            clientes.append(cliente)
+        
+        # Crear objeto paginado compatible con Flask-SQLAlchemy
+        # Usamos una clase simple que simula el comportamiento de Pagination
+        class PaginationResult:
+            def __init__(self, items, page, per_page, total):
+                self.items = items
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+                self.has_next = page < self.pages
+                self.has_prev = page > 1
+        
+        paginated_customers = PaginationResult(
+            items=clientes,
+            page=page,
+            per_page=per_page,
+            total=total
         )
+        
         return paginated_customers
     
     @staticmethod

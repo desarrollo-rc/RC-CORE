@@ -60,6 +60,7 @@ export function UsuarioB2BForm({ usuario, onSuccess }: UsuarioB2BFormProps) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['usuarios-b2b'] });
+            queryClient.invalidateQueries({ queryKey: ['usuarios-b2b-stats'] });
             notifications.show({
                 title: isEditing ? 'Usuario Actualizado' : 'Usuario Creado',
                 message: `El usuario B2B ha sido ${isEditing ? 'actualizado' : 'creado'} exitosamente.`,

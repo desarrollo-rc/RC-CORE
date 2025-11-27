@@ -48,6 +48,7 @@ export interface Cliente {
     linea_credito: number;
     b2b_habilitado: boolean;
     activo: boolean;
+    cantidad_usuarios_b2b?: number;
     // --- Relaciones anidadas ---
     tipo_cliente: { id_tipo_cliente: number; nombre_tipo_cliente: string; };
     segmento_cliente: { id_segmento_cliente: number; nombre_segmento_cliente: string; };

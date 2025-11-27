@@ -37,3 +37,24 @@ export interface ActualizarUsuarioB2BPayload {
     id_cliente?: number;
 }
 
+// Filtros para la búsqueda de usuarios B2B
+export type UsuarioB2BFilters = {
+    page?: number;
+    per_page?: number;
+    usuario?: string;
+    nombre_completo?: string;
+    id_cliente?: number;
+    activo?: boolean;
+};
+
+// Respuesta paginada de usuarios B2B
+export interface PaginatedUsuariosB2BResponse {
+    usuarios: UsuarioB2B[];
+    pagination: {
+        page: number;
+        pages: number;
+        per_page: number;
+        total: number;
+    };
+}
+

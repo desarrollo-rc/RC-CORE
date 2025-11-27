@@ -79,7 +79,7 @@ export function DetalleClienteModal({ opened, onClose, record }: DetalleClienteM
                                     </Table.Tr>
                                     <Table.Tr>
                                         <Table.Td><Text size="sm" c="dimmed">Condición de Pago</Text></Table.Td>
-                                        <Table.Td><Text size="sm">{record.condicion_pago.nombre_condicion_pago}</Text></Table.Td>
+                                        <Table.Td><Text size="sm">{record.condicion_pago?.nombre_condicion_pago || 'Sin asignar'}</Text></Table.Td>
                                     </Table.Tr>
                                     <Table.Tr>
                                         <Table.Td><Text size="sm" c="dimmed">Línea de Crédito</Text></Table.Td>

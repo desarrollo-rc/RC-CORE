@@ -5,8 +5,26 @@ from app.extensions import db
 
 class UsuarioB2BService:
     @staticmethod
-    def get_all_usuarios_b2b():
-        return UsuarioB2B.query.all()
+    def get_all_usuarios_b2b(page=1, per_page=15, usuario=None, nombre_completo=None, id_cliente=None, activo=None):
+        """
+        Obtener una lista paginada de todos los usuarios B2B con filtros opcionales
+        """
+        query = UsuarioB2B.query
+        
+        # Aplicar filtros si se proporcionan
+        if usuario:
+            query = query.filter(UsuarioB2B.usuario.ilike(f'%{usuario}%'))
+        if nombre_completo:
+            query = query.filter(UsuarioB2B.nombre_completo.ilike(f'%{nombre_completo}%'))
+        if id_cliente is not None:
+            query = query.filter(UsuarioB2B.id_cliente == id_cliente)
+        if activo is not None:
+            query = query.filter(UsuarioB2B.activo == activo)
+        
+        paginated_result = query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        return paginated_result
 
     @staticmethod
     def get_all_usuarios_b2b_active():

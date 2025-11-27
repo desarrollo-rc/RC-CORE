@@ -104,6 +104,7 @@ class ClienteResponseSchema(BaseClienteSchema):
     activo = fields.Bool(dump_only=True)
     fecha_creacion = fields.DateTime(dump_only=True)
     fecha_modificacion = fields.DateTime(dump_only=True)
+    cantidad_usuarios_b2b = fields.Int(dump_only=True, load_default=0)
     
     # Mostrar el objeto completo en lugar de solo los códigos
     tipo_cliente = fields.Nested(TipoClienteResponseSchema(), dump_only=True)

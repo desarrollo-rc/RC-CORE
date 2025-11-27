@@ -13,8 +13,50 @@ usuarios_b2b_bp = Blueprint('usuarios_b2b_bp', __name__)
 @jwt_required()
 @permission_required('usuarios_b2b:listar')
 def get_usuarios_b2b():
-    usuarios_b2b = UsuarioB2BService.get_all_usuarios_b2b()
-    return jsonify(usuarios_b2b_schema_list.dump(usuarios_b2b)), 200
+    """
+    Endpoint para listar todos los usuarios B2B con paginación y filtros.
+    Acepta los parámetros de consulta:
+    - page, per_page (paginación)
+    - usuario (búsqueda por nombre de usuario)
+    - nombre_completo (búsqueda por nombre completo)
+    - id_cliente (filtro por cliente)
+    - activo (filtro por estado: true/false)
+    """
+    from app.api.v1.schemas.cliente_schemas import PaginationSchema
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 15, type=int)
+    
+    # Filtros de búsqueda
+    usuario = request.args.get('usuario', None)
+    nombre_completo = request.args.get('nombre_completo', None)
+    
+    # Filtros por ID
+    id_cliente = request.args.get('id_cliente', None, type=int)
+    
+    # Filtro por estado
+    activo_param = request.args.get('activo', None)
+    activo = None
+    if activo_param is not None:
+        activo = activo_param.lower() == 'true'
+    
+    paginated_result = UsuarioB2BService.get_all_usuarios_b2b(
+        page=page,
+        per_page=per_page,
+        usuario=usuario,
+        nombre_completo=nombre_completo,
+        id_cliente=id_cliente,
+        activo=activo
+    )
+    
+    usuarios_data = usuarios_b2b_schema_list.dump(paginated_result.items)
+    pagination_schema = PaginationSchema()
+    pagination_data = pagination_schema.dump(paginated_result)
+    
+    return jsonify({
+        'usuarios': usuarios_data,
+        'pagination': pagination_data
+    }), 200
 
 @usuarios_b2b_bp.route('/<int:usuario_b2b_id>', methods=['GET'])
 @jwt_required()

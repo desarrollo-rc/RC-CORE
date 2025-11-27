@@ -1,6 +1,6 @@
 // frontend/src/features/clientes/pages/ClientesPage.tsx
 import { useEffect, useState } from 'react';
-import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput, Pagination, Select, Collapse, Paper } from '@mantine/core';
+import { Box, Title, Group, Alert, Center, Loader, Modal, Button, Text, Stack, TextInput, Pagination, Select, Collapse, Paper, Badge } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -69,6 +69,7 @@ export function ClientesPage() {
     const [filtersOpened, { toggle: toggleFilters }] = useDisclosure(true);
     const [vendedorOptions, setVendedorOptions] = useState<{ value: string; label: string }[]>([]);
     const [segmentoOptions, setSegmentoOptions] = useState<{ value: string; label: string }[]>([]);
+    const [statsClientes, setStatsClientes] = useState<{ activos: number; inactivos: number } | null>(null);
 
     const fetchData = async () => {
         try {
@@ -100,13 +101,15 @@ export function ClientesPage() {
 
     useEffect(() => { fetchData(); }, [filters]);
 
-    // Cargar opciones para los filtros
+    // Cargar opciones para los filtros y estadísticas
     useEffect(() => {
         (async () => {
             try {
-                const [vendedoresResp, segmentosResp] = await Promise.all([
+                const [vendedoresResp, segmentosResp, activosResp, inactivosResp] = await Promise.all([
                     getVendedores(),
                     getSegmentosCliente(),
+                    getClientes({ page: 1, per_page: 1, activo: true }),
+                    getClientes({ page: 1, per_page: 1, activo: false }),
                 ]);
                 setVendedorOptions(
                     (vendedoresResp || []).map(v => ({ value: v.id_vendedor.toString(), label: v.usuario.nombre_completo }))
@@ -114,6 +117,10 @@ export function ClientesPage() {
                 setSegmentoOptions(
                     (segmentosResp || []).map(s => ({ value: s.id_segmento_cliente.toString(), label: s.nombre_segmento_cliente }))
                 );
+                setStatsClientes({
+                    activos: activosResp.pagination?.total || 0,
+                    inactivos: inactivosResp.pagination?.total || 0,
+                });
             } catch (e) {
                 // silencio: filtros siguen funcionando manualmente
             }
@@ -227,6 +234,15 @@ export function ClientesPage() {
                                 try {
                                     await deactivateCliente(record.id_cliente, motivo);
                                     await fetchData();
+                                    // Actualizar estadísticas
+                                    const [activosResp, inactivosResp] = await Promise.all([
+                                        getClientes({ page: 1, per_page: 1, activo: true }),
+                                        getClientes({ page: 1, per_page: 1, activo: false }),
+                                    ]);
+                                    setStatsClientes({
+                                        activos: activosResp.pagination?.total || 0,
+                                        inactivos: inactivosResp.pagination?.total || 0,
+                                    });
                                     notifications.show({ title: 'Éxito', message: 'Cliente desactivado.', color: 'orange' });
                                     modals.closeAll();
                                 } catch (error) {
@@ -251,6 +267,15 @@ export function ClientesPage() {
                 try {
                     await activateCliente(record.id_cliente);
                     await fetchData();
+                    // Actualizar estadísticas
+                    const [activosResp, inactivosResp] = await Promise.all([
+                        getClientes({ page: 1, per_page: 1, activo: true }),
+                        getClientes({ page: 1, per_page: 1, activo: false }),
+                    ]);
+                    setStatsClientes({
+                        activos: activosResp.pagination?.total || 0,
+                        inactivos: inactivosResp.pagination?.total || 0,
+                    });
                     notifications.show({ title: 'Éxito', message: 'Cliente activado.', color: 'green' });
                 } catch(error) {
                     notifications.show({ title: 'Error', message: getApiErrorMessage(error, 'No se pudo activar.'), color: 'red' });
@@ -272,7 +297,7 @@ export function ClientesPage() {
         id_segmento_cliente: editingRecord.segmento_cliente.id_segmento_cliente.toString(),
         id_tipo_negocio: editingRecord.tipo_negocio.id_tipo_negocio.toString(),
         id_lista_precios: editingRecord.lista_precios.id_lista_precios.toString(),
-        id_condicion_pago: editingRecord.condicion_pago.id_condicion_pago.toString(),
+        id_condicion_pago: editingRecord.condicion_pago?.id_condicion_pago.toString() || null,
         id_vendedor: editingRecord.vendedor?.id_vendedor.toString() || null,
         ids_empresa: editingRecord.empresas.map(e => e.id_empresa.toString()),
         contactos: editingRecord.contactos || [],
@@ -289,7 +314,19 @@ export function ClientesPage() {
     return (
         <Box>
             <Group justify="space-between" mb="xl">
-                <Title order={2}>Gestión de Clientes</Title>
+                <Group gap="md">
+                    <Title order={2}>Gestión de Clientes</Title>
+                    {statsClientes && (
+                        <Group gap="xs">
+                            <Badge color="green" size="lg" variant="light">
+                                Activos: {statsClientes.activos}
+                            </Badge>
+                            <Badge color="red" size="lg" variant="light">
+                                Inactivos: {statsClientes.inactivos}
+                            </Badge>
+                        </Group>
+                    )}
+                </Group>
                 <Group>
                     <Button
                         variant="outline"
