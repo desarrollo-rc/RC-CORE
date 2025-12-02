@@ -937,24 +937,80 @@ function GestionarEquipoForm({ instalacion, onUpdate, close }: { instalacion: In
                 return;
             }
             
-            // Si es un equipo de Corp, usar el endpoint de activación de Corp
+            // Si es un equipo de Corp, verificar su estado
             if (equipoSeleccionado.es_corp) {
-                const { activarEquipoCorp } = await import('../services/instalacionService');
-                const resultado = await activarEquipoCorp(instalacion.id_instalacion, equipoSeleccionado.nombre_equipo);
+                // Verificar si el equipo está activo y aprobado
+                const estaActivo = equipoSeleccionado.estado === true || equipoSeleccionado.estado === 'true' || equipoSeleccionado.estado === 1;
+                const estaAprobado = equipoSeleccionado.alta === true || 
+                                    equipoSeleccionado.alta_str?.toLowerCase() === 'aprobado' ||
+                                    equipoSeleccionado.estado_alta?.toLowerCase() === 'aprobado';
                 
-                if (resultado.success) {
-                    if (resultado.instalacion) {
-                        queryClient.setQueryData(['instalacion', instalacion.id_instalacion], resultado.instalacion);
-                        onUpdate(resultado.instalacion);
+                if (estaActivo && estaAprobado) {
+                    // El equipo ya está activo y aprobado en Corp
+                    // Crear el equipo en el sistema local (si no existe) con estado activo y aprobado
+                    try {
+                        const equipoData = {
+                            nombre_equipo: equipoSeleccionado.nombre_equipo || equipoSeleccionado.equipo,
+                            mac_address: equipoSeleccionado.mac || '',
+                            procesador: equipoSeleccionado.procesador || '',
+                            placa_madre: equipoSeleccionado.placa || '',
+                            disco_duro: equipoSeleccionado.disco || '',
+                            estado: true,
+                            estado_alta: 'APROBADO',
+                            fecha_creacion_personalizada: usarFechaPersonalizada && fechaPersonalizada ? fechaPersonalizada : undefined
+                        };
+                        
+                        // El backend retornará el equipo existente si ya existe, o creará uno nuevo
+                        const equipoCreado = await crearEquipoInstalacion(instalacion.id_instalacion, equipoData);
+                        
+                        // Obtener el ID del equipo (puede ser el creado o el existente)
+                        // El schema retorna el equipo directamente con id_equipo
+                        const equipoId = equipoCreado.id_equipo;
+                        
+                        if (!equipoId) {
+                            showNotification({ title: 'Error', message: 'No se pudo obtener el ID del equipo', color: 'red' });
+                            setLoading(false);
+                            return;
+                        }
+                        
+                        // Instalar el equipo directamente (ya está activo y aprobado)
+                        const fechaInstalacionPersonalizada = usarFechaPersonalizada && fechaPersonalizada ? fechaPersonalizada : undefined;
+                        const updated = await instalarEquipo(instalacion.id_instalacion, equipoId, fechaInstalacionPersonalizada);
+                        
+                        queryClient.setQueryData(['instalacion', instalacion.id_instalacion], updated);
+                        onUpdate(updated);
+                        showNotification({ 
+                            title: 'Éxito', 
+                            message: 'Equipo creado e instalación completada (equipo ya estaba activo y aprobado en Corp)', 
+                            color: 'green' 
+                        });
+                        close();
+                    } catch (error: any) {
+                        showNotification({ 
+                            title: 'Error', 
+                            message: error.response?.data?.error || 'Error al crear/instalar equipo', 
+                            color: 'red' 
+                        });
                     }
-                    showNotification({ 
-                        title: 'Éxito', 
-                        message: resultado.message || 'Equipo activado e instalación completada', 
-                        color: resultado.warning ? 'yellow' : 'green' 
-                    });
-                    close();
                 } else {
-                    showNotification({ title: 'Error', message: resultado.message || 'Error al activar equipo', color: 'red' });
+                    // El equipo no está activo o no está aprobado, ejecutar automatización
+                    const { activarEquipoCorp } = await import('../services/instalacionService');
+                    const resultado = await activarEquipoCorp(instalacion.id_instalacion, equipoSeleccionado.nombre_equipo);
+                    
+                    if (resultado.success) {
+                        if (resultado.instalacion) {
+                            queryClient.setQueryData(['instalacion', instalacion.id_instalacion], resultado.instalacion);
+                            onUpdate(resultado.instalacion);
+                        }
+                        showNotification({ 
+                            title: 'Éxito', 
+                            message: resultado.message || 'Equipo activado e instalación completada', 
+                            color: resultado.warning ? 'yellow' : 'green' 
+                        });
+                        close();
+                    } else {
+                        showNotification({ title: 'Error', message: resultado.message || 'Error al activar equipo', color: 'red' });
+                    }
                 }
             } else {
                 // Equipo local: usar el flujo normal

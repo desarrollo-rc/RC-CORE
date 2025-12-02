@@ -23,6 +23,31 @@ class EquipoService:
         from datetime import datetime
         usuario_b2b = UsuarioB2BService.get_usuario_b2b_by_id(data['id_usuario_b2b'])
         
+        # Verificar si el equipo ya existe
+        equipo_existente = Equipo.query.filter_by(
+            id_usuario_b2b=data['id_usuario_b2b'],
+            nombre_equipo=data['nombre_equipo']
+        ).first()
+        
+        if equipo_existente:
+            # Si se proporcionan estado y estado_alta, actualizar el equipo existente
+            if 'estado' in data and data['estado'] is not None:
+                equipo_existente.estado = data['estado']
+            if 'estado_alta' in data and data['estado_alta']:
+                estado_alta_str = data['estado_alta']
+                equipo_existente.estado_alta = EstadoAltaEquipo[estado_alta_str]
+            db.session.commit()
+            return equipo_existente
+        
+        # Determinar estado y estado_alta
+        estado = data.get('estado', False)
+        estado_alta_str = data.get('estado_alta')
+        
+        if estado_alta_str:
+            estado_alta = EstadoAltaEquipo[estado_alta_str]
+        else:
+            estado_alta = EstadoAltaEquipo.PENDIENTE
+        
         nuevo_equipo = Equipo(
             id_usuario_b2b=data['id_usuario_b2b'],
             nombre_equipo=data['nombre_equipo'],
@@ -30,8 +55,8 @@ class EquipoService:
             procesador=data['procesador'],
             placa_madre=data['placa_madre'],
             disco_duro=data['disco_duro'],
-            estado_alta=EstadoAltaEquipo.PENDIENTE,
-            estado=False
+            estado_alta=estado_alta,
+            estado=estado
         )
         
         # Establecer fecha de creación personalizada si se proporciona

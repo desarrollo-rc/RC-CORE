@@ -98,6 +98,9 @@ export const crearEquipoInstalacion = async (id: number, equipoData: {
     procesador: string;
     placa_madre: string;
     disco_duro: string;
+    estado?: boolean;
+    estado_alta?: string;
+    fecha_creacion_personalizada?: string;
 }): Promise<any> => {
     const response = await apiClient.post(`/instalaciones/${id}/crear-equipo`, equipoData);
     return response.data;
