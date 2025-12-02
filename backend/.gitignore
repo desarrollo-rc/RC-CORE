@@ -5,3 +5,6 @@ __pycache__/
 instance/
 *.pyc
 archivos_extraidos/
+backups/
+*.sql
+*.sql.gz
