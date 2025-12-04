@@ -315,62 +315,214 @@ def activar_equipo(page: Page, codigo_usuario: str, nombre_equipo: str | None = 
             text = opt.inner_text().strip()
             print(f"[DEBUG]   Opción {i}: value='{value}', text='{text}'")
         
-        # Seleccionar "Aprobar" por texto (el valor puede ser "0" o diferente)
-        # Intentar primero por texto, luego por valor
-        try:
-            page.locator("#ddlAlta").select_option(label="Aprobar")
-            print("[DEBUG] Seleccionado 'Aprobar' por label")
-        except Exception:
-            # Si no funciona por label, intentar por valor "0"
-            try:
-                page.locator("#ddlAlta").select_option("0")
-                print("[DEBUG] Seleccionado por valor '0'")
-            except Exception:
-                # Si tampoco funciona, intentar con "1" (puede estar invertido)
-                page.locator("#ddlAlta").select_option("1")
-                print("[DEBUG] Seleccionado por valor '1'")
-        page.wait_for_timeout(300)
-        
-        # Verificar que se seleccionó correctamente leyendo el texto seleccionado
+        # Seleccionar "Aprobar" - usar el valor "1" basado en los logs
         select_element = page.locator("#ddlAlta")
+        
+        # Primero asegurarse de que el dropdown esté en un estado limpio
+        try:
+            select_element.click()
+            page.wait_for_timeout(200)
+        except:
+            pass
+        
+        # Seleccionar "Aprobar" usando el valor "1" que sabemos que funciona
+        try:
+            select_element.select_option("1")  # Valor "1" = "Aprobar" según los logs
+            print("[DEBUG] Seleccionado 'Aprobar' por valor '1'")
+        except Exception as e:
+            print(f"[DEBUG] Error al seleccionar por valor: {str(e)}")
+            # Intentar por label como fallback
+            try:
+                select_element.select_option(label="Aprobar")
+                print("[DEBUG] Seleccionado 'Aprobar' por label")
+            except:
+                raise Exception("No se pudo seleccionar 'Aprobar' en el dropdown")
+        
+        # Esperar y verificar que se seleccionó correctamente
+        page.wait_for_timeout(500)
         selected_text = select_element.locator("option:checked").inner_text().strip()
         selected_value = select_element.input_value()
         print(f"[DEBUG] Texto seleccionado: '{selected_text}', Valor: '{selected_value}'")
         
-        if "aprobar" not in selected_text.lower() and "rechazar" in selected_text.lower():
-            print(f"[WARNING] Se seleccionó 'Rechazar' en vez de 'Aprobar'. Corrigiendo...")
-            # Si se seleccionó rechazar, intentar con el otro valor
-            if selected_value == "0":
-                page.locator("#ddlAlta").select_option("1")
-            elif selected_value == "1":
-                page.locator("#ddlAlta").select_option("0")
-            else:
-                # Intentar por texto directamente
-                page.locator("#ddlAlta").select_option(label="Aprobar")
-            page.wait_for_timeout(300)
-            # Verificar de nuevo
-            selected_text = select_element.locator("option:checked").inner_text().strip()
-            print(f"[DEBUG] Después de corregir - Texto seleccionado: '{selected_text}'")
+        # Verificar que no esté en "Seleccione.." (valor vacío)
+        if selected_value == "" or "seleccione" in selected_text.lower():
+            raise Exception("El dropdown quedó en 'Seleccione..'. No se pudo seleccionar 'Aprobar'")
         
-        # Llenar comentario
+        # Verificar que se seleccionó Aprobar y no Rechazar
+        if "rechazar" in selected_text.lower():
+            print(f"[WARNING] Se seleccionó 'Rechazar' en vez de 'Aprobar'. Corrigiendo...")
+            # Si el valor "1" es Rechazar, entonces "0" debe ser Aprobar
+            if selected_value == "1":
+                select_element.select_option("0")
+            elif selected_value == "0":
+                select_element.select_option("1")
+            page.wait_for_timeout(300)
+            selected_text = select_element.locator("option:checked").inner_text().strip()
+            selected_value = select_element.input_value()
+            print(f"[DEBUG] Después de corregir - Texto: '{selected_text}', Valor: '{selected_value}'")
+        
+        # Disparar evento de cambio para asegurar que el formulario detecte el cambio
+        try:
+            select_element.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+            page.wait_for_timeout(300)
+        except:
+            pass
+        
+        # Esperar un momento para que aparezcan todos los campos después de seleccionar el dropdown
+        page.wait_for_timeout(500)
+        
+        # Llenar comentario - intentar múltiples métodos para asegurar que se llene
         textarea_alta = page.locator("textarea[name=\"mensajeAlta\"]")
         textarea_alta.wait_for(state="visible", timeout=3000)
-        textarea_alta.click()
-        textarea_alta.fill(comentario_rc_core)
-        page.wait_for_timeout(200)
+        
+        # Intentar llenar el campo usando diferentes métodos
+        comentario_llenado = False
+        for intento in range(3):
+            try:
+                textarea_alta.click()
+                page.wait_for_timeout(100)
+                textarea_alta.clear()
+                page.wait_for_timeout(100)
+                textarea_alta.fill(comentario_rc_core)
+                page.wait_for_timeout(200)
+                
+                # Verificar que se llenó
+                texto_comentario = textarea_alta.input_value()
+                if texto_comentario and texto_comentario.strip() != "":
+                    comentario_llenado = True
+                    print(f"[DEBUG] Comentario llenado en intento {intento + 1}: '{texto_comentario[:50]}...'")
+                    break
+                else:
+                    # Intentar con type en lugar de fill
+                    textarea_alta.clear()
+                    textarea_alta.type(comentario_rc_core, delay=50)
+                    page.wait_for_timeout(200)
+                    texto_comentario = textarea_alta.input_value()
+                    if texto_comentario and texto_comentario.strip() != "":
+                        comentario_llenado = True
+                        print(f"[DEBUG] Comentario llenado con type() en intento {intento + 1}")
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error en intento {intento + 1} de llenar comentario: {str(e)}")
+        
+        if not comentario_llenado:
+            raise Exception("No se pudo llenar el campo de comentario después de 3 intentos")
+        
+        # Verificar si hay otros campos requeridos visibles antes de guardar
+        campos_requeridos = page.locator("input[required]:visible, select[required]:visible, textarea[required]:visible")
+        cantidad_requeridos = campos_requeridos.count()
+        if cantidad_requeridos > 0:
+            print(f"[DEBUG] Verificando {cantidad_requeridos} campos marcados como requeridos")
+            for i in range(cantidad_requeridos):
+                campo = campos_requeridos.nth(i)
+                if campo.is_visible():
+                    campo_name = campo.get_attribute("name") or campo.get_attribute("id") or "desconocido"
+                    campo_value = ""
+                    try:
+                        campo_value = campo.input_value() or ""
+                    except:
+                        try:
+                            campo_value = campo.inner_text() or ""
+                        except:
+                            campo_value = "no disponible"
+                    print(f"[DEBUG] Campo requerido {i+1}: name/id={campo_name}, valor='{campo_value[:50]}'")
+        
+        # Verificación final antes de guardar: asegurarse de que el dropdown tiene un valor válido
+        final_dropdown_value = select_element.input_value()
+        final_dropdown_text = select_element.locator("option:checked").inner_text().strip()
+        
+        if final_dropdown_value == "" or "seleccione" in final_dropdown_text.lower():
+            raise Exception(f"El dropdown está en estado inválido antes de guardar: valor='{final_dropdown_value}', texto='{final_dropdown_text}'")
+        
+        # Verificación final del comentario
+        final_comentario = textarea_alta.input_value()
+        if not final_comentario or final_comentario.strip() == "":
+            raise Exception("El comentario está vacío antes de guardar")
+        
+        print(f"[DEBUG] Verificación pre-guardar: dropdown='{final_dropdown_text}' (valor: {final_dropdown_value}), comentario='{final_comentario[:30]}...'")
         
         # Buscar y hacer clic en el botón Guardar
-        # Usar el ID específico del botón
         btn_guardar = page.locator("#btnModificarAlta")
         btn_guardar.wait_for(state="visible", timeout=3000)
         btn_guardar.scroll_into_view_if_needed()
+        page.wait_for_timeout(300)
+        
+        # Verificar que el botón no esté deshabilitado
+        if btn_guardar.is_disabled():
+            raise Exception("El botón Guardar está deshabilitado. Verifique que todos los campos requeridos estén completados.")
+        
+        # Hacer clic en el botón y esperar respuesta
+        print("[DEBUG] Haciendo clic en el botón Guardar...")
         btn_guardar.click()
         
-        # Esperar a que el modal se cierre
-        page.wait_for_selector("#formModificarAlta", state="hidden", timeout=10000)
+        # Esperar a que el modal se cierre - PRIORIDAD: verificar si se cerró antes de buscar errores
+        modal_cerrado = False
+        try:
+            page.wait_for_selector("#formModificarAlta", state="hidden", timeout=8000)
+            modal_cerrado = True
+            print("[DEBUG] Modal de Alta Equipo se cerró exitosamente")
+        except Exception:
+            # Verificar si el modal sigue visible
+            if page.locator("#formModificarAlta").is_visible():
+                print("[DEBUG] El modal sigue visible después de hacer clic en Guardar")
+                # Esperar un poco más por si el cierre es lento
+                page.wait_for_timeout(2000)
+                if page.locator("#formModificarAlta").is_visible():
+                    # Si todavía está visible, intentar cerrar manualmente
+                    try:
+                        close_btn = page.locator("#formModificarAlta button.close, #formModificarAlta [data-dismiss='modal']").first
+                        if close_btn.is_visible():
+                            close_btn.click()
+                            page.wait_for_timeout(500)
+                            modal_cerrado = True
+                            print("[DEBUG] Modal cerrado manualmente")
+                    except:
+                        pass
+                else:
+                    modal_cerrado = True
+            else:
+                modal_cerrado = True
+        
+        # Solo si el modal NO se cerró, buscar errores y lanzar excepción
+        if not modal_cerrado:
+            print("[DEBUG] El modal no se cerró, buscando mensajes de error...")
+            error_message = ""
+            error_selectors = [
+                ".error:visible", 
+                ".alert-danger:visible", 
+                ".validation-error:visible", 
+                ".field-error:visible", 
+                "[role='alert']:visible",
+                ".text-danger:visible",
+                ".alert:visible"
+            ]
+            
+            for selector in error_selectors:
+                try:
+                    error_elements = page.locator(selector)
+                    if error_elements.count() > 0:
+                        for i in range(min(error_elements.count(), 5)):
+                            error_elem = error_elements.nth(i)
+                            if error_elem.is_visible():
+                                error_text = error_elem.inner_text().strip()
+                                if error_text and len(error_text) > 0:
+                                    print(f"[DEBUG] Mensaje de error encontrado ({selector}): '{error_text}'")
+                                    if not error_message:
+                                        error_message = error_text
+                except:
+                    pass
+            
+            if error_message:
+                raise Exception(f"Error de validación en el formulario: {error_message}")
+            else:
+                raise Exception("El formulario no se cerró después de guardar. Verifique que todos los campos requeridos estén completados.")
+        
+        print("[DEBUG] Paso 1 completado: Alta Equipo aprobada exitosamente")
         page.wait_for_timeout(500)
         
         # PASO 2: Gestionar Estado Equipo - Activo
+        print("[DEBUG] Iniciando Paso 2: Gestionar Estado Equipo")
+        
         # Reabrir el menú de la fila
         fila.get_by_role("link").first.click()
         page.wait_for_timeout(300)
@@ -382,86 +534,230 @@ def activar_equipo(page: Page, codigo_usuario: str, nombre_equipo: str | None = 
         page.wait_for_timeout(300)
         
         # Seleccionar "1" para activo
-        page.locator("#ddlActivo").select_option("1")
+        select_estado = page.locator("#ddlActivo")
+        select_estado.select_option("1")
         page.wait_for_timeout(300)
         
         # Verificar que se seleccionó correctamente
-        selected_value = page.locator("#ddlActivo").input_value()
+        selected_value = select_estado.input_value()
         if selected_value != "1":
             print(f"[WARNING] El valor seleccionado es '{selected_value}', esperado '1'. Reintentando...")
-            page.locator("#ddlActivo").select_option("1")
+            select_estado.select_option("1")
             page.wait_for_timeout(300)
+            selected_value = select_estado.input_value()
         
-        # Llenar comentario (si existe el textarea)
+        print(f"[DEBUG] Estado seleccionado: valor='{selected_value}'")
+        
+        # Disparar evento de cambio
         try:
-            textarea_estado = page.locator("textarea[name='mensajeEstado'], textarea[name='comentarioEstado']")
-            if textarea_estado.is_visible():
-                textarea_estado.click()
-                textarea_estado.fill(comentario_rc_core)
-                page.wait_for_timeout(200)
-        except Exception:
-            # Si no existe el textarea, continuar sin comentario
+            select_estado.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+            page.wait_for_timeout(300)
+        except:
             pass
         
-        # Buscar y hacer clic en el botón Guardar
-        # Usar el ID específico del botón (probablemente btnModificarEstado)
-        try:
-            btn_guardar = page.locator("#btnModificarEstado")
-            btn_guardar.wait_for(state="visible", timeout=3000)
-            btn_guardar.scroll_into_view_if_needed()
-            
-            # Esperar a que la petición se complete después del clic
-            with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                btn_guardar.click()
-        except Exception:
-            # Si no existe btnModificarEstado, intentar otros selectores
-            try:
-                btn_alt = page.locator("button[type='submit']").filter(has_text="Guardar").first
-                btn_alt.wait_for(state="visible", timeout=3000)
-                with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                    btn_alt.click()
-            except Exception:
-                btn_alt2 = page.get_by_role("button", name=re.compile("Guardar", re.I))
-                btn_alt2.wait_for(state="visible", timeout=3000)
-                with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                    btn_alt2.click()
+        # Esperar a que aparezcan todos los campos
+        page.wait_for_timeout(500)
         
-        # Esperar un momento para que procese la respuesta
-        page.wait_for_timeout(1000)
-        
-        # Verificar si hay mensajes de error visibles antes de esperar que se cierre
+        # Debug: listar todos los textareas disponibles en el formulario
         try:
-            # Buscar mensajes de error comunes
-            error_messages = page.locator(".error, .alert-danger, .validation-error, .field-error, [role='alert']")
-            if error_messages.count() > 0:
-                error_text = ""
-                for i in range(min(error_messages.count(), 3)):  # Revisar hasta 3 mensajes
-                    if error_messages.nth(i).is_visible():
-                        error_text += error_messages.nth(i).inner_text() + "; "
-                if error_text:
-                    raise Exception(f"Error de validación en el formulario: {error_text.strip()}")
-        except Exception as e:
-            if "Error de validación" in str(e):
-                raise e
-            # Si no hay errores visibles, continuar
-        
-        # Esperar a que el modal se cierre (con un timeout más corto ya que esperamos la respuesta)
-        try:
-            page.wait_for_selector("#formModificarEstado", state="hidden", timeout=5000)
-        except Exception:
-            # Si el formulario no se cierra, puede ser que necesite cerrarse manualmente o hay un error
-            # Verificar si el formulario aún está visible y si hay algún error
-            if page.locator("#formModificarEstado").is_visible():
-                # Intentar cerrar manualmente si hay un botón de cerrar
+            all_textareas = page.locator("#formModificarEstado textarea, .modal.show textarea")
+            count = all_textareas.count()
+            print(f"[DEBUG] Total de textareas encontrados en el formulario de estado: {count}")
+            for i in range(count):
                 try:
-                    page.get_by_role("button", name=re.compile("Cerrar|Close|Cancelar", re.I)).first.click()
-                    page.wait_for_timeout(500)
-                except Exception:
+                    ta = all_textareas.nth(i)
+                    name_attr = ta.get_attribute("name") or "sin nombre"
+                    id_attr = ta.get_attribute("id") or "sin id"
+                    is_vis = ta.is_visible()
+                    print(f"[DEBUG] Textarea {i+1}: name='{name_attr}', id='{id_attr}', visible={is_vis}")
+                except:
                     pass
-                # Verificar nuevamente si se cerró
-                if page.locator("#formModificarEstado").is_visible():
-                    raise Exception("El formulario no se cerró después de guardar. Puede haber un error de validación.")
+        except:
+            pass
         
+        # Llenar comentario - buscar el textarea con múltiples selectores posibles
+        textarea_estado = None
+        
+        # Lista de selectores posibles para el textarea de comentario
+        selectores_textarea = [
+            "textarea[name='mensajeEstado']",
+            "textarea[name='comentarioEstado']",
+            "textarea[name='mensaje']",
+            "#formModificarEstado textarea",
+            "form#formModificarEstado textarea",
+            ".modal.show textarea",
+            "#formModificarEstado textarea[name]"
+        ]
+        
+        # Buscar el textarea dentro del formulario de estado
+        for selector in selectores_textarea:
+            try:
+                textarea_candidate = page.locator(selector)
+                if textarea_candidate.count() > 0:
+                    # Verificar que al menos uno sea visible
+                    for i in range(textarea_candidate.count()):
+                        if textarea_candidate.nth(i).is_visible(timeout=1000):
+                            textarea_estado = textarea_candidate.nth(i)
+                            name_attr = textarea_estado.get_attribute("name") or "sin nombre"
+                            print(f"[DEBUG] Textarea encontrado usando selector '{selector}': name='{name_attr}'")
+                            break
+                    if textarea_estado:
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error con selector '{selector}': {str(e)}")
+                continue
+        
+        # Si no se encontró, buscar cualquier textarea visible en el modal
+        if not textarea_estado:
+            try:
+                all_textareas = page.locator("#formModificarEstado textarea, .modal.show textarea")
+                if all_textareas.count() > 0:
+                    for i in range(all_textareas.count()):
+                        ta = all_textareas.nth(i)
+                        if ta.is_visible(timeout=1000):
+                            textarea_estado = ta
+                            name_attr = textarea_estado.get_attribute("name") or "sin nombre"
+                            print(f"[DEBUG] Textarea encontrado buscando todos los textareas del modal: name='{name_attr}'")
+                            break
+            except Exception as e:
+                print(f"[DEBUG] Error buscando textareas del modal: {str(e)}")
+        
+        if not textarea_estado:
+            # Último intento: buscar cualquier textarea en la página que esté visible
+            try:
+                all_visible_textareas = page.locator("textarea:visible")
+                if all_visible_textareas.count() > 0:
+                    textarea_estado = all_visible_textareas.first
+                    name_attr = textarea_estado.get_attribute("name") or "sin nombre"
+                    print(f"[DEBUG] Textarea encontrado buscando textareas visibles en la página: name='{name_attr}'")
+            except:
+                pass
+        
+        if not textarea_estado:
+            raise Exception("No se pudo encontrar el textarea de comentario en el formulario de estado")
+        
+        # Esperar a que sea visible
+        textarea_estado.wait_for(state="visible", timeout=3000)
+        
+        # Intentar llenar el comentario usando múltiples métodos
+        comentario_estado_llenado = False
+        for intento in range(3):
+            try:
+                textarea_estado.click()
+                page.wait_for_timeout(100)
+                textarea_estado.clear()
+                page.wait_for_timeout(100)
+                textarea_estado.fill(comentario_rc_core)
+                page.wait_for_timeout(200)
+                
+                # Verificar que se llenó
+                texto_comentario = textarea_estado.input_value()
+                if texto_comentario and texto_comentario.strip() != "":
+                    comentario_estado_llenado = True
+                    print(f"[DEBUG] Comentario de estado llenado en intento {intento + 1}: '{texto_comentario[:50]}...'")
+                    break
+                else:
+                    # Intentar con type
+                    textarea_estado.clear()
+                    textarea_estado.type(comentario_rc_core, delay=50)
+                    page.wait_for_timeout(200)
+                    texto_comentario = textarea_estado.input_value()
+                    if texto_comentario and texto_comentario.strip() != "":
+                        comentario_estado_llenado = True
+                        print(f"[DEBUG] Comentario de estado llenado con type() en intento {intento + 1}")
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error en intento {intento + 1} de llenar comentario de estado: {str(e)}")
+        
+        if not comentario_estado_llenado:
+            raise Exception("No se pudo llenar el campo de comentario de estado después de 3 intentos")
+        
+        # Verificación final antes de guardar
+        final_estado_value = select_estado.input_value()
+        final_comentario = textarea_estado.input_value()
+        
+        if final_estado_value != "1":
+            raise Exception(f"El dropdown de estado no está en '1' antes de guardar: valor='{final_estado_value}'")
+        
+        if not final_comentario or final_comentario.strip() == "":
+            raise Exception("El comentario de estado está vacío antes de guardar")
+        
+        print(f"[DEBUG] Verificación pre-guardar estado: dropdown='1', comentario='{final_comentario[:30]}...'")
+        
+        # Buscar y hacer clic en el botón Guardar
+        btn_guardar_estado = page.locator("#btnModificarEstado")
+        btn_guardar_estado.wait_for(state="visible", timeout=3000)
+        btn_guardar_estado.scroll_into_view_if_needed()
+        page.wait_for_timeout(300)
+        
+        # Verificar que el botón no esté deshabilitado
+        if btn_guardar_estado.is_disabled():
+            raise Exception("El botón Guardar está deshabilitado en el formulario de estado.")
+        
+        print("[DEBUG] Haciendo clic en el botón Guardar del estado...")
+        btn_guardar_estado.click()
+        page.wait_for_timeout(3000)
+        
+        # Buscar mensajes de error (pero no fallar si el modal se cierra)
+        error_message_estado = ""
+        error_selectors = [
+            ".error:visible", 
+            ".alert-danger:visible", 
+            "[role='alert']:visible",
+            ".alert:visible"
+        ]
+        
+        for selector in error_selectors:
+            try:
+                error_elements = page.locator(selector)
+                if error_elements.count() > 0:
+                    for i in range(min(error_elements.count(), 5)):
+                        error_elem = error_elements.nth(i)
+                        if error_elem.is_visible():
+                            error_text = error_elem.inner_text().strip()
+                            if error_text and len(error_text) > 0:
+                                print(f"[DEBUG] Mensaje de error en estado ({selector}): '{error_text}'")
+                                if not error_message_estado:
+                                    error_message_estado = error_text
+            except:
+                pass
+        
+        # Esperar a que el modal se cierre
+        modal_estado_cerrado = False
+        try:
+            page.wait_for_selector("#formModificarEstado", state="hidden", timeout=8000)
+            modal_estado_cerrado = True
+            print("[DEBUG] Modal de Estado Equipo se cerró exitosamente")
+        except Exception:
+            if page.locator("#formModificarEstado").is_visible():
+                print("[DEBUG] El modal de estado sigue visible después de hacer clic en Guardar")
+                page.wait_for_timeout(2000)
+                if page.locator("#formModificarEstado").is_visible():
+                    # Intentar cerrar manualmente
+                    try:
+                        close_btn = page.locator("#formModificarEstado button.close, #formModificarEstado [data-dismiss='modal']").first
+                        if close_btn.is_visible():
+                            close_btn.click()
+                            page.wait_for_timeout(500)
+                            modal_estado_cerrado = True
+                            print("[DEBUG] Modal de estado cerrado manualmente")
+                    except:
+                        pass
+                    
+                    if not modal_estado_cerrado and page.locator("#formModificarEstado").is_visible():
+                        if error_message_estado:
+                            raise Exception(f"Error de validación en el formulario de estado: {error_message_estado}")
+                        else:
+                            raise Exception("El formulario de estado no se cerró después de guardar.")
+                else:
+                    modal_estado_cerrado = True
+            else:
+                modal_estado_cerrado = True
+        
+        if not modal_estado_cerrado:
+            raise Exception("No se pudo cerrar el modal de Estado Equipo")
+        
+        print(f"[DEBUG] Paso 2 completado: Estado Equipo activado exitosamente")
         print(f"Equipo activado correctamente para usuario: {codigo_usuario}")
         return True
         
@@ -479,8 +775,8 @@ def desactivar_equipo(page: Page, codigo_usuario: str, nombre_equipo: str | None
     """Desactiva un equipo del usuario.
     
     Realiza dos pasos:
-    1. Gestionar Alta Equipo: Rechazar ("1")
-    2. Gestionar Estado Equipo: Inactivo ("0")
+    1. Gestionar Alta Equipo: Rechazar (valor "0")
+    2. Gestionar Estado Equipo: Inactivo (valor "0")
     
     Ambos pasos incluyen comentarios indicando que se realizó desde el portal RC Core.
     
@@ -507,6 +803,7 @@ def desactivar_equipo(page: Page, codigo_usuario: str, nombre_equipo: str | None
     
     try:
         # PASO 1: Gestionar Alta Equipo - Rechazar
+        print("[DEBUG] Iniciando Paso 1: Gestionar Alta Equipo - Rechazar")
         fila.get_by_role("link").first.click()
         page.wait_for_timeout(300)
         
@@ -526,162 +823,386 @@ def desactivar_equipo(page: Page, codigo_usuario: str, nombre_equipo: str | None
             text = opt.inner_text().strip()
             print(f"[DEBUG]   Opción {i}: value='{value}', text='{text}'")
         
-        # Seleccionar "Rechazar" por texto (el valor puede ser "1" o diferente)
-        # Intentar primero por texto, luego por valor
-        try:
-            page.locator("#ddlAlta").select_option(label="Rechazar")
-            print("[DEBUG] Seleccionado 'Rechazar' por label")
-        except Exception:
-            # Si no funciona por label, intentar por valor "1"
-            try:
-                page.locator("#ddlAlta").select_option("1")
-                print("[DEBUG] Seleccionado por valor '1'")
-            except Exception:
-                # Si tampoco funciona, intentar con "0" (puede estar invertido)
-                page.locator("#ddlAlta").select_option("0")
-                print("[DEBUG] Seleccionado por valor '0'")
-        page.wait_for_timeout(300)
-        
-        # Verificar que se seleccionó correctamente leyendo el texto seleccionado
+        # Seleccionar "Rechazar" - usar el valor "0" (opuesto de "1" que es Aprobar)
         select_element = page.locator("#ddlAlta")
+        
+        # Primero asegurarse de que el dropdown esté en un estado limpio
+        try:
+            select_element.click()
+            page.wait_for_timeout(200)
+        except:
+            pass
+        
+        # Seleccionar "Rechazar" usando el valor "0"
+        try:
+            select_element.select_option("0")  # Valor "0" = "Rechazar" según los logs
+            print("[DEBUG] Seleccionado 'Rechazar' por valor '0'")
+        except Exception as e:
+            print(f"[DEBUG] Error al seleccionar por valor: {str(e)}")
+            # Intentar por label como fallback
+            try:
+                select_element.select_option(label="Rechazar")
+                print("[DEBUG] Seleccionado 'Rechazar' por label")
+            except:
+                raise Exception("No se pudo seleccionar 'Rechazar' en el dropdown")
+        
+        # Esperar y verificar que se seleccionó correctamente
+        page.wait_for_timeout(500)
         selected_text = select_element.locator("option:checked").inner_text().strip()
         selected_value = select_element.input_value()
         print(f"[DEBUG] Texto seleccionado: '{selected_text}', Valor: '{selected_value}'")
         
-        if "rechazar" not in selected_text.lower() and "aprobar" in selected_text.lower():
-            print(f"[WARNING] Se seleccionó 'Aprobar' en vez de 'Rechazar'. Corrigiendo...")
-            # Si se seleccionó aprobar, intentar con el otro valor
-            if selected_value == "0":
-                page.locator("#ddlAlta").select_option("1")
-            elif selected_value == "1":
-                page.locator("#ddlAlta").select_option("0")
-            else:
-                # Intentar por texto directamente
-                page.locator("#ddlAlta").select_option(label="Rechazar")
-            page.wait_for_timeout(300)
-            # Verificar de nuevo
-            selected_text = select_element.locator("option:checked").inner_text().strip()
-            print(f"[DEBUG] Después de corregir - Texto seleccionado: '{selected_text}'")
+        # Verificar que no esté en "Seleccione.." (valor vacío)
+        if selected_value == "" or "seleccione" in selected_text.lower():
+            raise Exception("El dropdown quedó en 'Seleccione..'. No se pudo seleccionar 'Rechazar'")
         
-        # Llenar comentario
+        # Verificar que se seleccionó Rechazar y no Aprobar
+        if "aprobar" in selected_text.lower():
+            print(f"[WARNING] Se seleccionó 'Aprobar' en vez de 'Rechazar'. Corrigiendo...")
+            # Si el valor "0" es Aprobar, entonces "1" debe ser Rechazar
+            if selected_value == "0":
+                select_element.select_option("1")
+            elif selected_value == "1":
+                select_element.select_option("0")
+            page.wait_for_timeout(300)
+            selected_text = select_element.locator("option:checked").inner_text().strip()
+            selected_value = select_element.input_value()
+            print(f"[DEBUG] Después de corregir - Texto: '{selected_text}', Valor: '{selected_value}'")
+        
+        # Disparar evento de cambio para asegurar que el formulario detecte el cambio
+        try:
+            select_element.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+            page.wait_for_timeout(300)
+        except:
+            pass
+        
+        # Esperar un momento para que aparezcan todos los campos después de seleccionar el dropdown
+        page.wait_for_timeout(500)
+        
+        # Llenar comentario - usar la misma lógica robusta que activar_equipo
         textarea_alta = page.locator("textarea[name=\"mensajeAlta\"]")
         textarea_alta.wait_for(state="visible", timeout=3000)
-        textarea_alta.click()
-        textarea_alta.fill(comentario_rc_core)
-        page.wait_for_timeout(200)
+        
+        comentario_llenado = False
+        for intento in range(3):
+            try:
+                textarea_alta.click()
+                page.wait_for_timeout(100)
+                textarea_alta.clear()
+                page.wait_for_timeout(100)
+                textarea_alta.fill(comentario_rc_core)
+                page.wait_for_timeout(200)
+                
+                texto_comentario = textarea_alta.input_value()
+                if texto_comentario and texto_comentario.strip() != "":
+                    comentario_llenado = True
+                    print(f"[DEBUG] Comentario llenado en intento {intento + 1}: '{texto_comentario[:50]}...'")
+                    break
+                else:
+                    textarea_alta.clear()
+                    textarea_alta.type(comentario_rc_core, delay=50)
+                    page.wait_for_timeout(200)
+                    texto_comentario = textarea_alta.input_value()
+                    if texto_comentario and texto_comentario.strip() != "":
+                        comentario_llenado = True
+                        print(f"[DEBUG] Comentario llenado con type() en intento {intento + 1}")
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error en intento {intento + 1} de llenar comentario: {str(e)}")
+        
+        if not comentario_llenado:
+            raise Exception("No se pudo llenar el campo de comentario después de 3 intentos")
+        
+        # Verificación final antes de guardar
+        final_dropdown_value = select_element.input_value()
+        final_dropdown_text = select_element.locator("option:checked").inner_text().strip()
+        
+        if final_dropdown_value == "" or "seleccione" in final_dropdown_text.lower():
+            raise Exception("El dropdown de alta no tiene un valor válido antes de guardar")
+        
+        final_comentario = textarea_alta.input_value()
+        if not final_comentario or final_comentario.strip() == "":
+            raise Exception("El comentario de alta está vacío antes de guardar")
+        
+        print(f"[DEBUG] Verificación pre-guardar: dropdown='{final_dropdown_text}' (valor: {final_dropdown_value}), comentario='{final_comentario[:30]}...'")
         
         # Buscar y hacer clic en el botón Guardar
-        # Usar el ID específico del botón
         btn_guardar = page.locator("#btnModificarAlta")
         btn_guardar.wait_for(state="visible", timeout=3000)
         btn_guardar.scroll_into_view_if_needed()
+        page.wait_for_timeout(300)
+        
+        if btn_guardar.is_disabled():
+            raise Exception("El botón Guardar está deshabilitado en el formulario de alta.")
+        
+        print("[DEBUG] Haciendo clic en el botón Guardar...")
         btn_guardar.click()
         
-        # Esperar a que el modal se cierre
-        page.wait_for_selector("#formModificarAlta", state="hidden", timeout=10000)
+        # Esperar a que el modal se cierre - PRIORIDAD: verificar si se cerró antes de buscar errores
+        modal_cerrado = False
+        try:
+            page.wait_for_selector("#formModificarAlta", state="hidden", timeout=8000)
+            modal_cerrado = True
+            print("[DEBUG] Modal de Alta Equipo se cerró exitosamente")
+        except Exception:
+            if page.locator("#formModificarAlta").is_visible():
+                print("[DEBUG] El modal sigue visible después de hacer clic en Guardar")
+                page.wait_for_timeout(2000)
+                if page.locator("#formModificarAlta").is_visible():
+                    try:
+                        close_btn = page.locator("#formModificarAlta button.close, #formModificarAlta [data-dismiss='modal']").first
+                        if close_btn.is_visible():
+                            close_btn.click()
+                            page.wait_for_timeout(500)
+                            modal_cerrado = True
+                            print("[DEBUG] Modal cerrado manualmente")
+                    except:
+                        pass
+                else:
+                    modal_cerrado = True
+            else:
+                modal_cerrado = True
+        
+        # Solo si el modal NO se cerró, buscar errores y lanzar excepción
+        if not modal_cerrado:
+            print("[DEBUG] El modal no se cerró, buscando mensajes de error...")
+            error_message = ""
+            error_selectors = [
+                ".error:visible", 
+                ".alert-danger:visible", 
+                "[role='alert']:visible",
+                ".alert:visible"
+            ]
+            
+            for selector in error_selectors:
+                try:
+                    error_elements = page.locator(selector)
+                    if error_elements.count() > 0:
+                        for i in range(min(error_elements.count(), 5)):
+                            error_elem = error_elements.nth(i)
+                            if error_elem.is_visible():
+                                error_text = error_elem.inner_text().strip()
+                                if error_text and len(error_text) > 0:
+                                    print(f"[DEBUG] Mensaje de error encontrado ({selector}): '{error_text}'")
+                                    if not error_message:
+                                        error_message = error_text
+                except:
+                    pass
+            
+            if error_message:
+                raise Exception(f"Error de validación en el formulario: {error_message}")
+            else:
+                raise Exception("El formulario no se cerró después de guardar. Verifique que todos los campos requeridos estén completados.")
+        
+        print("[DEBUG] Paso 1 completado: Alta Equipo rechazada exitosamente")
         page.wait_for_timeout(500)
         
         # PASO 2: Gestionar Estado Equipo - Inactivo
-        # Reabrir el menú de la fila
+        print("[DEBUG] Iniciando Paso 2: Gestionar Estado Equipo - Inactivo")
         fila.get_by_role("link").first.click()
         page.wait_for_timeout(300)
         
         page.get_by_role("link", name=re.compile("Gestionar Estado Equipo")).click()
         
-        # Esperar a que el modal se abra
         page.wait_for_selector("#ddlActivo", state="visible", timeout=5000)
         page.wait_for_timeout(300)
         
         # Seleccionar "0" para inactivo
-        page.locator("#ddlActivo").select_option("0")
+        select_estado = page.locator("#ddlActivo")
+        select_estado.select_option("0")
         page.wait_for_timeout(300)
         
-        # Verificar que se seleccionó correctamente
-        selected_value = page.locator("#ddlActivo").input_value()
+        selected_value = select_estado.input_value()
         if selected_value != "0":
             print(f"[WARNING] El valor seleccionado es '{selected_value}', esperado '0'. Reintentando...")
-            page.locator("#ddlActivo").select_option("0")
+            select_estado.select_option("0")
             page.wait_for_timeout(300)
+            selected_value = select_estado.input_value()
         
-        # Llenar comentario (si existe el textarea)
+        print(f"[DEBUG] Estado seleccionado: valor='{selected_value}'")
+        
+        # Disparar evento de cambio
         try:
-            textarea_estado = page.locator("textarea[name='mensajeEstado'], textarea[name='comentarioEstado']")
-            if textarea_estado.is_visible():
-                textarea_estado.click()
-                textarea_estado.fill(comentario_rc_core)
-                page.wait_for_timeout(200)
-        except Exception:
-            # Si no existe el textarea, continuar sin comentario
+            select_estado.evaluate("el => el.dispatchEvent(new Event('change', { bubbles: true }))")
+            page.wait_for_timeout(300)
+        except:
             pass
         
-        # Buscar y hacer clic en el botón Guardar
-        # Usar el ID específico del botón (probablemente btnModificarEstado)
-        try:
-            btn_guardar = page.locator("#btnModificarEstado")
-            btn_guardar.wait_for(state="visible", timeout=3000)
-            btn_guardar.scroll_into_view_if_needed()
-            
-            # Esperar a que la petición se complete después del clic
-            with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                btn_guardar.click()
-        except Exception:
-            # Si no existe btnModificarEstado, intentar otros selectores
+        page.wait_for_timeout(500)
+        
+        # Buscar y llenar el textarea de comentario (usar la misma lógica que activar_equipo)
+        textarea_estado = None
+        selectores_textarea = [
+            "textarea[name='mensajeEstado']",
+            "textarea[name='comentarioEstado']",
+            "textarea[name='mensaje']",
+            "#formModificarEstado textarea",
+            "form#formModificarEstado textarea",
+            ".modal.show textarea",
+            "#formModificarEstado textarea[name]"
+        ]
+        
+        for selector in selectores_textarea:
             try:
-                btn_alt = page.locator("button[type='submit']").filter(has_text="Guardar").first
-                btn_alt.wait_for(state="visible", timeout=3000)
-                with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                    btn_alt.click()
-            except Exception:
-                btn_alt2 = page.get_by_role("button", name=re.compile("Guardar", re.I))
-                btn_alt2.wait_for(state="visible", timeout=3000)
-                with page.expect_response(lambda response: response.status in [200, 400, 500], timeout=10000):
-                    btn_alt2.click()
+                textarea_candidate = page.locator(selector)
+                if textarea_candidate.count() > 0:
+                    for i in range(textarea_candidate.count()):
+                        if textarea_candidate.nth(i).is_visible(timeout=1000):
+                            textarea_estado = textarea_candidate.nth(i)
+                            name_attr = textarea_estado.get_attribute("name") or "sin nombre"
+                            print(f"[DEBUG] Textarea encontrado usando selector '{selector}': name='{name_attr}'")
+                            break
+                    if textarea_estado:
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error con selector '{selector}': {str(e)}")
+                continue
         
-        # Esperar un momento para que procese la respuesta
-        page.wait_for_timeout(1000)
+        if not textarea_estado:
+            try:
+                all_textareas = page.locator("#formModificarEstado textarea, .modal.show textarea")
+                if all_textareas.count() > 0:
+                    for i in range(all_textareas.count()):
+                        ta = all_textareas.nth(i)
+                        if ta.is_visible(timeout=1000):
+                            textarea_estado = ta
+                            name_attr = textarea_estado.get_attribute("name") or "sin nombre"
+                            print(f"[DEBUG] Textarea encontrado buscando todos los textareas del modal: name='{name_attr}'")
+                            break
+            except Exception as e:
+                print(f"[DEBUG] Error buscando textareas del modal: {str(e)}")
         
-        # Verificar si hay mensajes de error visibles antes de esperar que se cierre
+        if not textarea_estado:
+            raise Exception("No se pudo encontrar el textarea de comentario en el formulario de estado")
+        
+        textarea_estado.wait_for(state="visible", timeout=3000)
+        
+        # Llenar comentario con múltiples intentos
+        comentario_estado_llenado = False
+        for intento in range(3):
+            try:
+                textarea_estado.click()
+                page.wait_for_timeout(100)
+                textarea_estado.clear()
+                page.wait_for_timeout(100)
+                textarea_estado.fill(comentario_rc_core)
+                page.wait_for_timeout(200)
+                
+                texto_comentario = textarea_estado.input_value()
+                if texto_comentario and texto_comentario.strip() != "":
+                    comentario_estado_llenado = True
+                    print(f"[DEBUG] Comentario de estado llenado en intento {intento + 1}: '{texto_comentario[:50]}...'")
+                    break
+                else:
+                    textarea_estado.clear()
+                    textarea_estado.type(comentario_rc_core, delay=50)
+                    page.wait_for_timeout(200)
+                    texto_comentario = textarea_estado.input_value()
+                    if texto_comentario and texto_comentario.strip() != "":
+                        comentario_estado_llenado = True
+                        print(f"[DEBUG] Comentario de estado llenado con type() en intento {intento + 1}")
+                        break
+            except Exception as e:
+                print(f"[DEBUG] Error en intento {intento + 1} de llenar comentario de estado: {str(e)}")
+        
+        if not comentario_estado_llenado:
+            raise Exception("No se pudo llenar el campo de comentario de estado después de 3 intentos")
+        
+        # Verificación final antes de guardar
+        final_estado_value = select_estado.input_value()
+        final_comentario = textarea_estado.input_value()
+        
+        if final_estado_value != "0":
+            raise Exception(f"El dropdown de estado no está en '0' antes de guardar: valor='{final_estado_value}'")
+        
+        if not final_comentario or final_comentario.strip() == "":
+            raise Exception("El comentario de estado está vacío antes de guardar")
+        
+        print(f"[DEBUG] Verificación pre-guardar estado: dropdown='0', comentario='{final_comentario[:30]}...'")
+        
+        # Buscar y hacer clic en el botón Guardar
+        btn_guardar_estado = page.locator("#btnModificarEstado")
+        btn_guardar_estado.wait_for(state="visible", timeout=3000)
+        btn_guardar_estado.scroll_into_view_if_needed()
+        page.wait_for_timeout(300)
+        
+        if btn_guardar_estado.is_disabled():
+            raise Exception("El botón Guardar está deshabilitado en el formulario de estado.")
+        
+        print("[DEBUG] Haciendo clic en el botón Guardar del estado...")
+        btn_guardar_estado.click()
+        page.wait_for_timeout(3000)
+        
+        # Buscar mensajes de error (pero no fallar si el modal se cierra)
+        error_message_estado = ""
+        error_selectors = [
+            ".error:visible", 
+            ".alert-danger:visible", 
+            "[role='alert']:visible",
+            ".alert:visible"
+        ]
+        
+        for selector in error_selectors:
+            try:
+                error_elements = page.locator(selector)
+                if error_elements.count() > 0:
+                    for i in range(min(error_elements.count(), 5)):
+                        error_elem = error_elements.nth(i)
+                        if error_elem.is_visible():
+                            error_text = error_elem.inner_text().strip()
+                            if error_text and len(error_text) > 0:
+                                print(f"[DEBUG] Mensaje de error en estado ({selector}): '{error_text}'")
+                                if not error_message_estado:
+                                    error_message_estado = error_text
+            except:
+                pass
+        
+        # Esperar a que el modal se cierre
+        modal_estado_cerrado = False
         try:
-            # Buscar mensajes de error comunes
-            error_messages = page.locator(".error, .alert-danger, .validation-error, .field-error, [role='alert']")
-            if error_messages.count() > 0:
-                error_text = ""
-                for i in range(min(error_messages.count(), 3)):  # Revisar hasta 3 mensajes
-                    if error_messages.nth(i).is_visible():
-                        error_text += error_messages.nth(i).inner_text() + "; "
-                if error_text:
-                    raise Exception(f"Error de validación en el formulario: {error_text.strip()}")
-        except Exception as e:
-            if "Error de validación" in str(e):
-                raise e
-            # Si no hay errores visibles, continuar
-        
-        # Esperar a que el modal se cierre (con un timeout más corto ya que esperamos la respuesta)
-        try:
-            page.wait_for_selector("#formModificarEstado", state="hidden", timeout=5000)
+            page.wait_for_selector("#formModificarEstado", state="hidden", timeout=8000)
+            modal_estado_cerrado = True
+            print("[DEBUG] Modal de Estado Equipo se cerró exitosamente")
         except Exception:
-            # Si el formulario no se cierra, puede ser que necesite cerrarse manualmente o hay un error
-            # Verificar si el formulario aún está visible y si hay algún error
             if page.locator("#formModificarEstado").is_visible():
-                # Intentar cerrar manualmente si hay un botón de cerrar
-                try:
-                    page.get_by_role("button", name=re.compile("Cerrar|Close|Cancelar", re.I)).first.click()
-                    page.wait_for_timeout(500)
-                except Exception:
-                    pass
-                # Verificar nuevamente si se cerró
+                print("[DEBUG] El modal de estado sigue visible después de hacer clic en Guardar")
+                page.wait_for_timeout(2000)
                 if page.locator("#formModificarEstado").is_visible():
-                    raise Exception("El formulario no se cerró después de guardar. Puede haber un error de validación.")
+                    try:
+                        close_btn = page.locator("#formModificarEstado button.close, #formModificarEstado [data-dismiss='modal']").first
+                        if close_btn.is_visible():
+                            close_btn.click()
+                            page.wait_for_timeout(500)
+                            modal_estado_cerrado = True
+                            print("[DEBUG] Modal de estado cerrado manualmente")
+                    except:
+                        pass
+                    
+                    if not modal_estado_cerrado and page.locator("#formModificarEstado").is_visible():
+                        if error_message_estado:
+                            raise Exception(f"Error de validación en el formulario de estado: {error_message_estado}")
+                        else:
+                            raise Exception("El formulario de estado no se cerró después de guardar.")
+                else:
+                    modal_estado_cerrado = True
+            else:
+                modal_estado_cerrado = True
         
+        if not modal_estado_cerrado:
+            raise Exception("No se pudo cerrar el modal de Estado Equipo")
+        
+        print(f"[DEBUG] Paso 2 completado: Estado Equipo desactivado exitosamente")
         print(f"Equipo desactivado correctamente para usuario: {codigo_usuario}")
         return True
         
     except Exception as e:
         print(f"Error al desactivar equipo: {e}")
-        # Intentar cerrar el modal si está abierto
+        import traceback
+        traceback.print_exc()
+        # Intentar cerrar los modales si están abiertos
         try:
             page.get_by_role("button", name="Close").click()
-        except Exception:
+        except:
             pass
         return False
 

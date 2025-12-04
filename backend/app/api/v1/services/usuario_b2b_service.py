@@ -1,4 +1,5 @@
 # backend/app/api/v1/services/usuario_b2b_service.py
+import os
 from app.models.entidades.usuarios_b2b import UsuarioB2B
 from app.api.v1.utils.errors import RelatedResourceNotFoundError, BusinessRuleError
 from app.extensions import db
@@ -39,16 +40,120 @@ class UsuarioB2BService:
 
     @staticmethod
     def create_usuario_b2b(data):
+        """
+        Crea un nuevo usuario B2B y activa la automatización de Playwright
+        para crear y configurar el usuario en Corp si no existe.
+        """
+        from flask import current_app
+        
         # Extraer la contraseña del data antes de crear el usuario
         password = data.pop('password', None)
+        if not password:
+            raise BusinessRuleError("La contraseña es requerida para crear un usuario B2B")
+        
+        # Verificar que el cliente existe antes de continuar
+        from app.models.entidades.maestro_clientes import MaestroClientes
+        cliente = MaestroClientes.query.get(data.get('id_cliente'))
+        if not cliente:
+            raise RelatedResourceNotFoundError(f"El cliente con ID {data.get('id_cliente')} no existe.")
         
         nuevo_usuario = UsuarioB2B(**data)
         
         # Establecer la contraseña usando el método seguro
-        if password:
-            nuevo_usuario.set_password(password)
+        nuevo_usuario.set_password(password)
         
+        # Crear el usuario en la base de datos primero
         db.session.add(nuevo_usuario)
+        db.session.flush()  # Usar flush para obtener el ID sin hacer commit
+        
+        # Logging de inicio de automatización
+        print(f"[AUTOMATIZACION] Iniciando creación de usuario B2B: {nuevo_usuario.usuario}")
+        try:
+            current_app.logger.info(f"[AUTOMATIZACION] Iniciando creación de usuario B2B: {nuevo_usuario.usuario}")
+        except:
+            pass
+        
+        # Verificar si el usuario existe en Corp antes de crear
+        existe_en_corp = False
+        try:
+            from automatizaciones.playwright.usuario_automation import verificar_usuario_existe_corp
+            
+            headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+            print(f"[AUTOMATIZACION] Verificando si usuario {nuevo_usuario.usuario} existe en Corp...")
+            
+            resultado_verificacion = verificar_usuario_existe_corp(
+                codigo_usuario=nuevo_usuario.usuario,
+                nombre_usuario=nuevo_usuario.nombre_completo,
+                headless=headless_mode
+            )
+            
+            existe_en_corp = resultado_verificacion.get("exists", False)
+            print(f"[AUTOMATIZACION] Usuario {'existe' if existe_en_corp else 'no existe'} en Corp")
+            
+        except Exception as e:
+            # Si falla la verificación, asumimos que no existe y continuamos
+            print(f"[AUTOMATIZACION] Error al verificar usuario en Corp: {str(e)}. Continuando con creación...")
+            existe_en_corp = False
+        
+        # Si no existe en Corp, llamar a la automatización de Playwright
+        if not existe_en_corp:
+            try:
+                from automatizaciones.playwright.usuario_automation import crear_usuario_corp
+                
+                print(f"[AUTOMATIZACION] Creando usuario {nuevo_usuario.usuario} en Corp...")
+                try:
+                    current_app.logger.info(f"[AUTOMATIZACION] Creando usuario {nuevo_usuario.usuario} en Corp...")
+                except:
+                    pass
+                
+                # Determinar si ejecutar en modo headless
+                headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+                
+                # Llamar a la automatización
+                resultado = crear_usuario_corp(
+                    codigo=nuevo_usuario.usuario,
+                    nombre=nuevo_usuario.nombre_completo,
+                    contrasena=password,
+                    rut_cliente=cliente.rut_cliente,
+                    email=nuevo_usuario.email,
+                    nombre_cliente=cliente.nombre_cliente,
+                    headless=headless_mode
+                )
+                
+                print(f"[AUTOMATIZACION] Resultado de automatización: {resultado}")
+                
+                if resultado["success"]:
+                    print(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado exitosamente en Corp")
+                    try:
+                        current_app.logger.info(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado exitosamente en Corp: {resultado['message']}")
+                    except:
+                        pass
+                else:
+                    # Si falla, loguear el error pero no bloquear la creación del usuario en BD
+                    error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
+                    print(f"[AUTOMATIZACION] ⚠️ {error_msg}")
+                    try:
+                        current_app.logger.warning(f"[AUTOMATIZACION] {error_msg}")
+                    except:
+                        pass
+                    # No bloqueamos la creación, solo registramos el error
+                    
+            except Exception as e:
+                # Para cualquier error en la automatización, loguear pero no bloquear la creación del usuario
+                import traceback
+                error_trace = traceback.format_exc()
+                error_msg = f"Error al crear usuario en Corp: {str(e)}"
+                print(f"[AUTOMATIZACION] ⚠️ {error_msg}")
+                print(f"[AUTOMATIZACION] Traceback: {error_trace}")
+                try:
+                    current_app.logger.error(f"[AUTOMATIZACION] {error_msg}")
+                except:
+                    pass
+                # No bloqueamos la creación del usuario en BD, solo registramos el error
+        else:
+            print(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} ya existe en Corp, saltando automatización")
+        
+        # Hacer commit de la transacción
         db.session.commit()
         return nuevo_usuario
     

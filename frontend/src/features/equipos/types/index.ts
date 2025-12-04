@@ -48,3 +48,24 @@ export interface ActualizarEquipoPayload {
     estado_alta?: EstadoAltaEquipo;
 }
 
+// Filtros para la búsqueda de equipos
+export type EquipoFilters = {
+    page?: number;
+    per_page?: number;
+    nombre_equipo?: string;
+    id_usuario_b2b?: number;
+    activo?: boolean;
+    estado_alta?: EstadoAltaEquipo;
+};
+
+// Respuesta paginada de equipos
+export interface PaginatedEquiposResponse {
+    equipos: Equipo[];
+    pagination: {
+        page: number;
+        pages: number;
+        per_page: number;
+        total: number;
+    };
+}
+

@@ -66,7 +66,6 @@ function App() {
           path="/login" 
           element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} 
         />
-        {/* Rutas Protegidas */}
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/areas" element={<AreasPage />} />
@@ -108,15 +107,10 @@ function App() {
           <Route path="/equipos" element={<EquiposPage />} />
           <Route path="/tipos-caso" element={<TiposCasoPage />} />
           <Route path="/admin/consultas" element={<ConsultasPage/>} />
-          {/* Rutas de Compras */}
           <Route path="/compras/realizadas" element={<ComprasRealizadasPage />} />
           <Route path="/compras/cotizador" element={<CotizadorPage />} />
-          {/* Aquí añadiremos las futuras rutas */}
-          {/* <Route path="/clientes" element={<ClientListPage />} /> */}
-          {/* <Route path="/productos" element={<ProductListPage />} /> */}
         </Route>
 
-        {/* Ruta para manejar 404 o redirigir */}
         <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} />} />
       </Routes>
     </BrowserRouter>

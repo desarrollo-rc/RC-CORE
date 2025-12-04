@@ -306,13 +306,61 @@ def activar_equipo_corp(id):
         )
         
         if resultado["success"]:
-            # Si la activación fue exitosa, buscar el equipo en la base de datos local y asociarlo
+            # Si la activación fue exitosa, buscar el equipo en la base de datos local
             from app.models.entidades.equipos import Equipo
             equipo = Equipo.query.filter_by(
                 id_usuario_b2b=usuario_b2b.id_usuario_b2b,
                 nombre_equipo=nombre_equipo
             ).first()
             
+            # Si no existe en la BD local, sincronizarlo desde Corp y crearlo
+            if not equipo:
+                current_app.logger.info(f"[ACTIVAR] Equipo no encontrado en BD local, sincronizando desde Corp: {nombre_equipo}")
+                # Buscar el equipo en Corp para obtener sus datos completos
+                from automatizaciones.playwright.equipo_automation import buscar_equipos_corp
+                
+                resultado_sync = buscar_equipos_corp(
+                    codigo_usuario=usuario_b2b.usuario,
+                    headless=headless_mode
+                )
+                
+                if resultado_sync["success"]:
+                    # Buscar el equipo activado en los resultados de Corp
+                    equipo_corp = None
+                    for eq in resultado_sync["equipos"]:
+                        if eq["nombre_equipo"] == nombre_equipo:
+                            equipo_corp = eq
+                            break
+                    
+                    if equipo_corp:
+                        # Crear el equipo en la BD local con los datos de Corp
+                        from app.api.v1.services.equipo_service import EquipoService
+                        from app.api.v1.schemas.equipo_schemas import create_equipo_schema
+                        
+                        # Determinar el estado de alta
+                        estado_alta_str = "APROBADO" if equipo_corp.get("alta") or (equipo_corp.get("estado_alta", "").lower() in ("aprobado", "aprobada")) else "PENDIENTE"
+                        
+                        equipo_data = {
+                            "id_usuario_b2b": usuario_b2b.id_usuario_b2b,
+                            "nombre_equipo": equipo_corp["nombre_equipo"],
+                            "mac_address": equipo_corp.get("mac") or "",
+                            "procesador": equipo_corp.get("procesador") or "",
+                            "placa_madre": equipo_corp.get("placa") or "",
+                            "disco_duro": equipo_corp.get("disco") or "",
+                            "estado": True,  # Equipo activado
+                            "estado_alta": estado_alta_str
+                        }
+                        
+                        # Validar y crear el equipo
+                        validated_data = create_equipo_schema.load(equipo_data)
+                        equipo = EquipoService.create_equipo(validated_data)
+                        current_app.logger.info(f"[ACTIVAR] Equipo creado en BD local: {equipo.id_equipo} - {equipo.nombre_equipo}")
+                    else:
+                        current_app.logger.warning(f"[ACTIVAR] Equipo {nombre_equipo} no encontrado en los resultados de Corp")
+                else:
+                    current_app.logger.warning(f"[ACTIVAR] No se pudo sincronizar equipos desde Corp: {resultado_sync.get('error')}")
+            
+            # Si ahora tenemos el equipo (ya existía o se creó), asociarlo a la instalación
             if equipo:
                 # Instalar el equipo (asociarlo a la instalación)
                 instalacion_actualizada = InstalacionService.instalar_equipo(id, equipo.id_equipo)
@@ -323,11 +371,11 @@ def activar_equipo_corp(id):
                     "instalacion": instalacion_schema.dump(instalacion_actualizada)
                 }), 200
             else:
-                # Si no se encuentra el equipo local, solo retornar éxito de activación
+                # Si aún no se encuentra el equipo, retornar éxito pero con advertencia
                 return jsonify({
                     "success": True,
                     "message": resultado["message"],
-                    "warning": "Equipo activado en Corp pero no encontrado en la base de datos local"
+                    "warning": "Equipo activado en Corp pero no se pudo crear en la base de datos local. Por favor, sincronice los equipos manualmente."
                 }), 200
         else:
             return jsonify({

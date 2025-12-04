@@ -12,7 +12,8 @@ import {
     Tooltip, 
     Group, 
     Text,
-    Modal 
+    Modal,
+    LoadingOverlay
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconEdit, IconX, IconCheck } from '@tabler/icons-react';
@@ -30,20 +31,20 @@ const getEstadoAltaColor = (estado: string) => {
     return colorMap[estado] || 'gray';
 };
 
-export function EquiposTable() {
-    const queryClient = useQueryClient();
-    const [selectedEquipo, setSelectedEquipo] = useState<Equipo | null>(null);
-    const [editModalOpened, { open: openEditModal, close: closeEditModal }] = useDisclosure(false);
+interface EquiposTableProps {
+    equipos: Equipo[];
+    onEdit?: (equipo: Equipo) => void;
+}
 
-    const { data: equipos, isLoading, error } = useQuery<Equipo[]>({
-        queryKey: ['equipos'],
-        queryFn: getEquipos,
-    });
+export function EquiposTable({ equipos, onEdit }: EquiposTableProps) {
+    const queryClient = useQueryClient();
+    const [loadingEquipoId, setLoadingEquipoId] = useState<number | null>(null);
 
     const activarMutation = useMutation({
         mutationFn: activarEquipo,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equipos'] });
+            setLoadingEquipoId(null);
             notifications.show({
                 title: 'Equipo Activado',
                 message: 'El equipo ha sido activado exitosamente.',
@@ -51,6 +52,7 @@ export function EquiposTable() {
             });
         },
         onError: (error: any) => {
+            setLoadingEquipoId(null);
             notifications.show({
                 title: 'Error',
                 message: error.response?.data?.error || 'No se pudo activar el equipo',
@@ -63,6 +65,7 @@ export function EquiposTable() {
         mutationFn: desactivarEquipo,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equipos'] });
+            setLoadingEquipoId(null);
             notifications.show({
                 title: 'Equipo Desactivado',
                 message: 'El equipo ha sido desactivado exitosamente.',
@@ -70,6 +73,7 @@ export function EquiposTable() {
             });
         },
         onError: (error: any) => {
+            setLoadingEquipoId(null);
             notifications.show({
                 title: 'Error',
                 message: error.response?.data?.error || 'No se pudo desactivar el equipo',
@@ -79,40 +83,26 @@ export function EquiposTable() {
     });
 
     const handleEdit = (equipo: Equipo) => {
-        setSelectedEquipo(equipo);
-        openEditModal();
-    };
-
-    const handleToggleActivo = (equipo: Equipo) => {
-        if (equipo.activo) {
-            if (window.confirm('¿Está seguro de que desea desactivar este equipo?')) {
-                desactivarMutation.mutate(equipo.id_equipo);
-            }
-        } else {
-            activarMutation.mutate(equipo.id_equipo);
+        if (onEdit) {
+            onEdit(equipo);
         }
     };
 
-    const handleEditSuccess = () => {
-        closeEditModal();
-        setSelectedEquipo(null);
+    const handleToggleActivo = (equipo: Equipo) => {
+        if (loadingEquipoId !== null) {
+            return; // Ya hay una operación en curso
+        }
+        
+        if (equipo.activo) {
+            if (window.confirm('¿Está seguro de que desea desactivar este equipo?')) {
+                setLoadingEquipoId(equipo.id_equipo);
+                desactivarMutation.mutate(equipo.id_equipo);
+            }
+        } else {
+            setLoadingEquipoId(equipo.id_equipo);
+            activarMutation.mutate(equipo.id_equipo);
+        }
     };
-
-    if (isLoading) {
-        return (
-            <Center h={200}>
-                <Loader />
-            </Center>
-        );
-    }
-
-    if (error) {
-        return (
-            <Alert color="red" title="Error">
-                No se pudieron cargar los equipos.
-            </Alert>
-        );
-    }
 
     if (!equipos || equipos.length === 0) {
         return (
@@ -152,6 +142,7 @@ export function EquiposTable() {
                             variant="subtle"
                             color="blue"
                             onClick={() => handleEdit(equipo)}
+                            disabled={loadingEquipoId !== null}
                         >
                             <IconEdit size={18} />
                         </ActionIcon>
@@ -161,6 +152,8 @@ export function EquiposTable() {
                             variant="subtle"
                             color={equipo.activo ? 'red' : 'green'}
                             onClick={() => handleToggleActivo(equipo)}
+                            disabled={loadingEquipoId !== null}
+                            loading={loadingEquipoId === equipo.id_equipo}
                         >
                             {equipo.activo ? <IconX size={18} /> : <IconCheck size={18} />}
                         </ActionIcon>
@@ -172,7 +165,13 @@ export function EquiposTable() {
 
     return (
         <>
-            <Paper withBorder>
+            <Paper withBorder pos="relative">
+                <LoadingOverlay 
+                    visible={loadingEquipoId !== null} 
+                    overlayProps={{ radius: 'sm', blur: 2 }}
+                    loaderProps={{ size: 'lg' }}
+                    zIndex={1000}
+                />
                 <Table striped highlightOnHover>
                     <Table.Thead>
                         <Table.Tr>
@@ -190,18 +189,6 @@ export function EquiposTable() {
                 </Table>
             </Paper>
 
-            <Modal
-                opened={editModalOpened}
-                onClose={() => {
-                    closeEditModal();
-                    setSelectedEquipo(null);
-                }}
-                title="Editar Equipo"
-                size="lg"
-                centered
-            >
-                {selectedEquipo && <EquipoForm equipo={selectedEquipo} onSuccess={handleEditSuccess} />}
-            </Modal>
         </>
     );
 }

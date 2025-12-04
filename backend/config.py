@@ -37,7 +37,7 @@ class Config:
     }
 
     SQLALCHEMY_BINDS = {
-        'omsrc': os.environ.get('OMSRC_DATABASE_URL') or 'mssql+pyodbc://federico.lorca:34NMyU$.32gH@omsrc.eastus.cloudapp.azure.com:1433/rcenter?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=yes&Connection+Timeout=30&Command+Timeout=60&Login+Timeout=30'
+        'omsrc': os.environ.get('OMSRC_DATABASE_URL') or 'mssql+pyodbc://federico.lorca:34NMyU$.32gH@omsrc.eastus.cloudapp.azure.com:1433/rcenter?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&TrustServerCertificate=yes&Connection+Timeout=30&Command+Timeout=60&Login+Timeout=30'
     }
 
     # Clave para firma de JWT

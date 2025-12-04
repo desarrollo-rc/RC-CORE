@@ -182,3 +182,59 @@ def activar_equipo_corp(codigo_usuario: str, nombre_equipo: str, headless: bool 
             "error": str(e)
         }
 
+
+def desactivar_equipo_corp(codigo_usuario: str, nombre_equipo: str, headless: bool = True) -> Dict:
+    """
+    Desactiva un equipo en Corp.
+    
+    Args:
+        codigo_usuario: Código del usuario
+        nombre_equipo: Nombre del equipo
+        headless: Si ejecutar en modo headless
+    
+    Returns:
+        Dict con:
+            - success: bool - Si la operación fue exitosa
+            - message: str - Mensaje descriptivo
+            - error: str - Mensaje de error si falló
+    """
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless)
+            context = browser.new_context()
+            page = context.new_page()
+            
+            try:
+                resultado = desactivar_equipo(page, codigo_usuario=codigo_usuario, nombre_equipo=nombre_equipo)
+                
+                context.close()
+                browser.close()
+                
+                if resultado:
+                    return {
+                        "success": True,
+                        "message": f"Equipo {nombre_equipo} desactivado exitosamente en Corp para usuario {codigo_usuario}",
+                        "error": None
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"No se pudo desactivar el equipo {nombre_equipo}",
+                        "error": "La función desactivar_equipo retornó False"
+                    }
+                
+            except Exception as e:
+                context.close()
+                browser.close()
+                return {
+                    "success": False,
+                    "message": f"Error al desactivar equipo en Corp: {str(e)}",
+                    "error": str(e)
+                }
+                
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error al inicializar Playwright: {str(e)}",
+            "error": str(e)
+        }

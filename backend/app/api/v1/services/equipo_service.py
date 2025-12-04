@@ -5,8 +5,55 @@ from app.extensions import db
 
 class EquipoService:
     @staticmethod
-    def get_all_equipos():
-        return Equipo.query.options(db.joinedload(Equipo.usuario_b2b)).all()
+    def _build_equipos_query(nombre_equipo=None, id_usuario_b2b=None, activo=None, estado_alta=None):
+        """
+        Construir la query base con filtros aplicados
+        """
+        query = Equipo.query.options(db.joinedload(Equipo.usuario_b2b))
+        
+        # Aplicar filtros si se proporcionan
+        if nombre_equipo:
+            query = query.filter(Equipo.nombre_equipo.ilike(f'%{nombre_equipo}%'))
+        if id_usuario_b2b is not None:
+            query = query.filter(Equipo.id_usuario_b2b == id_usuario_b2b)
+        if activo is not None:
+            query = query.filter(Equipo.estado == activo)
+        if estado_alta:
+            from app.models.entidades.equipos import EstadoAltaEquipo
+            query = query.filter(Equipo.estado_alta == EstadoAltaEquipo[estado_alta])
+        
+        return query
+    
+    @staticmethod
+    def get_all_equipos(page=1, per_page=15, nombre_equipo=None, id_usuario_b2b=None, activo=None, estado_alta=None):
+        """
+        Obtener una lista paginada de todos los equipos con filtros opcionales
+        """
+        query = EquipoService._build_equipos_query(
+            nombre_equipo=nombre_equipo,
+            id_usuario_b2b=id_usuario_b2b,
+            activo=activo,
+            estado_alta=estado_alta
+        )
+        
+        paginated_result = query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        return paginated_result
+    
+    @staticmethod
+    def get_all_equipos_unpaginated(nombre_equipo=None, id_usuario_b2b=None, activo=None, estado_alta=None):
+        """
+        Obtener todos los equipos sin paginación (compatibilidad hacia atrás)
+        """
+        query = EquipoService._build_equipos_query(
+            nombre_equipo=nombre_equipo,
+            id_usuario_b2b=id_usuario_b2b,
+            activo=activo,
+            estado_alta=estado_alta
+        )
+        
+        return query.all()
 
     @staticmethod
     def get_equipo_by_id(equipo_id):
@@ -91,15 +138,19 @@ class EquipoService:
     
     @staticmethod
     def deactivate_equipo(equipo_id):
+        from app.models.entidades.equipos import EstadoAltaEquipo
         equipo = EquipoService.get_equipo_by_id(equipo_id)
-        equipo.activo = False
+        equipo.estado = False  # Inactivo
+        equipo.estado_alta = EstadoAltaEquipo.RECHAZADO  # Rechazado
         db.session.commit()
         return equipo
 
     @staticmethod
     def activate_equipo(equipo_id):
+        from app.models.entidades.equipos import EstadoAltaEquipo
         equipo = EquipoService.get_equipo_by_id(equipo_id)
-        equipo.activo = True
+        equipo.estado = True  # Activo
+        equipo.estado_alta = EstadoAltaEquipo.APROBADO  # Aprobado
         db.session.commit()
         return equipo
 

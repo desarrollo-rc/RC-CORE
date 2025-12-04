@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { showNotification } from '@mantine/notifications';
 import type { Instalacion } from '../types';
+import { UsuarioB2BSelect } from '../../usuarios-b2b/components/UsuarioB2BSelect';
 import { 
     aprobarInstalacion, 
     rechazarInstalacion, 
@@ -31,13 +32,31 @@ const rechazarSchema = z.object({
 type RechazarFormValues = z.infer<typeof rechazarSchema>;
 
 const crearUsuarioSchema = z.object({
-    nombre_completo: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
-    usuario: z.string().min(3, 'El usuario debe tener al menos 3 caracteres'),
-    email: z.string().email('Email inválido'),
+    nombre_completo: z.string().optional(),
+    usuario: z.string().optional(),
+    email: z.string().optional(),
     password: z.string().optional(),
     existe_en_sistema: z.boolean(),
     existe_en_corp: z.boolean(),
     id_usuario_b2b: z.number().optional(),
+}).refine((data) => {
+    if (data.existe_en_sistema) {
+        // Si existe_en_sistema es true, id_usuario_b2b es requerido
+        return !!data.id_usuario_b2b;
+    }
+    return true; // La validación de campos requeridos se hace en otro refine
+}, {
+    message: "Debe seleccionar un usuario B2B existente",
+    path: ["id_usuario_b2b"],
+}).refine((data) => {
+    if (!data.existe_en_sistema) {
+        // Si existe_en_sistema es false, los campos son requeridos
+        return !!(data.nombre_completo && data.usuario && data.email);
+    }
+    return true;
+}, {
+    message: "Complete todos los campos requeridos",
+    path: ["nombre_completo"],
 });
 type CrearUsuarioFormValues = z.infer<typeof crearUsuarioSchema>;
 
@@ -275,7 +294,7 @@ export function InstalacionActionPanel({ instalacion, onUpdate }: InstalacionAct
             <Modal opened={modalOpened} onClose={closeModal} title={getModalTitle(modalType)} centered size={modalType === 'equipo' ? 'xl' : 'md'}>
                 {modalType === 'aprobar' && <AprobarForm mutation={aprobarMutation} close={closeModal} />}
                 {modalType === 'rechazar' && <RechazarForm mutation={rechazarMutation} close={closeModal} />}
-                {modalType === 'usuario' && <CrearUsuarioForm mutation={crearUsuarioMutation} close={closeModal} />}
+                {modalType === 'usuario' && <CrearUsuarioForm instalacion={instalacion} mutation={crearUsuarioMutation} close={closeModal} />}
                 {modalType === 'equipo' && <GestionarEquipoForm instalacion={instalacion} onUpdate={onUpdate} close={closeModal} />}
                 {modalType === 'agendar' && <AgendarForm mutation={agendarMutation} close={closeModal} />}
                 {modalType === 'instalar' && <InstalarForm mutation={instalarMutation} close={closeModal} />}
@@ -407,11 +426,11 @@ function RechazarForm({ mutation, close }: { mutation: any; close: () => void })
     );
 }
 
-function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => void }) {
+function CrearUsuarioForm({ instalacion, mutation, close }: { instalacion: Instalacion; mutation: any; close: () => void }) {
     const [usarFechaPersonalizada, setUsarFechaPersonalizada] = useState(false);
     const [fechaPersonalizada, setFechaPersonalizada] = useState('');
 
-    const { register, handleSubmit, formState: { errors }, watch } = useForm<CrearUsuarioFormValues>({
+    const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<CrearUsuarioFormValues>({
         resolver: zodResolver(crearUsuarioSchema),
         defaultValues: { 
             nombre_completo: '',
@@ -419,11 +438,16 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
             email: '',
             password: '',
             existe_en_sistema: false,
-            existe_en_corp: false
+            existe_en_corp: false,
+            id_usuario_b2b: undefined
         },
     });
 
     const existeEnSistema = watch('existe_en_sistema');
+    const idUsuarioB2B = watch('id_usuario_b2b');
+    
+    // Obtener el ID del cliente de la instalación
+    const idCliente = instalacion.caso?.cliente?.id_cliente;
 
     const createLocalISOString = (date: Date) => {
         const year = date.getFullYear();
@@ -494,9 +518,24 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
                     />
                 </>
             ) : (
-                <Text c="orange" size="sm" mb="md">
-                    ⚠️ Funcionalidad de vincular usuario existente pendiente de implementar
-                </Text>
+                <Box mb="md">
+                    <UsuarioB2BSelect
+                        label="Seleccionar Usuario B2B Existente"
+                        idCliente={idCliente}
+                        value={idUsuarioB2B?.toString() || ''}
+                        onChange={(value) => {
+                            setValue('id_usuario_b2b', value ? Number(value) : undefined, { shouldValidate: true });
+                        }}
+                        error={errors.id_usuario_b2b?.message || (existeEnSistema && !idUsuarioB2B ? 'Debe seleccionar un usuario B2B' : false)}
+                        required
+                        description="Seleccione el usuario B2B existente del cliente para vincularlo a esta instalación"
+                    />
+                    {!idCliente && (
+                        <Text c="red" size="xs" mt="xs">
+                            No se pudo obtener el cliente de la instalación
+                        </Text>
+                    )}
+                </Box>
             )}
 
             <Divider my="md" />
@@ -551,8 +590,8 @@ function CrearUsuarioForm({ mutation, close }: { mutation: any; close: () => voi
 
             <Group justify="flex-end" mt="lg">
                 <Button variant="default" onClick={close}>Cancelar</Button>
-                <Button type="submit" loading={mutation.isPending} disabled={existeEnSistema}>
-                    Crear Usuario
+                <Button type="submit" loading={mutation.isPending}>
+                    {existeEnSistema ? 'Vincular Usuario' : 'Crear Usuario'}
                 </Button>
             </Group>
         </form>

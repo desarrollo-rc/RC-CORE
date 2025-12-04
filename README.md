@@ -1,60 +1,36 @@
-# RepuestoCenter
-Sistema para Repuesto Center SA
+# RC-CORE: Sistema de Gestión Repuesto Center
 
-venv -> source venv/bin/activate
+Sistema ERP/CRM Full Stack para la gestión de pedidos B2B, inventario y automatizaciones.
 
+## Arquitectura
+- **Backend:** Python (Flask), SQLAlchemy, PostgreSQL.
+- **Frontend:** React 19, TypeScript, Vite, Mantine UI. (pnpm)
+- **Automatización:** Integración con Gmail API (pedidos) y Playwright (gestión de sistemas externos). REQUIERE credentials.json
+
+## Prerrequisitos
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL
+- Driver ODBC 18 for SQL Server (para conexión legacy)
+
+## Configuración Rápida
+
+### 1. Backend
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # O venv\Scripts\activate en Windows
+pip install -r requirements.txt
+
+# Configurar variables de entorno
+.env backend
+.env frontend
+
+# Inicializar Base de Datos
+flask db upgrade
 flask run
 
-Modelos
-
-- MaestroClientes [x][x]
-- Reglas [x][]
-- Metricas [x][]
-- Usuarios [x][x]
-- Roles [x][x]
-- Permisos [x][x]
-- usuarioB2B [x][]
-- equipos[x][]
-- TipoCliente [x][x]
-- SegmentoCliente [x][x]
-- ListaPrecios [x][x]
-- CondicionPago [x][x]
-- TipoNegocio [x][]
-- Empresa [x][x]
-- TipoRegla [x][]
-- Direccion [x][x]
-- Contacto [x][x]
-- Canales [x][x]
-- Areas [x][x]
-- HistorialCambios[x][]
-- Vendedores[x][x]
-- Metas[x][]
-- Tipo de Metas[x][]
-- base_conocimientos[x][]
-- casos[x][]
-- instalaciones[x][]
-- tipos_casos[x][]
-- Productos
-- Origen
-- Fabrica
-- Proveedor
-- Calidad
-- Códigos Referencia
-- Códigos Tecnicos
-- Aplicaciones
-- Modelos
-- Marcas
-- Medidas
-- Atributos
-- Categoría
-- SubCategoria
-- Preventa
-- Pedidos
-- PI
-- CI
-- OC
-- Competencia
-
-
-
-margen = (PRECIO VENTA - COSTO ) / PRECIO VENTA
+# Frontend
+cd frontend
+pnpm install
+pnpm dev
