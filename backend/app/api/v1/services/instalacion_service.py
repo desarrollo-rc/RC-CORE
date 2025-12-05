@@ -595,16 +595,8 @@ class InstalacionService:
         
         # Crear usuario B2B automáticamente si es usuario adicional
         if es_usuario_adicional and datos_usuario_adicional:
-            nuevo_usuario = UsuarioB2B(
-                nombre_completo=datos_usuario_adicional['nombre_completo'],
-                usuario=datos_usuario_adicional['usuario'],
-                email=datos_usuario_adicional['email'],
-                id_cliente=id_cliente
-            )
-            nuevo_usuario.set_password(datos_usuario_adicional['password'])
-            db.session.add(nuevo_usuario)
-            db.session.flush()  # Para obtener el ID del usuario
-            id_usuario_b2b = nuevo_usuario.id_usuario_b2b
+            from app.api.v1.services.instalacion_service_helper import crear_usuario_b2b_con_automatizacion
+            nuevo_usuario, id_usuario_b2b = crear_usuario_b2b_con_automatizacion(datos_usuario_adicional, id_cliente)
         
         # Determinar la categoría y nombre del caso según la configuración
         if es_cambio_equipo:
@@ -737,16 +729,8 @@ class InstalacionService:
         
         # Crear usuario B2B automáticamente si es usuario adicional
         if es_usuario_adicional and datos_usuario_adicional:
-            nuevo_usuario = UsuarioB2B(
-                nombre_completo=datos_usuario_adicional['nombre_completo'],
-                usuario=datos_usuario_adicional['usuario'],
-                email=datos_usuario_adicional['email'],
-                id_cliente=id_cliente
-            )
-            nuevo_usuario.set_password(datos_usuario_adicional['password'])
-            db.session.add(nuevo_usuario)
-            db.session.flush()  # Para obtener el ID del usuario
-            id_usuario_b2b = nuevo_usuario.id_usuario_b2b
+            from app.api.v1.services.instalacion_service_helper import crear_usuario_b2b_con_automatizacion
+            nuevo_usuario, id_usuario_b2b = crear_usuario_b2b_con_automatizacion(datos_usuario_adicional, id_cliente)
         
         # Determinar la categoría y nombre del caso según la configuración
         if es_cambio_equipo:

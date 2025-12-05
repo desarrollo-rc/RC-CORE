@@ -1,6 +1,6 @@
 import React from 'react';
 import { useForm } from '@mantine/form';
-import { Button, Box, Textarea, Stack, Switch, Alert, Group, TextInput, NumberInput, Select, PasswordInput } from '@mantine/core';
+import { Button, Box, Textarea, Stack, Switch, Alert, Group, TextInput, NumberInput, Select, PasswordInput, LoadingOverlay } from '@mantine/core';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -215,7 +215,13 @@ export const InstallationRequestForm = ({ onSuccess }: InstallationRequestFormPr
   };
 
   return (
-    <Box>
+    <Box pos="relative">
+      <LoadingOverlay 
+        visible={mutation.isPending} 
+        overlayProps={{ radius: 'sm', blur: 2 }}
+        loaderProps={{ size: 'lg' }}
+        zIndex={1000}
+      />
       <Alert icon={<IconInfoCircle />} title="Proceso de Instalación" color="blue" mb="md">
         <strong>Flujo del proceso:</strong>
         <br />1. Crear solicitud → 2. Aprobación (si es cliente nuevo) → 3. Crear usuario → 4. Realizar instalación → 5. Finalizar
