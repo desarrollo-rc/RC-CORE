@@ -32,59 +32,136 @@ def crear_usuario(page: Page, codigo: str, nombre: str, contrasena: str, submit:
         page.get_by_role("button", name="Guardar").click()
 
 
-def buscar_y_abrir_usuario(page: Page, codigo_usuario: str, nombre_usuario: str) -> None:
-    """Busca en la tabla y abre el detalle del usuario cuyo código y nombre coinciden."""
-    go_to_usuarios(page)
-
-    page.get_by_role("textbox", name="Buscar Usuarios Canal").click()
-    page.get_by_role("textbox", name="Buscar Usuarios Canal").fill(codigo_usuario)
-    page.get_by_role("button", name="Buscar").click()
-    # Espera robusta a que el modal de resultados se abra; reintenta con Enter si es necesario
-    try:
-        page.wait_for_selector("#modalResBuscarAgrupacionesUsuarios.show", timeout=7000)
-    except Exception:
+def buscar_y_abrir_usuario(page: Page, codigo_usuario: str, nombre_usuario: str, max_intentos: int = 3) -> None:
+    """
+    Busca en la tabla y abre el detalle del usuario cuyo código y nombre coinciden.
+    
+    Args:
+        page: Página de Playwright
+        codigo_usuario: Código del usuario a buscar
+        nombre_usuario: Nombre del usuario a buscar
+        max_intentos: Número máximo de intentos para buscar el usuario (default: 3)
+    
+    Raises:
+        Exception: Si no se puede encontrar o abrir el usuario después de max_intentos
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+    
+    for intento in range(1, max_intentos + 1):
         try:
-            page.get_by_role("textbox", name="Buscar Usuarios Canal").press("Enter")
-            page.wait_for_selector("#modalResBuscarAgrupacionesUsuarios.show", timeout=7000)
-        except Exception:
-            print("No se abrió el modal de resultados")
-            return
+            print(f"[AUTOMATIZACION] Intento {intento}/{max_intentos} de búsqueda para usuario {codigo_usuario}")
+            go_to_usuarios(page)
 
-    # Trabajar dentro del modal de resultados explícitamente
-    modal = page.locator("#modalResBuscarAgrupacionesUsuarios")
-    modal.wait_for(state="visible")
-    rows = modal.locator("#tablaBuscarAgrupaciones tbody tr")
-    try:
-        rows.first.wait_for(state="visible", timeout=5000)
-    except Exception:
-        print("El modal abrió pero no hay filas de resultado")
-        return
-    count = rows.count()
-    match_row_index = None
-    for i in range(count):
-        row = rows.nth(i)
-        # Extrae columnas: 0=acción, 1=usuario, 2=nombre
-        tds = row.locator("td")
-        # Seguridad por si faltan columnas
-        if tds.count() < 3:
-            continue
+            page.get_by_role("textbox", name="Buscar Usuarios Canal").click()
+            page.get_by_role("textbox", name="Buscar Usuarios Canal").fill(codigo_usuario)
+            page.get_by_role("button", name="Buscar").click()
+            
+            # Espera robusta a que el modal de resultados se abra; reintenta con Enter si es necesario
+            try:
+                page.wait_for_selector("#modalResBuscarAgrupacionesUsuarios.show", timeout=7000)
+            except Exception:
+                try:
+                    page.get_by_role("textbox", name="Buscar Usuarios Canal").press("Enter")
+                    page.wait_for_selector("#modalResBuscarAgrupacionesUsuarios.show", timeout=7000)
+                except Exception:
+                    if intento < max_intentos:
+                        print(f"[AUTOMATIZACION] No se abrió el modal de resultados en intento {intento}, reintentando...")
+                        page.wait_for_timeout(2000)  # Esperar antes de reintentar
+                        continue
+                    else:
+                        raise Exception("No se abrió el modal de resultados después de múltiples intentos")
 
-        user_text = tds.nth(1).inner_text().strip()
-        name_text = tds.nth(2).inner_text().strip()
-        # No imprimir por rendimiento
+            # Trabajar dentro del modal de resultados explícitamente
+            modal = page.locator("#modalResBuscarAgrupacionesUsuarios")
+            modal.wait_for(state="visible")
+            rows = modal.locator("#tablaBuscarAgrupaciones tbody tr")
+            
+            try:
+                rows.first.wait_for(state="visible", timeout=5000)
+            except Exception:
+                if intento < max_intentos:
+                    print(f"[AUTOMATIZACION] El modal abrió pero no hay filas de resultado en intento {intento}, reintentando...")
+                    page.wait_for_timeout(2000)
+                    continue
+                else:
+                    raise Exception("El modal abrió pero no hay filas de resultado")
+            
+            count = rows.count()
+            match_row_index = None
+            for i in range(count):
+                row = rows.nth(i)
+                # Extrae columnas: 0=acción, 1=usuario, 2=nombre
+                tds = row.locator("td")
+                # Seguridad por si faltan columnas
+                if tds.count() < 3:
+                    continue
 
-        if match_row_index is None and user_text == codigo_usuario and name_text == nombre_usuario:
-            match_row_index = i
-    if match_row_index is None:
-        print(f"Sin resultados para: {codigo_usuario} / {nombre_usuario}")
-        return
-    # Mantiene el modal abierto y hace clic en la acción de la primera columna del primer match
-    row_to_click = rows.nth(match_row_index)
-    # Click forzado dentro del modal para evitar cualquier intercepción (dos veces para asegurar)
-    action_btn = row_to_click.locator("td").first.locator("a.btn, a, button, .btn").first
-    action_btn.click(force=True)
-    page.wait_for_timeout(1000)
-    action_btn.click(force=True)
+                user_text = tds.nth(1).inner_text().strip()
+                name_text = tds.nth(2).inner_text().strip()
+
+                if match_row_index is None and user_text == codigo_usuario and name_text == nombre_usuario:
+                    match_row_index = i
+            
+            if match_row_index is None:
+                if intento < max_intentos:
+                    print(f"[AUTOMATIZACION] Sin resultados para: {codigo_usuario} / {nombre_usuario} en intento {intento}, reintentando...")
+                    page.wait_for_timeout(3000)  # Esperar más tiempo antes de reintentar
+                    continue
+                else:
+                    raise Exception(f"Sin resultados para: {codigo_usuario} / {nombre_usuario} después de {max_intentos} intentos")
+            
+            # Mantiene el modal abierto y hace clic en la acción de la primera columna del primer match
+            row_to_click = rows.nth(match_row_index)
+            # Intentar hacer clic en el botón de acción con múltiples estrategias
+            action_btn = row_to_click.locator("td").first.locator("a.btn, a, button, .btn").first
+            
+            # Esperar a que el botón sea visible
+            try:
+                action_btn.wait_for(state="visible", timeout=5000)
+            except PlaywrightTimeoutError:
+                if intento < max_intentos:
+                    print(f"[AUTOMATIZACION] Botón de acción no visible en intento {intento}, reintentando...")
+                    page.wait_for_timeout(2000)
+                    continue
+                else:
+                    raise Exception("Botón de acción no visible después de múltiples intentos")
+            
+            # Intentar hacer clic
+            try:
+                action_btn.scroll_into_view_if_needed()
+                action_btn.click(timeout=5000)
+                page.wait_for_timeout(1000)
+                # Verificar que se abrió el detalle
+                try:
+                    page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=5000)
+                    print(f"[AUTOMATIZACION] Usuario {codigo_usuario} encontrado y abierto exitosamente")
+                    return  # Éxito, salir de la función
+                except Exception:
+                    # Si no se abrió el detalle, intentar hacer clic de nuevo
+                    action_btn.click(force=True)
+                    page.wait_for_timeout(1000)
+                    page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=5000)
+                    print(f"[AUTOMATIZACION] Usuario {codigo_usuario} encontrado y abierto exitosamente (segundo intento)")
+                    return  # Éxito, salir de la función
+            except Exception as e:
+                if intento < max_intentos:
+                    print(f"[AUTOMATIZACION] Error al hacer clic en botón de acción en intento {intento}: {str(e)}, reintentando...")
+                    page.wait_for_timeout(2000)
+                    continue
+                else:
+                    raise Exception(f"Error al hacer clic en botón de acción después de {max_intentos} intentos: {str(e)}")
+        
+        except Exception as e:
+            if intento < max_intentos:
+                print(f"[AUTOMATIZACION] Error en intento {intento}: {str(e)}, reintentando...")
+                page.wait_for_timeout(3000)
+                continue
+            else:
+                # Si es el último intento, relanzar la excepción
+                raise Exception(f"Error al buscar usuario {codigo_usuario} después de {max_intentos} intentos: {str(e)}")
+    
+    # Si llegamos aquí, todos los intentos fallaron
+    raise Exception(f"No se pudo buscar y abrir el usuario {codigo_usuario} después de {max_intentos} intentos")
 
 def asignar_canal_b2b(page: Page, codigo_usuario: str | None = None, nombre_usuario: str | None = None, rut: str | None = None, email: str | None = None) -> None:
     """Asigna canal B2B al usuario. Si no está en el detalle, puede buscarlo primero.

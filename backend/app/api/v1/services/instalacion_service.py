@@ -309,17 +309,42 @@ class InstalacionService:
                         else:
                             instalacion.observaciones = observacion
                         print(f"[AUTOMATIZACION] Usuario creado exitosamente en Corp")
+                        
+                        # Marcar como no pendiente si el campo existe
+                        if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                            nuevo_usuario.asociacion_empresa_pendiente = False
                     else:
-                        # Si falla la automatización, cambiar a CONFIGURACION_PENDIENTE
-                        instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
-                        error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
-                        if instalacion.observaciones:
-                            instalacion.observaciones += f"\n{error_msg}"
+                        # Verificar si el usuario se creó pero falló la asociación
+                        asociacion_pendiente = resultado.get("asociacion_pendiente", False)
+                        usuario_creado = resultado.get("usuario_creado", False)
+                        
+                        if asociacion_pendiente and usuario_creado:
+                            # Usuario creado en CORP pero falló la asociación empresa-usuario
+                            if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                                nuevo_usuario.asociacion_empresa_pendiente = True
+                            instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
+                            observacion = f"Usuario creado en Corp pero falló la asociación con la empresa. Error: {resultado.get('error')}. Se puede reintentar la asociación."
+                            if instalacion.observaciones:
+                                instalacion.observaciones += f"\n{observacion}"
+                            else:
+                                instalacion.observaciones = observacion
+                            current_app.logger.warning(
+                                f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado en Corp pero falló la asociación. "
+                                f"Error: {resultado.get('error')}. El usuario quedó marcado como pendiente de asociación."
+                            )
                         else:
-                            instalacion.observaciones = error_msg
-                        print(f"[AUTOMATIZACION] Error en automatización: {error_msg}")
-                        # Re-lanzar el error para que el endpoint pueda informarlo
-                        raise BusinessRuleError(error_msg)
+                            # Si falla la automatización completamente, cambiar a CONFIGURACION_PENDIENTE
+                            if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                                nuevo_usuario.asociacion_empresa_pendiente = False
+                            instalacion.estado = EstadoInstalacion.CONFIGURACION_PENDIENTE
+                            error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
+                            if instalacion.observaciones:
+                                instalacion.observaciones += f"\n{error_msg}"
+                            else:
+                                instalacion.observaciones = error_msg
+                            print(f"[AUTOMATIZACION] Error en automatización: {error_msg}")
+                            # No lanzar error si el usuario se creó localmente, solo loguear
+                            current_app.logger.warning(f"[AUTOMATIZACION] {error_msg}. El usuario se creó localmente.")
                         
                 except BusinessRuleError as e:
                     # Re-lanzar errores de negocio

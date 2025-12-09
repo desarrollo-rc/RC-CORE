@@ -130,3 +130,25 @@ def sugerir_nombre_usuario(cliente_id):
         return jsonify({"nombre_sugerido": nombre_sugerido}), 200
     except BusinessRuleError as e:
         return jsonify({"error": str(e)}), e.status_code
+
+@usuarios_b2b_bp.route('/<int:usuario_b2b_id>/reintentar-asociacion', methods=['POST'])
+@jwt_required()
+@permission_required('usuarios_b2b:editar')
+def reintentar_asociacion_empresa_usuario(usuario_b2b_id):
+    """
+    Reintenta la asociación empresa-usuario para un usuario que fue creado en Corp
+    pero falló la asociación inicial.
+    """
+    from flask import current_app
+    try:
+        usuario_b2b = UsuarioB2BService.reintentar_asociacion_empresa_usuario(usuario_b2b_id)
+        current_app.logger.info(f"[ENDPOINT] Asociación empresa-usuario completada para usuario ID: {usuario_b2b_id}")
+        return jsonify({
+            "message": "Asociación empresa-usuario completada exitosamente",
+            "usuario": usuarios_b2b_schema.dump(usuario_b2b)
+        }), 200
+    except BusinessRuleError as e:
+        return jsonify({"error": str(e)}), e.status_code
+    except Exception as e:
+        current_app.logger.error(f"[ENDPOINT] Error al reintentar asociación: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500

@@ -123,20 +123,39 @@ class UsuarioB2BService:
                 print(f"[AUTOMATIZACION] Resultado de automatización: {resultado}")
                 
                 if resultado["success"]:
+                    # Usuario creado y asociación completada exitosamente
+                    if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                        nuevo_usuario.asociacion_empresa_pendiente = False
                     print(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado exitosamente en Corp")
                     try:
                         current_app.logger.info(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado exitosamente en Corp: {resultado['message']}")
                     except:
                         pass
                 else:
-                    # Si falla, loguear el error pero no bloquear la creación del usuario en BD
-                    error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
-                    print(f"[AUTOMATIZACION] ⚠️ {error_msg}")
-                    try:
-                        current_app.logger.warning(f"[AUTOMATIZACION] {error_msg}")
-                    except:
-                        pass
-                    # No bloqueamos la creación, solo registramos el error
+                    # Verificar si el usuario se creó pero falló la asociación
+                    asociacion_pendiente = resultado.get("asociacion_pendiente", False)
+                    usuario_creado = resultado.get("usuario_creado", False)
+                    
+                    if asociacion_pendiente and usuario_creado:
+                        # Usuario creado en CORP pero falló la asociación empresa-usuario
+                        if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                            nuevo_usuario.asociacion_empresa_pendiente = True
+                        error_msg = f"Usuario {nuevo_usuario.usuario} creado en Corp pero falló la asociación con la empresa. Error: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
+                        print(f"[AUTOMATIZACION] ⚠️ {error_msg}")
+                        try:
+                            current_app.logger.warning(f"[AUTOMATIZACION] {error_msg}. El usuario quedó marcado como pendiente de asociación.")
+                        except:
+                            pass
+                    else:
+                        # Fallo completo en la creación
+                        if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                            nuevo_usuario.asociacion_empresa_pendiente = False
+                        error_msg = f"Error al crear usuario en Corp: {resultado.get('error', resultado.get('message', 'Error desconocido'))}"
+                        print(f"[AUTOMATIZACION] ⚠️ {error_msg}")
+                        try:
+                            current_app.logger.warning(f"[AUTOMATIZACION] {error_msg}")
+                        except:
+                            pass
                     
             except Exception as e:
                 # Para cualquier error en la automatización, loguear pero no bloquear la creación del usuario
@@ -228,4 +247,69 @@ class UsuarioB2BService:
         else:
             # Si no hay patrones claros, usar un patrón genérico
             return "usuario1"
+    
+    @staticmethod
+    def reintentar_asociacion_empresa_usuario(usuario_id):
+        """
+        Reintenta la asociación empresa-usuario para un usuario que fue creado en Corp
+        pero falló la asociación inicial.
+        
+        Args:
+            usuario_id: ID del usuario B2B
+            
+        Returns:
+            UsuarioB2B actualizado
+        """
+        from flask import current_app
+        
+        usuario = UsuarioB2BService.get_usuario_b2b_by_id(usuario_id)
+        
+        # Verificar si el campo existe y si está marcado como pendiente
+        if hasattr(usuario, 'asociacion_empresa_pendiente'):
+            if not usuario.asociacion_empresa_pendiente:
+                raise BusinessRuleError("El usuario no está marcado como pendiente de asociación")
+        else:
+            # Si el campo no existe, permitir el reintento de todas formas
+            current_app.logger.info(f"[AUTOMATIZACION] Campo asociacion_empresa_pendiente no existe en BD, permitiendo reintento de todas formas")
+        
+        # Obtener datos del cliente
+        from app.models.entidades.maestro_clientes import MaestroClientes
+        cliente = MaestroClientes.query.get(usuario.id_cliente)
+        if not cliente:
+            raise RelatedResourceNotFoundError(f"El cliente con ID {usuario.id_cliente} no existe.")
+        
+        # Llamar a la función de reintento
+        try:
+            from automatizaciones.playwright.usuario_automation import reintentar_asociacion_empresa_usuario
+            
+            headless_mode = os.environ.get("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+            
+            current_app.logger.info(f"[AUTOMATIZACION] Reintentando asociación empresa-usuario para: {usuario.usuario}")
+            
+            resultado = reintentar_asociacion_empresa_usuario(
+                codigo=usuario.usuario,
+                nombre=usuario.nombre_completo,
+                rut_cliente=cliente.rut_cliente,
+                email=usuario.email,
+                headless=headless_mode
+            )
+            
+            if resultado["success"]:
+                # Marcar como completado si el campo existe
+                if hasattr(usuario, 'asociacion_empresa_pendiente'):
+                    usuario.asociacion_empresa_pendiente = False
+                db.session.commit()
+                current_app.logger.info(f"[AUTOMATIZACION] Asociación empresa-usuario completada exitosamente para: {usuario.usuario}")
+                return usuario
+            else:
+                # Mantener como pendiente
+                db.session.commit()
+                error_msg = resultado.get("error", resultado.get("message", "Error desconocido"))
+                current_app.logger.warning(f"[AUTOMATIZACION] Error al reintentar asociación para {usuario.usuario}: {error_msg}")
+                raise BusinessRuleError(f"No se pudo completar la asociación: {error_msg}")
+                
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"[AUTOMATIZACION] Error al reintentar asociación: {str(e)}", exc_info=True)
+            raise BusinessRuleError(f"Error al reintentar asociación: {str(e)}")
     

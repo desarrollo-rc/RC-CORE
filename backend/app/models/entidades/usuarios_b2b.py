@@ -18,6 +18,9 @@ class UsuarioB2B(db.Model, MixinAuditoria):
     cliente = db.relationship('MaestroClientes', back_populates='usuarios_b2b')
 
     equipos = db.relationship('Equipo', back_populates='usuario_b2b')
+    
+    # Nota: El campo asociacion_empresa_pendiente se agregará en una migración futura
+    # Por ahora, el código verifica su existencia con hasattr() antes de usarlo
 
     @validates('usuario', 'email', 'nombre_completo')
     def validate_fields(self, key, value):

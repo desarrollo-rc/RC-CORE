@@ -55,10 +55,15 @@ def crear_usuario_corp(
             context = browser.new_context()
             page = context.new_page()
             
+            usuario_creado = False
+            usuario_encontrado = False
+            
             try:
                 # Paso 1: Crear el usuario
                 print(f"[AUTOMATIZACION] Paso 1: Creando usuario {codigo} en Corp...")
                 crear_usuario(page, codigo=codigo, nombre=nombre, contrasena=contrasena, submit=True)
+                usuario_creado = True
+                print(f"[AUTOMATIZACION] Usuario {codigo} creado exitosamente en Corp")
                 
                 # Esperar a que se cierre el modal de creación y la página se estabilice
                 try:
@@ -82,35 +87,66 @@ def crear_usuario_corp(
                 except Exception:
                     pass
                 
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)  # Esperar un poco más para que el usuario esté disponible
                 
                 # Paso 2: Buscar y abrir el usuario recién creado
                 print(f"[AUTOMATIZACION] Paso 2: Buscando usuario {codigo} en Corp...")
-                buscar_y_abrir_usuario(page, codigo_usuario=codigo, nombre_usuario=nombre)
-                
-                # Esperar a que se abra el detalle completamente
-                page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=10000)
-                page.wait_for_timeout(1000)
-                
-                # Paso 3: Asignar canal B2B
-                print(f"[AUTOMATIZACION] Paso 3: Asignando canal B2B al usuario {codigo}...")
-                asignar_canal_b2b(
-                    page,
-                    codigo_usuario=codigo,
-                    nombre_usuario=nombre,
-                    rut=rut_cliente,
-                    email=email
-                )
-                print(f"[AUTOMATIZACION] Canal B2B asignado exitosamente")
-                
-                context.close()
-                browser.close()
-                
-                return {
-                    "success": True,
-                    "message": f"Usuario {codigo} creado exitosamente en Corp y canal B2B asignado",
-                    "error": None
-                }
+                try:
+                    buscar_y_abrir_usuario(page, codigo_usuario=codigo, nombre_usuario=nombre)
+                    usuario_encontrado = True
+                    
+                    # Esperar a que se abra el detalle completamente
+                    page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=10000)
+                    page.wait_for_timeout(1000)
+                    
+                    # Paso 3: Asignar canal B2B
+                    print(f"[AUTOMATIZACION] Paso 3: Asignando canal B2B al usuario {codigo}...")
+                    try:
+                        asignar_canal_b2b(
+                            page,
+                            codigo_usuario=codigo,
+                            nombre_usuario=nombre,
+                            rut=rut_cliente,
+                            email=email
+                        )
+                        print(f"[AUTOMATIZACION] Canal B2B asignado exitosamente")
+                        
+                        context.close()
+                        browser.close()
+                        
+                        return {
+                            "success": True,
+                            "message": f"Usuario {codigo} creado exitosamente en Corp y canal B2B asignado",
+                            "error": None,
+                            "usuario_creado": True,
+                            "asociacion_pendiente": False
+                        }
+                    except Exception as e_asignacion:
+                        # Usuario creado y encontrado, pero falló la asignación del canal
+                        print(f"[AUTOMATIZACION] Error al asignar canal B2B: {str(e_asignacion)}")
+                        context.close()
+                        browser.close()
+                        return {
+                            "success": False,
+                            "message": f"Usuario {codigo} creado en Corp pero falló la asignación del canal B2B",
+                            "error": str(e_asignacion),
+                            "usuario_creado": True,
+                            "usuario_encontrado": True,
+                            "asociacion_pendiente": True
+                        }
+                except Exception as e_busqueda:
+                    # Usuario creado pero no se pudo encontrar/abrir
+                    print(f"[AUTOMATIZACION] Error al buscar usuario después de crearlo: {str(e_busqueda)}")
+                    context.close()
+                    browser.close()
+                    return {
+                        "success": False,
+                        "message": f"Usuario {codigo} creado en Corp pero no se pudo encontrar para asociar con la empresa",
+                        "error": str(e_busqueda),
+                        "usuario_creado": True,
+                        "usuario_encontrado": False,
+                        "asociacion_pendiente": True
+                    }
                 
             except PlaywrightTimeoutError as e:
                 context.close()
@@ -118,7 +154,9 @@ def crear_usuario_corp(
                 return {
                     "success": False,
                     "message": "Timeout al crear usuario en Corp",
-                    "error": str(e)
+                    "error": str(e),
+                    "usuario_creado": usuario_creado,
+                    "asociacion_pendiente": usuario_creado  # Si se creó pero falló, está pendiente
                 }
             except Exception as e:
                 context.close()
@@ -126,7 +164,9 @@ def crear_usuario_corp(
                 return {
                     "success": False,
                     "message": f"Error al crear usuario en Corp: {str(e)}",
-                    "error": str(e)
+                    "error": str(e),
+                    "usuario_creado": usuario_creado,
+                    "asociacion_pendiente": usuario_creado  # Si se creó pero falló, está pendiente
                 }
                 
     except Exception as e:
@@ -160,7 +200,7 @@ def verificar_usuario_existe_corp(codigo_usuario: str, nombre_usuario: str, head
             
             try:
                 go_to_usuarios(page)
-                buscar_y_abrir_usuario(page, codigo_usuario=codigo_usuario, nombre_usuario=nombre_usuario)
+                buscar_y_abrir_usuario(page, codigo_usuario=codigo_usuario, nombre_usuario=nombre_usuario, max_intentos=2)
                 
                 # Verificar si estamos en el detalle del usuario
                 try:
@@ -197,6 +237,90 @@ def verificar_usuario_existe_corp(codigo_usuario: str, nombre_usuario: str, head
         return {
             "exists": False,
             "message": f"Error al inicializar Playwright: {str(e)}",
+            "error": str(e)
+        }
+
+
+def reintentar_asociacion_empresa_usuario(
+    codigo: str,
+    nombre: str,
+    rut_cliente: str,
+    email: str,
+    headless: bool = True
+) -> Dict:
+    """
+    Reintenta la asociación empresa-usuario para un usuario que ya existe en Corp.
+    Esta función se usa cuando un usuario fue creado pero falló la asociación inicial.
+    
+    Args:
+        codigo: Código del usuario
+        nombre: Nombre completo del usuario
+        rut_cliente: RUT del cliente (formato: 12345678-9)
+        email: Email del usuario
+        headless: Si ejecutar en modo headless (sin ventana visible)
+    
+    Returns:
+        Dict con:
+            - success: bool - Si la operación fue exitosa
+            - message: str - Mensaje descriptivo
+            - error: str - Mensaje de error si falló
+    """
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless)
+            context = browser.new_context()
+            page = context.new_page()
+            
+            try:
+                # Paso 1: Buscar y abrir el usuario existente
+                print(f"[AUTOMATIZACION] Reintentando asociación: Buscando usuario {codigo} en Corp...")
+                buscar_y_abrir_usuario(page, codigo_usuario=codigo, nombre_usuario=nombre)
+                
+                # Esperar a que se abra el detalle completamente
+                page.wait_for_selector("#txtCodigoUsuario", state="visible", timeout=10000)
+                page.wait_for_timeout(1000)
+                
+                # Paso 2: Asignar canal B2B
+                print(f"[AUTOMATIZACION] Reintentando asociación: Asignando canal B2B al usuario {codigo}...")
+                asignar_canal_b2b(
+                    page,
+                    codigo_usuario=codigo,
+                    nombre_usuario=nombre,
+                    rut=rut_cliente,
+                    email=email
+                )
+                print(f"[AUTOMATIZACION] Reintento exitoso: Canal B2B asignado")
+                
+                context.close()
+                browser.close()
+                
+                return {
+                    "success": True,
+                    "message": f"Asociación empresa-usuario completada exitosamente para {codigo}",
+                    "error": None
+                }
+                
+            except PlaywrightTimeoutError as e:
+                context.close()
+                browser.close()
+                return {
+                    "success": False,
+                    "message": "Timeout al reintentar asociación empresa-usuario",
+                    "error": str(e)
+                }
+            except Exception as e:
+                context.close()
+                browser.close()
+                return {
+                    "success": False,
+                    "message": f"Error al reintentar asociación empresa-usuario: {str(e)}",
+                    "error": str(e)
+                }
+                
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error al inicializar Playwright para reintento: {str(e)}",
             "error": str(e)
         }
 

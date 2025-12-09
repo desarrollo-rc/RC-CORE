@@ -72,9 +72,34 @@ def crear_usuario_b2b_con_automatizacion(datos_usuario_adicional, id_cliente):
             )
             
             if resultado["success"]:
+                # Usuario creado y asociación completada exitosamente
+                if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                    nuevo_usuario.asociacion_empresa_pendiente = False
+                db.session.commit()
                 current_app.logger.info(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado exitosamente en Corp: {resultado['message']}")
             else:
-                current_app.logger.warning(f"[AUTOMATIZACION] No se pudo crear usuario {nuevo_usuario.usuario} en Corp: {resultado.get('error')}. El usuario se creó localmente.")
+                # Verificar si el usuario se creó pero falló la asociación
+                asociacion_pendiente = resultado.get("asociacion_pendiente", False)
+                usuario_creado = resultado.get("usuario_creado", False)
+                
+                if asociacion_pendiente and usuario_creado:
+                    # Usuario creado en CORP pero falló la asociación empresa-usuario
+                    if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                        nuevo_usuario.asociacion_empresa_pendiente = True
+                    db.session.commit()
+                    current_app.logger.warning(
+                        f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} creado en Corp pero falló la asociación con la empresa. "
+                        f"Error: {resultado.get('error')}. El usuario quedó marcado como pendiente de asociación."
+                    )
+                else:
+                    # Fallo completo en la creación
+                    if hasattr(nuevo_usuario, 'asociacion_empresa_pendiente'):
+                        nuevo_usuario.asociacion_empresa_pendiente = False
+                    db.session.commit()
+                    current_app.logger.warning(
+                        f"[AUTOMATIZACION] No se pudo crear usuario {nuevo_usuario.usuario} en Corp: {resultado.get('error')}. "
+                        f"El usuario se creó localmente."
+                    )
         else:
             current_app.logger.info(f"[AUTOMATIZACION] Usuario {nuevo_usuario.usuario} ya existe en Corp, no se requiere creación.")
             
